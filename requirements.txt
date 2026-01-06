@@ -1,2 +1,11 @@
-opencv-python==4.8.1.78
-Pillow==10.0.0
+# UI 框架
+PyQt6>=6.4.0
+
+# 图像处理与计算
+opencv-python>=4.8.0
+numpy>=1.24.0
+
+# 打包工具
+nuitka
+zstandard
+ordered-set

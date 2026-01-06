@@ -1,2 +1,32 @@
+# Python
 __pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+ENV/
+
+# Build outputs
+dist/
+build/
+*.spec
+*.exe
+
+# IDE
 .vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Large binary files (downloaded in CI)
+ffmpeg.exe
