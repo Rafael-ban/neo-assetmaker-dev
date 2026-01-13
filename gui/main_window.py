@@ -599,7 +599,7 @@ class MainWindow(QMainWindow):
             f"<h3>{APP_NAME}</h3>"
             f"<p>版本: {APP_VERSION}</p>"
             f"<p>明日方舟通行证素材制作器</p>"
-            f"<p>融合 ep_material_maker 和 decompiled 项目</p>"
+            f"<p>by Rafael_ban</p>"
         )
 
     def _on_config_changed(self):
