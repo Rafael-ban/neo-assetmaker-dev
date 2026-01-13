@@ -22,17 +22,26 @@ jobs:
           python-version: '3.12'
           cache: 'pip'
 
+      # 新增：缓存 Nuitka 编译产物，加速后续构建
+      - name: Nuitka cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            **/Nuitka
+            **/*.ccache
+          key: ${{ runner.os }}-nuitka-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-nuitka-
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
+          # 关键优化：优先安装 CPU 版本的 Torch，避免下载巨大的 CUDA 版本
+          pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
           pip install -r requirements.txt
           
-      # 安装额外的系统依赖
-      - name: Install system dependencies
-        run: |
-          # 安装 Visual Studio Build Tools（如果需要）
-          choco install visualstudio2019buildtools --package-parameters "--add Microsoft.VisualStudio.Workload.VCTools"
-        continue-on-error: true
+      # 已删除冗余的 'Install system dependencies' (choco install visualstudio2019buildtools) 步骤
+      # windows-latest 自带 VS2022 环境，无需重复安装
 
       - name: Download FFmpeg
         run: |
@@ -55,6 +64,7 @@ jobs:
       - name: Build with Nuitka (verbose)
         run: |
           echo "Starting Nuitka build with verbose output..."
+          # 注意：移除了 --verbose 以减少日志量（如果日志过大会导致Actions网页卡顿），保留 --show-progress
           python -m nuitka --standalone --onefile `
             --output-filename=ArknightsPassMaker.exe `
             --windows-console-mode=disable `
@@ -71,7 +81,6 @@ jobs:
             --windows-icon-from-ico=resources/icons/favicon.ico `
             --show-progress `
             --show-memory `
-            --verbose `
             main.py
         shell: pwsh
 
@@ -97,7 +106,7 @@ jobs:
         with:
           name: ArknightsPassMaker
           path: dist/*.exe
-        if: always()  # 即使构建失败也上传日志
+        if: always()
 
       - name: Create Release
         if: startsWith(github.ref, 'refs/tags/')
