@@ -21,6 +21,26 @@ NUITKA_ARGS = [
     "--assume-yes-for-downloads",
     "--remove-output",
     "--output-dir=dist",
+    "--module-parameter=torch-disable-jit=yes",
+    # 内存优化：减少并行编译
+    "--jobs=1",
+    # 禁用 LTO 以减少内存使用
+    "--lto=no",
+    # 排除不需要的大型模块（sympy 被 torch 引入但实际不需要）
+    "--nofollow-import-to=sympy",
+    "--nofollow-import-to=sympy.*",
+    "--nofollow-import-to=torch.testing",
+    "--nofollow-import-to=torch.utils.tensorboard",
+    "--nofollow-import-to=torch.utils.benchmark",
+    "--nofollow-import-to=torch.distributed",
+    "--nofollow-import-to=torchvision",
+    "--nofollow-import-to=torchaudio",
+    # 排除其他不需要的大型测试模块
+    "--nofollow-import-to=pytest",
+    "--nofollow-import-to=unittest",
+    "--nofollow-import-to=IPython",
+    "--nofollow-import-to=notebook",
+    "--nofollow-import-to=jupyter",
     MAIN_SCRIPT,
 ]
 
