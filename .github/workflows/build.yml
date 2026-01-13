@@ -26,6 +26,13 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+          
+      # 安装额外的系统依赖
+      - name: Install system dependencies
+        run: |
+          # 安装 Visual Studio Build Tools（如果需要）
+          choco install visualstudio2019buildtools --package-parameters "--add Microsoft.VisualStudio.Workload.VCTools"
+        continue-on-error: true
 
       - name: Download FFmpeg
         run: |
@@ -37,8 +44,36 @@ jobs:
           Remove-Item -Recurse -Force ffmpeg_temp, ffmpeg.zip
         shell: pwsh
 
-      - name: Build with Nuitka
-        run: python build.py
+      - name: Verify project structure
+        run: |
+          echo "Current directory contents:"
+          Get-ChildItem -Recurse | Select-Object Name, FullName | Format-Table
+          echo "Python path:"
+          python -c "import sys; print('\n'.join(sys.path))"
+        shell: pwsh
+
+      - name: Build with Nuitka (verbose)
+        run: |
+          echo "Starting Nuitka build with verbose output..."
+          python -m nuitka --standalone --onefile `
+            --output-filename=ArknightsPassMaker.exe `
+            --windows-console-mode=disable `
+            --enable-plugin=pyqt6 `
+            --include-package=config `
+            --include-package=core `
+            --include-package=gui `
+            --include-package=utils `
+            --include-data-dir=resources=resources `
+            --include-data-files=ffmpeg.exe=ffmpeg.exe `
+            --assume-yes-for-downloads `
+            --remove-output `
+            --output-dir=dist `
+            --windows-icon-from-ico=resources/icons/favicon.ico `
+            --show-progress `
+            --show-memory `
+            --verbose `
+            main.py
+        shell: pwsh
 
       - name: Get version from tag
         if: startsWith(github.ref, 'refs/tags/')
@@ -62,6 +97,7 @@ jobs:
         with:
           name: ArknightsPassMaker
           path: dist/*.exe
+        if: always()  # 即使构建失败也上传日志
 
       - name: Create Release
         if: startsWith(github.ref, 'refs/tags/')
