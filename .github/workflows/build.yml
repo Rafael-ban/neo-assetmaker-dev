@@ -9,8 +9,10 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
+  # Standard build (without OCR) - fast build
+  build-standard:
     runs-on: windows-latest
+    timeout-minutes: 45
 
     steps:
       - name: Checkout code
@@ -28,9 +30,9 @@ jobs:
           path: |
             ~\AppData\Local\Nuitka
             ~\.nuitka
-          key: nuitka-${{ runner.os }}-${{ hashFiles('requirements.txt') }}
+          key: nuitka-standard-${{ runner.os }}-${{ hashFiles('requirements.txt') }}
           restore-keys: |
-            nuitka-${{ runner.os }}-
+            nuitka-standard-${{ runner.os }}-
 
       - name: Install dependencies
         run: |
@@ -68,39 +70,114 @@ jobs:
           Write-Host "Version verified: $version"
         shell: pwsh
 
-      - name: Build with Nuitka
+      - name: Build Standard Version
         run: python build.py
-        timeout-minutes: 60
-
-      - name: Get version from tag
-        if: startsWith(github.ref, 'refs/tags/')
-        id: version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
-        shell: bash
-
-      - name: Package release files
-        if: startsWith(github.ref, 'refs/tags/')
-        run: |
-          mkdir release
-          Copy-Item dist\*.exe release\
-          Copy-Item ffmpeg.exe release\
-          Copy-Item README.md release\
-          Copy-Item -Recurse resources release\
-          Compress-Archive -Path release\* -DestinationPath "ArknightsPassMaker-${{ steps.version.outputs.VERSION }}-win64.zip"
-        shell: pwsh
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ArknightsPassMaker
-          path: dist/*.exe
+          name: ArknightsPassMaker-Standard
+          path: dist/ArknightsPassMaker.exe
+
+  # OCR build (with easyocr/torch) - slow build
+  build-ocr:
+    runs-on: windows-latest
+    timeout-minutes: 180
+    # Only build OCR version for releases to save CI time
+    if: startsWith(github.ref, 'refs/tags/')
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Cache Nuitka OCR
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~\AppData\Local\Nuitka
+            ~\.nuitka
+          key: nuitka-ocr-${{ runner.os }}-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            nuitka-ocr-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Cache FFmpeg
+        id: cache-ffmpeg
+        uses: actions/cache@v4
+        with:
+          path: ffmpeg.exe
+          key: ffmpeg-win64-latest
+
+      - name: Download FFmpeg
+        if: steps.cache-ffmpeg.outputs.cache-hit != 'true'
+        run: |
+          $url = "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip"
+          Invoke-WebRequest -Uri $url -OutFile ffmpeg.zip
+          Expand-Archive -Path ffmpeg.zip -DestinationPath ffmpeg_temp
+          $ffmpegExe = Get-ChildItem -Path ffmpeg_temp -Recurse -Filter "ffmpeg.exe" | Select-Object -First 1
+          Copy-Item $ffmpegExe.FullName -Destination "ffmpeg.exe"
+          Remove-Item -Recurse -Force ffmpeg_temp, ffmpeg.zip
+        shell: pwsh
+
+      - name: Build OCR Version
+        run: python build.py --with-ocr
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ArknightsPassMaker-OCR
+          path: dist/ArknightsPassMaker-OCR.exe
+
+  # Release job - waits for both builds
+  release:
+    needs: [build-standard, build-ocr]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download Standard artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ArknightsPassMaker-Standard
+          path: dist/
+
+      - name: Download OCR artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ArknightsPassMaker-OCR
+          path: dist/
+
+      - name: Get version from tag
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Package release files
+        run: |
+          mkdir -p release
+          cp dist/*.exe release/
+          cp README.md release/
+          cp -r resources release/
+          cd release && zip -r "../ArknightsPassMaker-${{ steps.version.outputs.VERSION }}-win64.zip" .
 
       - name: Create Release
-        if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            dist/*.exe
+            dist/ArknightsPassMaker.exe
+            dist/ArknightsPassMaker-OCR.exe
             ArknightsPassMaker-*.zip
           generate_release_notes: true
           draft: false
@@ -108,45 +185,48 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+  # Notification job
   notify:
-    needs: build
+    needs: [build-standard, build-ocr, release]
     runs-on: ubuntu-latest
     if: always() && startsWith(github.ref, 'refs/tags/')
     steps:
       - name: Send success email
-        if: needs.build.result == 'success'
+        if: needs.release.result == 'success'
         uses: dawidd6/action-send-mail@v3
         with:
           server_address: smtp.gmail.com
           server_port: 587
           username: ${{ secrets.MAIL_USERNAME }}
           password: ${{ secrets.MAIL_PASSWORD }}
-          subject: "✅ ArknightsPassMaker ${{ github.ref_name }} 构建成功"
+          subject: "ArknightsPassMaker ${{ github.ref_name }} Build Success"
           body: |
-            构建成功！
+            Build successful!
 
-            版本: ${{ github.ref_name }}
-            提交: ${{ github.sha }}
+            Version: ${{ github.ref_name }}
+            Commit: ${{ github.sha }}
 
             Release: https://github.com/${{ github.repository }}/releases/tag/${{ github.ref_name }}
           to: ${{ secrets.MAIL_TO }}
           from: ArknightsPassMaker Build
 
       - name: Send failure email
-        if: needs.build.result == 'failure'
+        if: needs.build-standard.result == 'failure' || needs.build-ocr.result == 'failure' || needs.release.result == 'failure'
         uses: dawidd6/action-send-mail@v3
         with:
           server_address: smtp.gmail.com
           server_port: 587
           username: ${{ secrets.MAIL_USERNAME }}
           password: ${{ secrets.MAIL_PASSWORD }}
-          subject: "❌ ArknightsPassMaker ${{ github.ref_name }} 构建失败"
+          subject: "ArknightsPassMaker ${{ github.ref_name }} Build Failed"
           body: |
-            构建失败！
+            Build failed!
 
-            版本: ${{ github.ref_name }}
-            提交: ${{ github.sha }}
+            Version: ${{ github.ref_name }}
+            Commit: ${{ github.sha }}
+            Standard Build: ${{ needs.build-standard.result }}
+            OCR Build: ${{ needs.build-ocr.result }}
 
-            查看日志: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+            View logs: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
           to: ${{ secrets.MAIL_TO }}
           from: ArknightsPassMaker Build
