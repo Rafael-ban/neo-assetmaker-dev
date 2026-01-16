@@ -74,11 +74,12 @@ def main():
     from PyQt6.QtCore import Qt
 
     from gui.main_window import MainWindow
+    from config.constants import APP_VERSION
 
     # 创建应用程序
     app = QApplication(sys.argv)
     app.setApplicationName("明日方舟通行证素材制作器")
-    app.setApplicationVersion("1.0.0")
+    app.setApplicationVersion(APP_VERSION)
     app.setOrganizationName("ArknightsPassMaker")
 
     # 设置应用程序图标
