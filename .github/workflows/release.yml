@@ -5,6 +5,13 @@ on:
     branches: [main, master]
     paths:
       - 'README.md'
+  workflow_dispatch:
+    inputs:
+      force_release:
+        description: '强制发布（跳过版本变更检查）'
+        required: false
+        type: boolean
+        default: false
 
 jobs:
   check-version:
@@ -54,7 +61,9 @@ jobs:
 
   build-and-release:
     needs: check-version
-    if: needs.check-version.outputs.version_changed == 'true' && needs.check-version.outputs.tag_exists == 'false' && needs.check-version.outputs.version != ''
+    if: |
+      (needs.check-version.outputs.version_changed == 'true' && needs.check-version.outputs.tag_exists == 'false' && needs.check-version.outputs.version != '') ||
+      (github.event_name == 'workflow_dispatch' && inputs.force_release && needs.check-version.outputs.version != '')
     runs-on: windows-latest
     timeout-minutes: 90
 
