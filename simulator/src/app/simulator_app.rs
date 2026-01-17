@@ -1034,19 +1034,33 @@ impl SimulatorApp {
         let offsets = &self.firmware_config.layout.offsets;
         let btm_info_x = offsets.btm_info_x as f32 * scale_x + image_rect.min.x;
         let theme_color = self.get_theme_color();
+        let entry_alpha = (anim.entry_progress * 255.0) as u8;
 
-        // 1. Draw template as base layer (contains all static decorations:
-        //    top-left corner, top-right gradient, right side bar, vertical text,
-        //    bottom-left gradient, logo background)
-        if let Some(ref template) = self.overlay_template_texture {
-            let uv = Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0));
-            // Apply entry animation alpha for smooth fade-in
-            let entry_alpha = (anim.entry_progress * 255.0) as u8;
-            let tint = Color32::from_rgba_unmultiplied(255, 255, 255, entry_alpha);
-            painter.image(template.id(), image_rect, uv, tint);
-        }
+        // ============================================
+        // 1. Draw static decoration elements (replaces overlay_template.png)
+        // ============================================
 
-        // 2. Render dynamic elements only (on top of the template)
+        // 1.1 Top-left black L-shape decoration
+        self.render_top_left_corner(painter, image_rect, scale_x, scale_y, entry_alpha);
+
+        // 1.2 Top-right gradient + arrows
+        self.render_top_right_gradient(painter, image_rect, scale_x, scale_y, entry_alpha);
+
+        // 1.3 Right side black bar + "RHODES ISLAND" text
+        self.render_right_side_bar(painter, image_rect, scale_x, scale_y, y_offset, entry_alpha);
+
+        // 1.4 Left colorful gradient stripe
+        self.render_left_gradient_stripe(painter, image_rect, scale_x, scale_y, y_offset, entry_alpha);
+
+        // 1.5 Bottom-left light cyan-blue gradient
+        self.render_bottom_left_gradient(painter, image_rect, scale_x, scale_y, y_offset, entry_alpha);
+
+        // 1.6 Bottom-right logo background
+        self.render_logo_background(painter, image_rect, scale_x, scale_y, y_offset, entry_alpha);
+
+        // ============================================
+        // 2. Render dynamic elements
+        // ============================================
 
         // Arrow indicator (3 yellow chevrons pointing upward with scrolling animation)
         self.render_arrow_indicator(painter, image_rect, scale_x, scale_y, y_offset, theme_color);
@@ -1421,10 +1435,227 @@ impl SimulatorApp {
         }
     }
 
-    // NOTE: Static decoration functions removed (render_top_left_corner, render_right_side_bar,
-    // render_top_right_gradient, render_bottom_left_gradient, render_logo_background, render_vertical_text)
-    // These elements are now pre-rendered in overlay_template.png to match C firmware behavior.
-    // C firmware uses fbdraw_copy_rect() to copy pre-rendered assets, not programmatic drawing.
+    // ============================================
+    // Static decoration rendering functions
+    // (Replaces overlay_template.png to avoid overlap with dynamic elements)
+    // ============================================
+
+    /// Render top-left black L-shape decoration
+    fn render_top_left_corner(
+        &self,
+        painter: &egui::Painter,
+        image_rect: Rect,
+        scale_x: f32,
+        scale_y: f32,
+        alpha: u8,
+    ) {
+        let color = Color32::from_rgba_unmultiplied(0, 0, 0, alpha);
+
+        // Horizontal bar: ~60x20 pixels
+        let h_rect = Rect::from_min_size(
+            image_rect.min,
+            egui::vec2(60.0 * scale_x, 20.0 * scale_y),
+        );
+        painter.rect_filled(h_rect, 0.0, color);
+
+        // Vertical bar: ~20x80 pixels
+        let v_rect = Rect::from_min_size(
+            image_rect.min,
+            egui::vec2(20.0 * scale_x, 80.0 * scale_y),
+        );
+        painter.rect_filled(v_rect, 0.0, color);
+    }
+
+    /// Render top-right yellow-orange gradient stripes
+    fn render_top_right_gradient(
+        &self,
+        painter: &egui::Painter,
+        image_rect: Rect,
+        scale_x: f32,
+        scale_y: f32,
+        alpha: u8,
+    ) {
+        // Yellow-orange gradient stripe area
+        let gradient_x = image_rect.max.x - 80.0 * scale_x;
+        let gradient_y = image_rect.min.y + 60.0 * scale_y;
+        let gradient_width = 50.0 * scale_x;
+        let gradient_height = 60.0 * scale_y;
+
+        // Draw horizontal gradient stripes
+        let stripe_count = 8;
+        let stripe_height = gradient_height / stripe_count as f32;
+
+        for i in 0..stripe_count {
+            let y = gradient_y + i as f32 * stripe_height;
+            // Yellow to orange gradient
+            let t = i as f32 / stripe_count as f32;
+            let r = 255;
+            let g = (220.0 - t * 50.0) as u8;
+            let b = (50.0 * t) as u8;
+            let color = Color32::from_rgba_unmultiplied(r, g, b, alpha);
+
+            let stripe_rect = Rect::from_min_size(
+                Pos2::new(gradient_x, y),
+                egui::vec2(gradient_width, stripe_height * 0.6),
+            );
+            painter.rect_filled(stripe_rect, 0.0, color);
+        }
+    }
+
+    /// Render right side black vertical bar with "RHODES ISLAND INC." text
+    fn render_right_side_bar(
+        &self,
+        painter: &egui::Painter,
+        image_rect: Rect,
+        scale_x: f32,
+        scale_y: f32,
+        y_offset: f32,
+        alpha: u8,
+    ) {
+        // Black vertical bar
+        let bar_width = 30.0 * scale_x;
+        let bar_x = image_rect.max.x - bar_width;
+        let bar_y = image_rect.min.y + 150.0 * scale_y + y_offset;
+        let bar_height = 350.0 * scale_y;
+
+        // Clamp bar to image bounds
+        let clamped_y = bar_y.max(image_rect.min.y);
+        let clamped_height = (bar_height - (clamped_y - bar_y)).max(0.0);
+        let clamped_height = clamped_height.min(image_rect.max.y - clamped_y);
+
+        if clamped_height > 0.0 {
+            let bar_rect = Rect::from_min_size(
+                Pos2::new(bar_x, clamped_y),
+                egui::vec2(bar_width, clamped_height),
+            );
+            let bar_color = Color32::from_rgba_unmultiplied(0, 0, 0, alpha);
+            painter.rect_filled(bar_rect, 0.0, bar_color);
+
+            // "RHODES ISLAND INC." vertical text
+            // Since egui doesn't directly support vertical text, we draw characters individually
+            let text = "RHODES ISLAND INC.";
+            let char_height = 12.0 * scale_y;
+            let text_x = bar_x + bar_width / 2.0;
+            let text_start_y = clamped_y + 20.0 * scale_y;
+            let text_color = Color32::from_rgba_unmultiplied(255, 255, 255, alpha);
+
+            for (i, ch) in text.chars().enumerate() {
+                let char_y = text_start_y + i as f32 * char_height;
+                if char_y < image_rect.max.y - char_height {
+                    painter.text(
+                        Pos2::new(text_x, char_y),
+                        Align2::CENTER_TOP,
+                        ch.to_string(),
+                        FontId::proportional(10.0 * scale_y),
+                        text_color,
+                    );
+                }
+            }
+        }
+    }
+
+    /// Render left colorful gradient stripe (yellow → blue → cyan)
+    fn render_left_gradient_stripe(
+        &self,
+        painter: &egui::Painter,
+        image_rect: Rect,
+        scale_x: f32,
+        scale_y: f32,
+        y_offset: f32,
+        alpha: u8,
+    ) {
+        let stripe_x = image_rect.min.x + 55.0 * scale_x;
+        let stripe_width = 5.0 * scale_x;
+        let stripe_start_y = image_rect.min.y + 80.0 * scale_y + y_offset;
+        let stripe_end_y = image_rect.max.y;
+
+        // Draw vertical gradient stripe (yellow → blue → cyan from top to bottom)
+        let segment_count = 20;
+        let segment_height = (stripe_end_y - stripe_start_y) / segment_count as f32;
+
+        for i in 0..segment_count {
+            let y = stripe_start_y + i as f32 * segment_height;
+            if y < image_rect.min.y || y + segment_height > image_rect.max.y {
+                continue;
+            }
+
+            let t = i as f32 / segment_count as f32;
+            let (r, g, b) = if t < 0.3 {
+                // Yellow/orange
+                (255, (200.0 + t * 50.0) as u8, 50)
+            } else if t < 0.7 {
+                // Blue/purple
+                let t2 = (t - 0.3) / 0.4;
+                ((150.0 - t2 * 100.0) as u8, (100.0 + t2 * 50.0) as u8, (200.0 + t2 * 55.0) as u8)
+            } else {
+                // Cyan
+                (100, 200, 220)
+            };
+
+            let color = Color32::from_rgba_unmultiplied(r, g, b, alpha);
+            let rect = Rect::from_min_size(
+                Pos2::new(stripe_x, y),
+                egui::vec2(stripe_width, segment_height),
+            );
+            painter.rect_filled(rect, 0.0, color);
+        }
+    }
+
+    /// Render bottom-left light cyan-blue gradient
+    fn render_bottom_left_gradient(
+        &self,
+        painter: &egui::Painter,
+        image_rect: Rect,
+        scale_x: f32,
+        scale_y: f32,
+        y_offset: f32,
+        alpha: u8,
+    ) {
+        // Light cyan-blue gradient, fading from center outward
+        let center_x = image_rect.min.x + 100.0 * scale_x;
+        let center_y = image_rect.max.y - 100.0 * scale_y + y_offset;
+        let radius = 200.0 * scale_x.min(scale_y);
+
+        // Draw multiple concentric semi-transparent circles for gradient effect
+        let layer_count = 10;
+        for i in (0..layer_count).rev() {
+            let t = i as f32 / layer_count as f32;
+            let r = radius * (1.0 - t * 0.5);
+            let layer_alpha = ((alpha as f32) * 0.15 * (1.0 - t)) as u8;
+            let color = Color32::from_rgba_unmultiplied(176, 224, 230, layer_alpha); // Light cyan-blue
+
+            painter.circle_filled(Pos2::new(center_x, center_y), r, color);
+        }
+    }
+
+    /// Render bottom-right logo background
+    fn render_logo_background(
+        &self,
+        painter: &egui::Painter,
+        image_rect: Rect,
+        scale_x: f32,
+        scale_y: f32,
+        y_offset: f32,
+        alpha: u8,
+    ) {
+        // Black background bar
+        let bg_width = 160.0 * scale_x;
+        let bg_height = 30.0 * scale_y;
+        let bg_x = image_rect.max.x - bg_width;
+        let bg_y = image_rect.max.y - bg_height + y_offset;
+
+        if bg_y >= image_rect.min.y && bg_y + bg_height <= image_rect.max.y {
+            let bg_rect = Rect::from_min_size(
+                Pos2::new(bg_x, bg_y),
+                egui::vec2(bg_width, bg_height),
+            );
+            let bg_color = Color32::from_rgba_unmultiplied(0, 0, 0, alpha);
+            painter.rect_filled(bg_rect, 0.0, bg_color);
+
+            // "明日方舟" text could be added here if a Chinese font is loaded
+            // For now, we leave it as a black bar; the logo_image will be rendered separately
+        }
+    }
 
     /// Render logo image in the bottom-right corner
     fn render_logo_image(
