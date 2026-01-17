@@ -29,7 +29,7 @@ pub struct SimulatorApp {
     epconfig: Option<EPConfig>,
     /// Base directory for assets
     base_dir: PathBuf,
-    /// Application directory for program resources (overlay_template.png, etc.)
+    /// Application directory for program resources (modular assets, etc.)
     app_dir: PathBuf,
 
     /// Simulator state
@@ -78,9 +78,6 @@ pub struct SimulatorApp {
     /// Logo texture
     logo_texture: Option<egui::TextureHandle>,
 
-    /// Overlay template texture (static background for all decorations)
-    overlay_template_texture: Option<egui::TextureHandle>,
-
     /// Image overlay texture (for OverlayType::Image)
     image_overlay_texture: Option<egui::TextureHandle>,
 
@@ -95,6 +92,18 @@ pub struct SimulatorApp {
 
     /// Top-right arrow image texture (from res/top_right_arrow.png)
     top_right_arrow_texture: Option<egui::TextureHandle>,
+
+    /// Left upper L-shape black decoration (modular asset)
+    top_left_rect_texture: Option<egui::TextureHandle>,
+
+    /// Left upper Rhodes decoration below L-shape (modular asset)
+    top_left_rhodes_texture: Option<egui::TextureHandle>,
+
+    /// Right upper yellow bar + full vertical bar (modular asset)
+    top_right_bar_texture: Option<egui::TextureHandle>,
+
+    /// Left side colorful gradient bar (modular asset)
+    btm_left_bar_texture: Option<egui::TextureHandle>,
 
     /// Whether textures have been loaded for current config
     textures_loaded: bool,
@@ -190,12 +199,15 @@ impl SimulatorApp {
             barcode_texture: None,
             class_icon_texture: None,
             logo_texture: None,
-            overlay_template_texture: None,
             image_overlay_texture: None,
             transition_image_texture: None,
             transition_image_data: None,
             ak_bar_texture: None,
             top_right_arrow_texture: None,
+            top_left_rect_texture: None,
+            top_left_rhodes_texture: None,
+            top_right_bar_texture: None,
+            btm_left_bar_texture: None,
             textures_loaded: false,
         };
 
@@ -236,12 +248,15 @@ impl SimulatorApp {
         self.barcode_texture = None;
         self.class_icon_texture = None;
         self.logo_texture = None;
-        self.overlay_template_texture = None;
         self.image_overlay_texture = None;
         self.transition_image_texture = None;
         self.transition_image_data = None;
         self.ak_bar_texture = None;
         self.top_right_arrow_texture = None;
+        self.top_left_rect_texture = None;
+        self.top_left_rhodes_texture = None;
+        self.top_right_bar_texture = None;
+        self.btm_left_bar_texture = None;
         self.textures_loaded = false;
 
         info!("Configuration loaded");
@@ -866,29 +881,6 @@ impl SimulatorApp {
             return;
         }
 
-        // Load overlay template texture (static background with all decorations)
-        // Use app_dir (program directory) instead of base_dir (user material directory)
-        if self.overlay_template_texture.is_none() {
-            let template_path = self.app_dir.join("resources/data/overlay_template.png");
-            if let Ok(img) = image::open(&template_path) {
-                let rgba = img.to_rgba8();
-                let size = [rgba.width() as usize, rgba.height() as usize];
-                let pixels: Vec<Color32> = rgba
-                    .pixels()
-                    .map(|p| Color32::from_rgba_unmultiplied(p[0], p[1], p[2], p[3]))
-                    .collect();
-                let color_image = egui::ColorImage { size, pixels };
-                self.overlay_template_texture = Some(ctx.load_texture(
-                    "overlay_template",
-                    color_image,
-                    egui::TextureOptions::LINEAR,
-                ));
-                info!("Loaded overlay template: {}", template_path.display());
-            } else {
-                warn!("Failed to load overlay template: {}", template_path.display());
-            }
-        }
-
         // Load ak_bar.png from resources/data directory
         if self.ak_bar_texture.is_none() {
             let ak_bar_path = self.app_dir.join("resources/data/ak_bar.png");
@@ -930,6 +922,96 @@ impl SimulatorApp {
                 info!("Loaded top_right_arrow.png: {}", arrow_path.display());
             } else {
                 warn!("Failed to load top_right_arrow.png: {}", arrow_path.display());
+            }
+        }
+
+        // Load modular decoration textures
+
+        // Load top_left_rect.png (L-shape black decoration at top-left)
+        if self.top_left_rect_texture.is_none() {
+            let path = self.app_dir.join("resources/data/top_left_rect.png");
+            if let Ok(img) = image::open(&path) {
+                let rgba = img.to_rgba8();
+                let size = [rgba.width() as usize, rgba.height() as usize];
+                let pixels: Vec<Color32> = rgba
+                    .pixels()
+                    .map(|p| Color32::from_rgba_unmultiplied(p[0], p[1], p[2], p[3]))
+                    .collect();
+                let color_image = egui::ColorImage { size, pixels };
+                self.top_left_rect_texture = Some(ctx.load_texture(
+                    "top_left_rect",
+                    color_image,
+                    egui::TextureOptions::LINEAR,
+                ));
+                info!("Loaded top_left_rect.png: {}", path.display());
+            } else {
+                warn!("Failed to load top_left_rect.png: {}", path.display());
+            }
+        }
+
+        // Load top_left_rhodes.png (Rhodes decoration below L-shape)
+        if self.top_left_rhodes_texture.is_none() {
+            let path = self.app_dir.join("resources/data/top_left_rhodes.png");
+            if let Ok(img) = image::open(&path) {
+                let rgba = img.to_rgba8();
+                let size = [rgba.width() as usize, rgba.height() as usize];
+                let pixels: Vec<Color32> = rgba
+                    .pixels()
+                    .map(|p| Color32::from_rgba_unmultiplied(p[0], p[1], p[2], p[3]))
+                    .collect();
+                let color_image = egui::ColorImage { size, pixels };
+                self.top_left_rhodes_texture = Some(ctx.load_texture(
+                    "top_left_rhodes",
+                    color_image,
+                    egui::TextureOptions::LINEAR,
+                ));
+                info!("Loaded top_left_rhodes.png: {}", path.display());
+            } else {
+                warn!("Failed to load top_left_rhodes.png: {}", path.display());
+            }
+        }
+
+        // Load top_right_bar.png (yellow bar + full vertical bar on right)
+        if self.top_right_bar_texture.is_none() {
+            let path = self.app_dir.join("resources/data/top_right_bar.png");
+            if let Ok(img) = image::open(&path) {
+                let rgba = img.to_rgba8();
+                let size = [rgba.width() as usize, rgba.height() as usize];
+                let pixels: Vec<Color32> = rgba
+                    .pixels()
+                    .map(|p| Color32::from_rgba_unmultiplied(p[0], p[1], p[2], p[3]))
+                    .collect();
+                let color_image = egui::ColorImage { size, pixels };
+                self.top_right_bar_texture = Some(ctx.load_texture(
+                    "top_right_bar",
+                    color_image,
+                    egui::TextureOptions::LINEAR,
+                ));
+                info!("Loaded top_right_bar.png: {}", path.display());
+            } else {
+                warn!("Failed to load top_right_bar.png: {}", path.display());
+            }
+        }
+
+        // Load btm_left_bar.png (colorful gradient bar on left side)
+        if self.btm_left_bar_texture.is_none() {
+            let path = self.app_dir.join("resources/data/btm_left_bar.png");
+            if let Ok(img) = image::open(&path) {
+                let rgba = img.to_rgba8();
+                let size = [rgba.width() as usize, rgba.height() as usize];
+                let pixels: Vec<Color32> = rgba
+                    .pixels()
+                    .map(|p| Color32::from_rgba_unmultiplied(p[0], p[1], p[2], p[3]))
+                    .collect();
+                let color_image = egui::ColorImage { size, pixels };
+                self.btm_left_bar_texture = Some(ctx.load_texture(
+                    "btm_left_bar",
+                    color_image,
+                    egui::TextureOptions::LINEAR,
+                ));
+                info!("Loaded btm_left_bar.png: {}", path.display());
+            } else {
+                warn!("Failed to load btm_left_bar.png: {}", path.display());
             }
         }
 
@@ -1091,18 +1173,9 @@ impl SimulatorApp {
         let entry_alpha = (anim.entry_progress * 255.0) as u8;
 
         // ============================================
-        // 1. Draw static decoration from template image
+        // 1. Render modular static decorations
         // ============================================
-        if let Some(ref texture) = self.overlay_template_texture {
-            // Apply entry animation offset and alpha to the template image
-            let offset_rect = Rect::from_min_size(
-                Pos2::new(image_rect.min.x, image_rect.min.y + y_offset),
-                image_rect.size(),
-            );
-            let uv = Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0));
-            let tint = Color32::from_rgba_unmultiplied(255, 255, 255, entry_alpha);
-            painter.image(texture.id(), offset_rect, uv, tint);
-        }
+        self.render_modular_decorations(painter, image_rect, scale_x, scale_y, y_offset, entry_alpha);
 
         // ============================================
         // 2. Render dynamic elements
@@ -1125,6 +1198,80 @@ impl SimulatorApp {
 
         // Logo image (dynamic fade-in)
         self.render_logo_image(painter, image_rect, scale_x, scale_y, y_offset);
+    }
+
+    /// Render modular static decorations (replaces overlay_template.png)
+    ///
+    /// Positions are based on hardware implementation (opinfo.c):
+    /// - top_left_rhodes: (0, 0) - left upper corner origin
+    /// - top_left_rect: (60, 0) - L-shape black decoration offset from left
+    /// - top_right_bar: (360-width, 0) - right-aligned
+    /// - btm_left_bar: (0, 640-height) - bottom-aligned
+    fn render_modular_decorations(
+        &self,
+        painter: &egui::Painter,
+        image_rect: Rect,
+        scale_x: f32,
+        scale_y: f32,
+        y_offset: f32,
+        entry_alpha: u8,
+    ) {
+        let tint = Color32::from_rgba_unmultiplied(255, 255, 255, entry_alpha);
+        let uv_full = Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0));
+        let fw_height = 640.0; // Firmware screen height
+
+        // 1. top_left_rhodes (0, 0) - left upper corner origin
+        if let Some(ref tex) = self.top_left_rhodes_texture {
+            let tex_w = tex.size()[0] as f32;
+            let tex_h = tex.size()[1] as f32;
+            let rect = Rect::from_min_size(
+                Pos2::new(image_rect.min.x, image_rect.min.y + y_offset),
+                egui::vec2(tex_w * scale_x, tex_h * scale_y),
+            );
+            painter.image(tex.id(), rect, uv_full, tint);
+        }
+
+        // 2. top_left_rect (60, 0) - L-shape black decoration, X=60 not 0
+        if let Some(ref tex) = self.top_left_rect_texture {
+            let tex_w = tex.size()[0] as f32;
+            let tex_h = tex.size()[1] as f32;
+            let rect = Rect::from_min_size(
+                Pos2::new(
+                    image_rect.min.x + 60.0 * scale_x,
+                    image_rect.min.y + y_offset,
+                ),
+                egui::vec2(tex_w * scale_x, tex_h * scale_y),
+            );
+            painter.image(tex.id(), rect, uv_full, tint);
+        }
+
+        // 3. top_right_bar (360-width, 0) - right-aligned
+        if let Some(ref tex) = self.top_right_bar_texture {
+            let tex_w = tex.size()[0] as f32;
+            let tex_h = tex.size()[1] as f32;
+            let rect = Rect::from_min_size(
+                Pos2::new(
+                    image_rect.max.x - tex_w * scale_x,
+                    image_rect.min.y + y_offset,
+                ),
+                egui::vec2(tex_w * scale_x, tex_h * scale_y),
+            );
+            painter.image(tex.id(), rect, uv_full, tint);
+        }
+
+        // 4. btm_left_bar (0, 640-height) - bottom-aligned
+        if let Some(ref tex) = self.btm_left_bar_texture {
+            let tex_w = tex.size()[0] as f32;
+            let tex_h = tex.size()[1] as f32;
+            let rect = Rect::from_min_size(
+                Pos2::new(
+                    image_rect.min.x,
+                    image_rect.min.y + (fw_height - tex_h) * scale_y + y_offset,
+                ),
+                egui::vec2(tex_w * scale_x, tex_h * scale_y),
+            );
+            painter.image(tex.id(), rect, uv_full, tint);
+        }
     }
 
     /// Render image overlay (for OverlayType::Image)
@@ -1533,9 +1680,9 @@ impl SimulatorApp {
     }
 
     // ============================================
-    // Static decoration rendering functions
-    // These functions are no longer used since we now use overlay_template.png
-    // Kept for reference and potential fallback if template image fails to load
+    // Legacy static decoration rendering functions
+    // These functions are no longer used since we now use modular assets
+    // Kept for reference only
     // ============================================
 
     /// Render top-left black L-shape decoration

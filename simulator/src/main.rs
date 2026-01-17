@@ -32,7 +32,7 @@ struct Args {
     #[arg(short, long)]
     base_dir: Option<PathBuf>,
 
-    /// Application directory (for program resources like overlay_template.png)
+    /// Application directory (for program resources like modular assets)
     #[arg(long)]
     app_dir: Option<PathBuf>,
 
@@ -90,7 +90,7 @@ fn main() -> Result<()> {
     });
     info!("Base directory: {:?}", base_dir);
 
-    // Determine app_dir for program resources (overlay_template.png, etc.)
+    // Determine app_dir for program resources (modular assets, etc.)
     let app_dir = args.app_dir.unwrap_or_else(|| {
         // Default to the directory containing the executable
         std::env::current_exe()
