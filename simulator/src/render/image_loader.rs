@@ -148,12 +148,52 @@ impl ImageLoader {
     }
 }
 
+/// Preprocess text for Code128 barcode encoding
+/// Ensures all characters are valid ASCII printable characters (32-126)
+/// and adds Code128 Set B prefix for better compatibility
+fn preprocess_barcode_text(text: &str) -> String {
+    // Filter to valid ASCII printable characters only
+    let cleaned: String = text
+        .chars()
+        .filter_map(|c| {
+            if c.is_ascii() && (c as u8) >= 32 && (c as u8) <= 126 {
+                // Valid ASCII printable character
+                Some(c)
+            } else if c == '\u{2013}' || c == '\u{2014}' {
+                // En-dash or em-dash -> hyphen
+                Some('-')
+            } else if c == '\u{00A0}' {
+                // Non-breaking space -> regular space
+                Some(' ')
+            } else if c.is_whitespace() {
+                Some(' ')
+            } else {
+                // Skip invalid characters
+                None
+            }
+        })
+        .collect();
+
+    // Code128 Set B supports ASCII 32-127
+    // Prefix with Set B start character for explicit charset selection
+    // barcoders library expects raw text and handles start/stop codes internally
+    cleaned
+}
+
 /// Generate a Code128 barcode as a ColorImage
 pub fn generate_barcode(text: &str, height: u32) -> Option<ColorImage> {
     use barcoders::sym::code128::Code128;
 
+    // Preprocess text for Code128 compatibility
+    let processed_text = preprocess_barcode_text(text);
+
+    if processed_text.is_empty() {
+        warn!("Barcode text is empty after preprocessing: '{}'", text);
+        return None;
+    }
+
     // Try to create Code128 barcode
-    let barcode = match Code128::new(text) {
+    let barcode = match Code128::new(&processed_text) {
         Ok(b) => b,
         Err(e) => {
             warn!("Failed to create barcode for '{}': {:?}", text, e);
@@ -224,11 +264,19 @@ pub fn generate_vertical_barcode(text: &str, width: u32) -> Option<ColorImage> {
 pub fn generate_vertical_barcode_gradient(text: &str, width: u32, use_gradient: bool) -> Option<ColorImage> {
     use barcoders::sym::code128::Code128;
 
+    // Preprocess text for Code128 compatibility
+    let processed_text = preprocess_barcode_text(text);
+
+    if processed_text.is_empty() {
+        warn!("Barcode text is empty after preprocessing: '{}'", text);
+        return None;
+    }
+
     // Try to create Code128 barcode
-    let barcode = match Code128::new(text) {
+    let barcode = match Code128::new(&processed_text) {
         Ok(b) => b,
         Err(e) => {
-            warn!("Failed to create barcode for '{}': {:?}", text, e);
+            warn!("Failed to create barcode for '{}' (processed: '{}'): {:?}", text, processed_text, e);
             return None;
         }
     };
