@@ -1300,10 +1300,32 @@ impl SimulatorApp {
             return;
         }
 
-        // Draw the image overlay
+        // Draw the image overlay - use original size, don't stretch
         if let Some(ref texture) = self.image_overlay_texture {
+            // Get texture original size
+            let tex_size = texture.size();
+            let img_width = tex_size[0] as f32;
+            let img_height = tex_size[1] as f32;
+
+            // Calculate scale factor (based on hardware resolution 360x640)
+            let scale_x = image_rect.width() / 360.0;
+            let scale_y = image_rect.height() / 640.0;
+
+            // Use uniform scale factor to maintain aspect ratio (consistent with C reference)
+            let uniform_scale = scale_x.min(scale_y);
+
+            // Calculate display size (original size × uniform scale)
+            let display_width = img_width * uniform_scale;
+            let display_height = img_height * uniform_scale;
+
+            // Position: start from top-left corner (0, 0) of image_rect
+            let overlay_rect = Rect::from_min_size(
+                image_rect.min, // top-left corner (0, 0)
+                egui::vec2(display_width, display_height),
+            );
+
             let uv = Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0));
-            painter.image(texture.id(), image_rect, uv, Color32::WHITE);
+            painter.image(texture.id(), overlay_rect, uv, Color32::WHITE);
         }
     }
 
@@ -1567,8 +1589,11 @@ impl SimulatorApp {
             return;
         }
 
+        // Use uniform scale factor to preserve aspect ratio (avoid stretching)
+        let uniform_scale = scale_x.min(scale_y);
+
         let y = offsets.ak_bar_y as f32 * scale_y + image_rect.min.y + y_offset;
-        let width = anim.ak_bar_width as f32 * scale_x;
+        let width = anim.ak_bar_width as f32 * uniform_scale;
 
         if y < image_rect.min.y || y > image_rect.max.y {
             return;
@@ -1576,8 +1601,8 @@ impl SimulatorApp {
 
         // Use AK bar image texture if available
         if let Some(ref ak_bar_texture) = self.ak_bar_texture {
-            // ak_bar.png dimensions: 165x12
-            let bar_height = 12.0 * scale_y;
+            // ak_bar.png dimensions: 165x12, use uniform scale to preserve aspect ratio
+            let bar_height = 12.0 * uniform_scale;
             let bar_rect = Rect::from_min_size(
                 Pos2::new(btm_info_x, y),
                 egui::vec2(width, bar_height),
@@ -1626,11 +1651,10 @@ impl SimulatorApp {
 
         // Use image texture if available
         if let Some(ref arrow_texture) = self.top_right_arrow_texture {
-            // Arrow image dimensions: 24x100
             let arrow_width = 24.0 * scale_x;
             let arrow_height = 100.0 * scale_y;
-            let arrow_x = image_rect.max.x - 50.0 * scale_x;
-            let arrow_y = image_rect.min.y + 20.0 * scale_y + y_offset;
+            let arrow_x = image_rect.max.x - arrow_width;  // Right-aligned
+            let arrow_y = image_rect.min.y + 100.0 * scale_y + y_offset;  // Y=100
 
             // UV scrolling to implement upward loop animation
             // anim.arrow_y cycles 0-99, use it as scroll offset
@@ -2035,7 +2059,7 @@ impl SimulatorApp {
             let logo_width = 80.0 * scale_x;
             let logo_height = 30.0 * scale_y;
             let logo_x = image_rect.max.x - logo_width - 10.0 * scale_x;
-            let logo_y = image_rect.max.y - logo_height - 40.0 * scale_y + y_offset;
+            let logo_y = image_rect.max.y - logo_height - 10.0 * scale_y + y_offset;
 
             if logo_y >= image_rect.min.y && logo_y + logo_height <= image_rect.max.y {
                 let logo_rect = Rect::from_min_size(
