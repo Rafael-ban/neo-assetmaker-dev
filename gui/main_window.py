@@ -35,6 +35,10 @@ class MainWindow(QMainWindow):
         self._base_dir: str = ""
         self._is_modified: bool = False
 
+        # 为每个视频存储独立的入点/出点
+        self._loop_in_out: tuple[int, int] = (0, 0)   # 循环视频的(入点, 出点)
+        self._intro_in_out: tuple[int, int] = (0, 0)  # 入场视频的(入点, 出点)
+
         self._setup_ui()
         self._setup_menu()
         self._setup_icon()
@@ -211,6 +215,10 @@ class MainWindow(QMainWindow):
 
         # 时间轴模拟器请求
         self.timeline.simulator_requested.connect(self._on_simulator)
+
+        # 入点/出点设置
+        self.timeline.set_in_point_clicked.connect(self._on_set_in_point)
+        self.timeline.set_out_point_clicked.connect(self._on_set_out_point)
 
     def _load_settings(self):
         """加载设置"""
@@ -541,12 +549,18 @@ class MainWindow(QMainWindow):
             with open(config_path, 'w', encoding='utf-8') as f:
                 json.dump(self._config.to_dict(), f, ensure_ascii=False, indent=2)
 
+            # 获取 cropbox 参数（使用原始坐标系）
+            cropbox = self.video_preview.get_cropbox_for_export()
+            rotation = self.video_preview.get_rotation()
+
             # 启动 Rust 模拟器
             subprocess.Popen([
                 simulator_path,
                 "--config", config_path,
                 "--base-dir", self._base_dir,
-                "--app-dir", app_dir
+                "--app-dir", app_dir,
+                "--cropbox", f"{cropbox[0]},{cropbox[1]},{cropbox[2]},{cropbox[3]}",
+                "--rotation", str(rotation)
             ])
 
             logger.info(f"模拟器已启动: {simulator_path}")
@@ -801,13 +815,28 @@ class MainWindow(QMainWindow):
 
     def _on_preview_tab_changed(self, index: int):
         """预览标签页切换"""
+        # 保存当前标签页的入点/出点
+        current_in = self.timeline.get_in_point()
+        current_out = self.timeline.get_out_point()
+
+        # 根据切换前的状态保存（index 是切换后的目标）
         if index == 0:
-            # 入场视频
+            # 即将切换到入场视频，保存循环视频的入点/出点
+            self._loop_in_out = (current_in, current_out)
+            # 连接入场视频预览
             self._connect_timeline_to_preview(self.intro_preview)
+            # 恢复入场视频的入点/出点
+            self.timeline.set_in_point(self._intro_in_out[0])
+            self.timeline.set_out_point(self._intro_in_out[1])
             logger.debug("切换到入场视频预览")
         else:
-            # 循环视频
+            # 即将切换到循环视频，保存入场视频的入点/出点
+            self._intro_in_out = (current_in, current_out)
+            # 连接循环视频预览
             self._connect_timeline_to_preview(self.video_preview)
+            # 恢复循环视频的入点/出点
+            self.timeline.set_in_point(self._loop_in_out[0])
+            self.timeline.set_out_point(self._loop_in_out[1])
             logger.debug("切换到循环视频预览")
 
     def _on_intro_video_loaded(self, total_frames: int, fps: float):
@@ -818,6 +847,8 @@ class MainWindow(QMainWindow):
             self.timeline.set_fps(fps)
             self.timeline.set_in_point(0)
             self.timeline.set_out_point(total_frames - 1)
+        # 更新存储
+        self._intro_in_out = (0, total_frames - 1)
         self.status_bar.showMessage(f"入场视频已加载: {total_frames} 帧, {fps:.1f} FPS")
 
     def _on_intro_frame_changed(self, frame: int):
@@ -834,6 +865,32 @@ class MainWindow(QMainWindow):
         """入场视频旋转变更"""
         if self.preview_tabs.currentIndex() == 0:
             self.timeline.set_rotation(rotation)
+
+    def _on_set_in_point(self):
+        """设置入点为当前帧"""
+        # 获取当前激活的预览器
+        if self.preview_tabs.currentIndex() == 0:
+            # 入场视频
+            current_frame = self.intro_preview.current_frame_index
+        else:
+            # 循环视频
+            current_frame = self.video_preview.current_frame_index
+
+        self.timeline.set_in_point(current_frame)
+        logger.debug(f"设置入点: {current_frame}")
+
+    def _on_set_out_point(self):
+        """设置出点为当前帧"""
+        # 获取当前激活的预览器
+        if self.preview_tabs.currentIndex() == 0:
+            # 入场视频
+            current_frame = self.intro_preview.current_frame_index
+        else:
+            # 循环视频
+            current_frame = self.video_preview.current_frame_index
+
+        self.timeline.set_out_point(current_frame)
+        logger.debug(f"设置出点: {current_frame}")
 
     def _load_loop_image(self, path: str):
         """加载循环图片到预览器"""
@@ -888,6 +945,8 @@ class MainWindow(QMainWindow):
         self.timeline.set_fps(fps)
         self.timeline.set_in_point(0)
         self.timeline.set_out_point(total_frames - 1)
+        # 更新存储
+        self._loop_in_out = (0, total_frames - 1)
         self.status_bar.showMessage(f"视频已加载: {total_frames} 帧, {fps:.1f} FPS")
 
     def _on_frame_changed(self, frame: int):
@@ -921,30 +980,18 @@ class MainWindow(QMainWindow):
         elif rotation == 270:
             frame = cv2.rotate(frame, cv2.ROTATE_90_COUNTERCLOCKWISE)
 
-        # 2. 应用裁剪框（需要转换到旋转后的坐标）
+        # 2. cropbox 已经是旋转后坐标系，直接应用裁剪
         x, y, w, h = self.video_preview.get_cropbox()
-        orig_w = self.video_preview.video_width
-        orig_h = self.video_preview.video_height
-
-        # 将cropbox从原始坐标变换到旋转后坐标
-        if rotation == 90:
-            rx, ry, rw, rh = (orig_h - y - h, x, h, w)
-        elif rotation == 180:
-            rx, ry, rw, rh = (orig_w - x - w, orig_h - y - h, w, h)
-        elif rotation == 270:
-            rx, ry, rw, rh = (y, orig_w - x - w, h, w)
-        else:
-            rx, ry, rw, rh = (x, y, w, h)
 
         # 确保裁剪框在有效范围内
         rotated_h, rotated_w = frame.shape[:2]
-        rx = max(0, min(rx, rotated_w - 1))
-        ry = max(0, min(ry, rotated_h - 1))
-        rw = min(rw, rotated_w - rx)
-        rh = min(rh, rotated_h - ry)
+        x = max(0, min(x, rotated_w - 1))
+        y = max(0, min(y, rotated_h - 1))
+        w = min(w, rotated_w - x)
+        h = min(h, rotated_h - y)
 
-        if rw > 0 and rh > 0:
-            frame = frame[ry:ry+rh, rx:rx+rw]
+        if w > 0 and h > 0:
+            frame = frame[y:y+h, x:x+w]
 
         # 3. 保存为图标文件
         icon_path = os.path.join(self._base_dir, "icon.png")
@@ -982,7 +1029,8 @@ class MainWindow(QMainWindow):
                 data['is_loop_image'] = True
         elif self.video_preview.video_path:
             # 视频模式
-            cropbox = self.video_preview.get_cropbox()
+            # 使用 get_cropbox_for_export() 获取原始坐标系的 cropbox
+            cropbox = self.video_preview.get_cropbox_for_export()
             rotation = self.video_preview.get_rotation()
             in_point = self.timeline.get_in_point()
             out_point = self.timeline.get_out_point()
@@ -1001,7 +1049,8 @@ class MainWindow(QMainWindow):
         if self._config.intro.enabled and self._config.intro.file:
             # 优先使用 intro_preview（如果已加载）
             if self.intro_preview.video_path:
-                cropbox = self.intro_preview.get_cropbox()
+                # 使用 get_cropbox_for_export() 获取原始坐标系的 cropbox
+                cropbox = self.intro_preview.get_cropbox_for_export()
                 rotation = self.intro_preview.get_rotation()
 
                 data['intro_video_params'] = VideoExportParams(

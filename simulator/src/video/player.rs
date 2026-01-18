@@ -23,11 +23,20 @@ pub struct VideoPlayer {
     target_width: u32,
     /// Target height
     target_height: u32,
+    /// Cropbox for loop video (x, y, w, h) in original video coordinates
+    loop_cropbox: Option<(u32, u32, u32, u32)>,
+    /// Rotation for loop video in degrees (0, 90, 180, 270)
+    loop_rotation: i32,
 }
 
 impl VideoPlayer {
     /// Create a new video player with the given target dimensions
-    pub fn new(target_width: u32, target_height: u32) -> Self {
+    pub fn new(
+        target_width: u32,
+        target_height: u32,
+        cropbox: Option<(u32, u32, u32, u32)>,
+        rotation: i32,
+    ) -> Self {
         Self {
             loop_video: None,
             intro_video: None,
@@ -35,6 +44,8 @@ impl VideoPlayer {
             intro_last_frame: None,
             target_width,
             target_height,
+            loop_cropbox: cropbox,
+            loop_rotation: rotation,
         }
     }
 
@@ -50,7 +61,14 @@ impl VideoPlayer {
         if !config.loop_config.file.is_empty() {
             let loop_path = Self::resolve_path(&config.loop_config.file, base_dir);
             info!("Loop video path: {:?} (exists: {})", loop_path, loop_path.exists());
-            match VideoDecoder::open(&loop_path.to_string_lossy(), self.target_width, self.target_height) {
+            info!("Loop video cropbox: {:?}, rotation: {}", self.loop_cropbox, self.loop_rotation);
+            match VideoDecoder::open(
+                &loop_path.to_string_lossy(),
+                self.target_width,
+                self.target_height,
+                self.loop_cropbox,
+                self.loop_rotation,
+            ) {
                 Ok(decoder) => {
                     info!("Loaded loop video successfully: {}", loop_path.display());
                     self.loop_video = Some(decoder);
@@ -63,11 +81,17 @@ impl VideoPlayer {
             warn!("No loop video file configured");
         }
 
-        // Load intro video if enabled
+        // Load intro video if enabled (no cropbox/rotation for intro)
         if let Some(ref intro) = config.intro {
             if intro.enabled && !intro.file.is_empty() {
                 let intro_path = Self::resolve_path(&intro.file, base_dir);
-                match VideoDecoder::open(&intro_path.to_string_lossy(), self.target_width, self.target_height) {
+                match VideoDecoder::open(
+                    &intro_path.to_string_lossy(),
+                    self.target_width,
+                    self.target_height,
+                    None,  // No cropbox for intro
+                    0,     // No rotation for intro
+                ) {
                     Ok(decoder) => {
                         info!("Loaded intro video: {}", intro_path.display());
                         self.intro_video = Some(decoder);
@@ -219,7 +243,7 @@ impl VideoPlayer {
 
 impl Default for VideoPlayer {
     fn default() -> Self {
-        Self::new(360, 640)
+        Self::new(360, 640, None, 0)
     }
 }
 

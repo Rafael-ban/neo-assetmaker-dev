@@ -118,6 +118,8 @@ impl SimulatorApp {
         app_dir: PathBuf,
         pipe_name: Option<String>,
         use_stdio: bool,
+        cropbox: Option<(u32, u32, u32, u32)>,
+        rotation: i32,
     ) -> Self {
         let firmware_config = FirmwareConfig::get_default();
         let width = firmware_config.overlay_width();
@@ -131,8 +133,8 @@ impl SimulatorApp {
             state.appear_time_frames = microseconds_to_frames(appear_us, firmware_config.fps());
         }
 
-        // Create video player
-        let mut video_player = VideoPlayer::new(width, height);
+        // Create video player with cropbox and rotation
+        let mut video_player = VideoPlayer::new(width, height, cropbox, rotation);
 
         // Load videos from config
         if let Some(ref config) = initial_config {

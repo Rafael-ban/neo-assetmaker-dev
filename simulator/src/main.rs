@@ -44,6 +44,14 @@ struct Args {
     #[arg(long)]
     stdio: bool,
 
+    /// Cropbox in format "x,y,w,h" (original video coordinates)
+    #[arg(long)]
+    cropbox: Option<String>,
+
+    /// Video rotation in degrees (0, 90, 180, 270)
+    #[arg(long, default_value = "0")]
+    rotation: i32,
+
     /// Enable debug logging
     #[arg(short, long)]
     debug: bool,
@@ -110,6 +118,17 @@ fn main() -> Result<()> {
         ..Default::default()
     };
 
+    // Parse cropbox
+    let cropbox: Option<(u32, u32, u32, u32)> = args.cropbox.and_then(|s| {
+        let parts: Vec<u32> = s.split(',').filter_map(|p| p.parse().ok()).collect();
+        if parts.len() == 4 {
+            Some((parts[0], parts[1], parts[2], parts[3]))
+        } else {
+            None
+        }
+    });
+    let rotation = args.rotation;
+
     // Run the application
     eframe::run_native(
         "Arknights Pass Simulator",
@@ -122,6 +141,8 @@ fn main() -> Result<()> {
                 app_dir,
                 args.pipe,
                 args.stdio,
+                cropbox,
+                rotation,
             )))
         }),
     )
