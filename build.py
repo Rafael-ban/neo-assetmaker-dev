@@ -25,7 +25,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description=f"{PROJECT_NAME} Build Tool")
     parser.add_argument('--no-installer', action='store_true', help='Skip installer packaging')
     parser.add_argument('--clean', action='store_true', help='Clean build directories')
-    parser.add_argument('--skip-flasher', action='store_true', help='跳过 epass_flasher 构建（不推荐）')
+    parser.add_argument('--skip-flasher', action='store_true', help='Skip epass_flasher build (not recommended)')
     return parser.parse_args()
 
 
@@ -195,8 +195,8 @@ def run_cxfreeze(skip_flasher=False):
     # 先构建 epass_flasher
     if not skip_flasher:
         if not build_epass_flasher():
-            print("\nERROR: epass_flasher 构建失败，中止构建")
-            print("       使用 --skip-flasher 跳过此检查（不推荐）")
+            print("\nERROR: epass_flasher build failed, aborting")
+            print("       Use --skip-flasher to skip this check (not recommended)")
             return False
     else:
         print("Skipping epass_flasher build (--skip-flasher)")
@@ -267,8 +267,8 @@ def run_cxfreeze(skip_flasher=False):
         include_files.append((flasher_exe, "epass_flasher.exe"))
         print(f"  Including flasher: {flasher_exe}")
     elif not skip_flasher:
-        print("\nERROR: epass_flasher.exe 不存在，中止构建")
-        print("       使用 --skip-flasher 跳过此检查（不推荐）")
+        print("\nERROR: epass_flasher.exe not found, aborting")
+        print("       Use --skip-flasher to skip this check (not recommended)")
         return False
     else:
         print("  Warning: epass_flasher.exe not found (skipped due to --skip-flasher)")
@@ -297,7 +297,7 @@ def run_cxfreeze(skip_flasher=False):
         setup(
             name=PROJECT_NAME,
             version=VERSION,
-            description="明日方舟通行证素材制作器",
+            description="Arknights Pass Material Maker",
             options={"build_exe": build_options},
             executables=[Executable(
                 script=MAIN_SCRIPT,
