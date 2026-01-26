@@ -13,7 +13,7 @@ from PyQt6.QtWidgets import (
     QSplitter, QMenuBar, QMenu, QStatusBar,
     QFileDialog, QMessageBox, QLabel, QTabWidget
 )
-from PyQt6.QtCore import Qt, QSettings
+from PyQt6.QtCore import Qt, QSettings, QTimer
 from PyQt6.QtGui import QAction, QKeySequence, QIcon
 
 from config.epconfig import EPConfig
@@ -47,6 +47,10 @@ class MainWindow(QMainWindow):
 
         self._update_title()
         self._check_first_run()
+
+        # 启动时延迟检查更新（2秒后）
+        QTimer.singleShot(2000, self._check_update_on_startup)
+
         logger.info("主窗口初始化完成")
 
     def _setup_icon(self):
@@ -173,6 +177,9 @@ class MainWindow(QMainWindow):
         self.action_shortcuts.setShortcut(QKeySequence("F1"))
         help_menu.addAction(self.action_shortcuts)
 
+        self.action_check_update = QAction("检查更新(&U)...", self)
+        help_menu.addAction(self.action_check_update)
+
         help_menu.addSeparator()
 
         self.action_about = QAction("关于(&A)", self)
@@ -191,6 +198,7 @@ class MainWindow(QMainWindow):
         self.action_batch_convert.triggered.connect(self._on_batch_convert)
         self.action_flasher.triggered.connect(self._on_flasher)
         self.action_shortcuts.triggered.connect(self._on_shortcuts)
+        self.action_check_update.triggered.connect(self._on_check_update)
         self.action_about.triggered.connect(self._on_about)
 
         # 配置面板
@@ -670,36 +678,58 @@ class MainWindow(QMainWindow):
         """启动固件烧录工具"""
         import subprocess
 
-        # 定位 epass_flasher 目录
-        app_dir = os.path.dirname(os.path.dirname(__file__))
-        flasher_dir = os.path.join(app_dir, "epass_flasher")
-        flasher_script = os.path.join(flasher_dir, "main.py")
-
-        if not os.path.exists(flasher_script):
-            QMessageBox.critical(
-                self, "错误",
-                f"烧录工具未找到\n\n路径: {flasher_script}"
-            )
+        if sys.platform != 'win32':
+            QMessageBox.warning(self, "不支持", "烧录工具目前仅支持 Windows")
             return
 
-        try:
-            if sys.platform == 'win32':
-                # 使用 CREATE_NEW_CONSOLE 在新终端窗口中启动
+        # 打包后: epass_flasher.exe 在 exe 同级目录
+        # 开发时: epass_flasher/main.py
+        if getattr(sys, 'frozen', False):
+            # 打包环境
+            app_dir = os.path.dirname(sys.executable)
+            flasher_exe = os.path.join(app_dir, "epass_flasher.exe")
+
+            if not os.path.exists(flasher_exe):
+                QMessageBox.critical(
+                    self, "错误",
+                    f"烧录工具未找到\n\n路径: {flasher_exe}"
+                )
+                return
+
+            try:
+                subprocess.Popen(
+                    [flasher_exe],
+                    creationflags=subprocess.CREATE_NEW_CONSOLE
+                )
+                self.status_bar.showMessage("烧录工具已启动")
+                logger.info(f"烧录工具已启动: {flasher_exe}")
+            except Exception as e:
+                logger.error(f"启动烧录工具失败: {e}")
+                QMessageBox.critical(self, "错误", f"启动烧录工具失败:\n{e}")
+        else:
+            # 开发环境
+            app_dir = os.path.dirname(os.path.dirname(__file__))
+            flasher_dir = os.path.join(app_dir, "epass_flasher")
+            flasher_script = os.path.join(flasher_dir, "main.py")
+
+            if not os.path.exists(flasher_script):
+                QMessageBox.critical(
+                    self, "错误",
+                    f"烧录工具未找到\n\n路径: {flasher_script}"
+                )
+                return
+
+            try:
                 subprocess.Popen(
                     [sys.executable, flasher_script],
                     creationflags=subprocess.CREATE_NEW_CONSOLE,
                     cwd=flasher_dir
                 )
-            else:
-                QMessageBox.warning(self, "不支持", "烧录工具目前仅支持 Windows")
-                return
-
-            self.status_bar.showMessage("烧录工具已启动")
-            logger.info(f"烧录工具已启动: {flasher_script}")
-
-        except Exception as e:
-            logger.error(f"启动烧录工具失败: {e}")
-            QMessageBox.critical(self, "错误", f"启动烧录工具失败:\n{e}")
+                self.status_bar.showMessage("烧录工具已启动")
+                logger.info(f"烧录工具已启动: {flasher_script}")
+            except Exception as e:
+                logger.error(f"启动烧录工具失败: {e}")
+                QMessageBox.critical(self, "错误", f"启动烧录工具失败:\n{e}")
 
     def _ask_overlay_mode(self):
         """询问用户overlay处理模式"""
@@ -771,6 +801,72 @@ class MainWindow(QMainWindow):
             f"<p>明日方舟通行证素材制作器</p>"
             f"<p>by Rafael_ban</p>"
         )
+
+    def _on_check_update(self):
+        """手动检查更新"""
+        from gui.dialogs.update_dialog import UpdateDialog
+        dialog = UpdateDialog(self, auto_check=True)
+        dialog.exec()
+
+    def _check_update_on_startup(self):
+        """启动时后台检查更新"""
+        from datetime import datetime, timedelta
+        from config.constants import UPDATE_CHECK_INTERVAL_HOURS
+
+        settings = QSettings("ArknightsPassMaker", "MainWindow")
+
+        # 检查是否启用自动更新（默认启用）
+        auto_check_enabled = settings.value("auto_check_updates", True, type=bool)
+        if not auto_check_enabled:
+            return
+
+        # 检查上次检查时间（避免频繁检查）
+        last_check = settings.value("last_update_check", "")
+        if last_check:
+            try:
+                last_check_time = datetime.fromisoformat(last_check)
+                if datetime.now() - last_check_time < timedelta(hours=UPDATE_CHECK_INTERVAL_HOURS):
+                    logger.debug("跳过更新检查（24小时内已检查）")
+                    return
+            except ValueError:
+                pass
+
+        # 创建更新服务进行后台检查
+        from core.update_service import UpdateService
+
+        self._startup_update_service = UpdateService(APP_VERSION, self)
+        self._startup_update_service.check_completed.connect(self._on_startup_update_check_completed)
+        self._startup_update_service.check_failed.connect(self._on_startup_update_check_failed)
+        self._startup_update_service.check_for_updates()
+
+        # 记录检查时间
+        settings.setValue("last_update_check", datetime.now().isoformat())
+
+    def _on_startup_update_check_completed(self, release_info):
+        """启动时更新检查完成"""
+        if release_info:
+            # 发现新版本，弹出提示
+            result = QMessageBox.information(
+                self, "发现新版本",
+                f"发现新版本 v{release_info.version}\n\n"
+                f"当前版本: v{APP_VERSION}\n\n"
+                f"是否立即查看更新详情？",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+            )
+            if result == QMessageBox.StandardButton.Yes:
+                self._on_check_update()
+
+        # 清理
+        if hasattr(self, '_startup_update_service'):
+            self._startup_update_service.deleteLater()
+            del self._startup_update_service
+
+    def _on_startup_update_check_failed(self, error_msg: str):
+        """启动时更新检查失败（静默失败）"""
+        logger.debug(f"启动时更新检查失败: {error_msg}")
+        if hasattr(self, '_startup_update_service'):
+            self._startup_update_service.deleteLater()
+            del self._startup_update_service
 
     def _on_config_changed(self):
         """配置变更"""

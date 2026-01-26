@@ -12,7 +12,7 @@ import zipfile
 sys.setrecursionlimit(10000)
 
 PROJECT_NAME = "ArknightsPassMaker"
-VERSION = "1.0.4"
+VERSION = "1.0.5"
 MAIN_SCRIPT = "main.py"
 ICON_FILE = "resources/icons/favicon.ico"
 BUILD_DIR = PROJECT_NAME
@@ -78,9 +78,78 @@ def find_inno_setup():
     return None
 
 
+def check_uv():
+    """检查 uv 是否可用"""
+    try:
+        result = subprocess.run(["uv", "--version"], capture_output=True, check=True)
+        version = result.stdout.decode().strip()
+        print(f"  uv: {version}")
+        return True
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return False
+
+
+def build_epass_flasher():
+    """构建 epass_flasher.exe"""
+    flasher_dir = "epass_flasher"
+    flasher_exe = os.path.join(flasher_dir, "dist", "epass_flasher.exe")
+
+    # 检查目录是否存在
+    if not os.path.exists(flasher_dir):
+        print("  Warning: epass_flasher directory not found")
+        return False
+
+    # 如果已存在且比源文件新，跳过构建
+    flasher_main = os.path.join(flasher_dir, "main.py")
+    if os.path.exists(flasher_exe) and os.path.exists(flasher_main):
+        if os.path.getmtime(flasher_exe) > os.path.getmtime(flasher_main):
+            print("  epass_flasher.exe is up to date")
+            return True
+
+    print("Building epass_flasher...")
+
+    # 检查 uv 是否可用
+    if not check_uv():
+        print("  Warning: uv not found, skipping epass_flasher build")
+        return False
+
+    # 同步依赖
+    print("  Syncing dependencies...")
+    result = subprocess.run(
+        ["uv", "sync"],
+        cwd=flasher_dir,
+        capture_output=True
+    )
+    if result.returncode != 0:
+        print(f"  Warning: uv sync failed: {result.stderr.decode()}")
+        return False
+
+    # 使用 PyInstaller 打包
+    print("  Running PyInstaller...")
+    result = subprocess.run(
+        ["uv", "run", "pyinstaller", "main.spec", "--clean", "-y"],
+        cwd=flasher_dir,
+        capture_output=True
+    )
+    if result.returncode != 0:
+        print(f"  Warning: PyInstaller failed: {result.stderr.decode()}")
+        return False
+
+    if os.path.exists(flasher_exe):
+        print(f"  Built: {flasher_exe}")
+        return True
+    else:
+        print("  Warning: epass_flasher.exe not found after build")
+        return False
+
+
 def check_requirements():
     """检查构建环境"""
     print("Checking build environment...")
+
+    # 检查 uv
+    if not check_uv():
+        print("  uv: not found (epass_flasher will not be built)")
 
     try:
         import cx_Freeze
@@ -124,6 +193,9 @@ def clean_build():
 
 def run_cxfreeze():
     """执行 cx_Freeze 打包"""
+    # 先构建 epass_flasher
+    build_epass_flasher()
+
     # 强制清理 __pycache__，确保使用最新源代码编译
     print("Clearing __pycache__ before build...")
     for root, dirs, files in os.walk('.'):
@@ -182,6 +254,15 @@ def run_cxfreeze():
                 src = os.path.join(ffmpeg_sdk_bin, dll)
                 include_files.append((src, dll))
                 print(f"  Including FFmpeg DLL: {dll}")
+
+    # 添加烧录工具
+    flasher_exe = os.path.join("epass_flasher", "dist", "epass_flasher.exe")
+    if os.path.exists(flasher_exe):
+        include_files.append((flasher_exe, "epass_flasher.exe"))
+        print(f"  Including flasher: {flasher_exe}")
+    else:
+        print("  Warning: epass_flasher.exe not found")
+        print("           Run 'cd epass_flasher && uv run pyinstaller main.spec' to build it")
 
     pyqt6_plugins = os.path.join(site_packages, "PyQt6", "Qt6", "plugins")
     if os.path.exists(pyqt6_plugins):

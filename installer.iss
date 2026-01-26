@@ -2,9 +2,9 @@
 
 #define MyAppName "ArknightsPassMaker"
 #define MyAppNameCN "明日方舟通行证素材制作器"
-#define MyAppVersion "1.0.4"
+#define MyAppVersion "1.0.5"
 #define MyAppPublisher "Rafael-ban"
-#define MyAppURL "https://github.com/rhodesepass/arknights_pass_maker"
+#define MyAppURL "https://github.com/rhodesepass/neo-assetmaker"
 #define MyAppExeName "ArknightsPassMaker.exe"
 #define MyAppIcon "resources\icons\favicon.ico"
 

@@ -5,7 +5,7 @@ from typing import Dict, Any
 
 # ===== 应用信息 =====
 APP_NAME = "明日方舟通行证素材制作器"
-APP_VERSION = "1.0.4"
+APP_VERSION = "1.0.5"
 
 # ===== 基础尺寸配置 =====
 SCREEN_WIDTH = 360
@@ -102,3 +102,9 @@ def microseconds_to_seconds(us: int) -> float:
 def seconds_to_microseconds(s: float) -> int:
     """秒转微秒"""
     return int(s * MICROSECONDS_PER_SECOND)
+
+
+# ===== GitHub 更新配置 =====
+GITHUB_OWNER = "rhodesepass"
+GITHUB_REPO = "neo-assetmaker"
+UPDATE_CHECK_INTERVAL_HOURS = 24
