@@ -5,7 +5,7 @@ from typing import Dict, Any
 
 # ===== 应用信息 =====
 APP_NAME = "明日方舟通行证素材制作器"
-APP_VERSION = "1.0.5"
+APP_VERSION = "1.5.5"
 
 # ===== 基础尺寸配置 =====
 SCREEN_WIDTH = 360

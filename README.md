@@ -238,7 +238,7 @@ arknights_pass_maker/
 
 ## 更新日志
 
-### v1.0.5
+### v1.5.5
 
 **新功能**
 - 新增自动更新功能
@@ -255,6 +255,12 @@ arknights_pass_maker/
   - 构建命令改为 `uv sync && uv run python build.py`
 - 构建时自动编译 epass_flasher.exe（需要安装 uv）
 - 修复 GitHub 仓库 URL 配置错误
+
+**Bug 修复**
+- 修复 CI/CD 自动构建时 epass_flasher.exe 缺失问题
+  - GitHub Actions 工作流添加 uv 安装步骤
+  - 构建脚本默认在 epass_flasher 构建失败时中止，避免生成不完整的安装包
+- 改进烧录工具缺失时的错误提示，添加 GitHub Releases 下载链接
 
 ### v1.0.4
 

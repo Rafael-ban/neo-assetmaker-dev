@@ -12,7 +12,7 @@ import zipfile
 sys.setrecursionlimit(10000)
 
 PROJECT_NAME = "ArknightsPassMaker"
-VERSION = "1.0.5"
+VERSION = "1.5.5"
 MAIN_SCRIPT = "main.py"
 ICON_FILE = "resources/icons/favicon.ico"
 BUILD_DIR = PROJECT_NAME
@@ -25,6 +25,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description=f"{PROJECT_NAME} Build Tool")
     parser.add_argument('--no-installer', action='store_true', help='Skip installer packaging')
     parser.add_argument('--clean', action='store_true', help='Clean build directories')
+    parser.add_argument('--skip-flasher', action='store_true', help='跳过 epass_flasher 构建（不推荐）')
     return parser.parse_args()
 
 
@@ -117,22 +118,20 @@ def build_epass_flasher():
     print("  Syncing dependencies...")
     result = subprocess.run(
         ["uv", "sync"],
-        cwd=flasher_dir,
-        capture_output=True
+        cwd=flasher_dir
     )
     if result.returncode != 0:
-        print(f"  Warning: uv sync failed: {result.stderr.decode()}")
+        print("  ERROR: uv sync failed")
         return False
 
-    # 使用 PyInstaller 打包
+    # 使用 PyInstaller 打包（不捕获输出，让用户看到完整错误信息）
     print("  Running PyInstaller...")
     result = subprocess.run(
         ["uv", "run", "pyinstaller", "main.spec", "--clean", "-y"],
-        cwd=flasher_dir,
-        capture_output=True
+        cwd=flasher_dir
     )
     if result.returncode != 0:
-        print(f"  Warning: PyInstaller failed: {result.stderr.decode()}")
+        print("  ERROR: PyInstaller failed, see error messages above")
         return False
 
     if os.path.exists(flasher_exe):
@@ -191,10 +190,17 @@ def clean_build():
             print(f"  Removed cache: {cache_path}")
 
 
-def run_cxfreeze():
+def run_cxfreeze(skip_flasher=False):
     """执行 cx_Freeze 打包"""
     # 先构建 epass_flasher
-    build_epass_flasher()
+    if not skip_flasher:
+        if not build_epass_flasher():
+            print("\nERROR: epass_flasher 构建失败，中止构建")
+            print("       使用 --skip-flasher 跳过此检查（不推荐）")
+            return False
+    else:
+        print("Skipping epass_flasher build (--skip-flasher)")
+
 
     # 强制清理 __pycache__，确保使用最新源代码编译
     print("Clearing __pycache__ before build...")
@@ -260,9 +266,12 @@ def run_cxfreeze():
     if os.path.exists(flasher_exe):
         include_files.append((flasher_exe, "epass_flasher.exe"))
         print(f"  Including flasher: {flasher_exe}")
+    elif not skip_flasher:
+        print("\nERROR: epass_flasher.exe 不存在，中止构建")
+        print("       使用 --skip-flasher 跳过此检查（不推荐）")
+        return False
     else:
-        print("  Warning: epass_flasher.exe not found")
-        print("           Run 'cd epass_flasher && uv run pyinstaller main.spec' to build it")
+        print("  Warning: epass_flasher.exe not found (skipped due to --skip-flasher)")
 
     pyqt6_plugins = os.path.join(site_packages, "PyQt6", "Qt6", "plugins")
     if os.path.exists(pyqt6_plugins):
@@ -375,7 +384,7 @@ def main():
     print("Running cx_Freeze...")
     print("=" * 50)
 
-    if not run_cxfreeze():
+    if not run_cxfreeze(skip_flasher=args.skip_flasher):
         sys.exit(1)
 
     print(f"\ncx_Freeze done: {BUILD_DIR}/")

@@ -692,7 +692,15 @@ class MainWindow(QMainWindow):
             if not os.path.exists(flasher_exe):
                 QMessageBox.critical(
                     self, "错误",
-                    f"烧录工具未找到\n\n路径: {flasher_exe}"
+                    f"烧录工具未找到\n\n"
+                    f"路径: {flasher_exe}\n\n"
+                    f"可能的原因:\n"
+                    f"1. 安装包构建时未包含烧录工具\n"
+                    f"2. 文件被杀毒软件误删\n\n"
+                    f"解决方法:\n"
+                    f"1. 从 GitHub Releases 重新下载:\n"
+                    f"   https://github.com/rhodesepass/neo-assetmaker/releases\n"
+                    f"2. 检查杀毒软件隔离区"
                 )
                 return
 
