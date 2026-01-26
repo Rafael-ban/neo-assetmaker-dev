@@ -115,9 +115,10 @@ def build_epass_flasher():
         return False
 
     # 同步依赖（使用官方 PyPI，覆盖 epass_flasher 配置的清华镜像）
+    # --group dev: 安装 dev 依赖（包含 PyInstaller）
     print("  Syncing dependencies...")
     result = subprocess.run(
-        ["uv", "sync", "--default-index", "https://pypi.org/simple", "--upgrade"],
+        ["uv", "sync", "--default-index", "https://pypi.org/simple", "--upgrade", "--group", "dev"],
         cwd=flasher_dir
     )
     if result.returncode != 0:
