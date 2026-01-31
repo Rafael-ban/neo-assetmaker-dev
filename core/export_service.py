@@ -6,6 +6,9 @@ import struct
 import shutil
 import subprocess
 import logging
+import tempfile
+import glob
+import time
 from typing import Optional, Dict, Any, Tuple, List
 from dataclasses import dataclass
 from enum import Enum
@@ -72,6 +75,9 @@ class ExportWorker(QThread):
         self._cancelled: bool = False
         self._epconfig: Optional[EPConfig] = None
         self._resolution: str = "360x640"
+        # 当前FFmpeg进程引用，用于支持取消操作
+        # 参考: Python subprocess文档 - Popen.terminate() 可终止子进程
+        self._ffmpeg_process: Optional[subprocess.Popen] = None
 
     def setup(
         self,
@@ -90,9 +96,23 @@ class ExportWorker(QThread):
         self._cancelled = False
 
     def cancel(self):
-        """取消导出"""
+        """
+        取消导出
+        
+        根据Python官方subprocess文档:
+        - Popen.terminate(): "Stop the child. On POSIX OSs the method sends SIGTERM
+          to the child. On Windows the Win32 API function TerminateProcess() is called."
+        """
         self._cancelled = True
         logger.info("导出任务已请求取消")
+        
+        # 如果有正在运行的FFmpeg进程，立即终止它
+        if self._ffmpeg_process is not None:
+            try:
+                self._ffmpeg_process.terminate()
+                logger.info("已发送终止信号给FFmpeg进程")
+            except Exception as e:
+                logger.warning(f"终止FFmpeg进程时出错: {e}")
 
     def _find_ffmpeg(self) -> str:
         """查找ffmpeg（支持打包环境）"""
@@ -305,40 +325,151 @@ class ExportWorker(QThread):
                 raise RuntimeError("没有成功写入任何视频帧")
             logger.info(f"成功写入 {frames_written} 帧")
 
-            self.progress_updated.emit(base_progress + 50, "正在编码视频...")
+            self.progress_updated.emit(base_progress + 50, "正在编码视频(2pass)...")
             input_pattern = f"{temp_dir}/frame_%06d.png"
             output_file = output_path.replace("\\", "/")
 
-            ffmpeg_cmd = [
+            # 使用2pass编码以获得更好的码率分配
+            # 参考: x264 ratecontrol.txt - "2pass: Given some data about each frame of a 1st pass,
+            # we try to choose QPs to maximize quality while matching a specified total size"
+            self._run_ffmpeg_2pass(
+                input_pattern=input_pattern,
+                output_file=output_file,
+                fps=params.fps,
+                bitrate="3000k"
+            )
+
+        finally:
+            if os.path.exists(temp_dir):
+                shutil.rmtree(temp_dir)
+
+    def _run_ffmpeg_2pass(
+        self,
+        input_pattern: str,
+        output_file: str,
+        fps: float,
+        bitrate: str = "3000k"
+    ):
+        
+        """使用FFmpeg进行2pass编码"""
+        # 生成临时passlogfile前缀
+        passlog_prefix = tempfile.mktemp(prefix="ffmpeg2pass_", dir=os.path.dirname(output_file))
+        
+        try:
+            # ===== Pass 1: 分析阶段 =====
+            pass1_cmd = [
                 self._ffmpeg_path,
                 "-hide_banner",
-                "-framerate", str(params.fps),
+                "-framerate", str(fps),
                 "-i", input_pattern,
                 "-c:v", "libx264",
                 "-profile:v", "high",
                 "-level", "4.0",
                 "-pix_fmt", "yuv420p",
-                "-b:v", "3000k",
-                "-an", "-y",
-                output_file
+                "-b:v", bitrate,
+                "-pass", "1",
+                "-passlogfile", passlog_prefix,
+                "-an",
+                "-f", "null",
+                "-y",
+                os.devnull
             ]
-
-            logger.info(f"执行ffmpeg命令: {' '.join(ffmpeg_cmd)}")
-
-            process = subprocess.run(
-                ffmpeg_cmd,
-                capture_output=True,
+            
+            logger.info(f"执行ffmpeg 2pass第一遍: {' '.join(pass1_cmd)}")
+            
+            # 使用Popen替代run，以支持取消
+            # Python文档: "Popen objects are supported as context managers"
+            self._ffmpeg_process = subprocess.Popen(
+                pass1_cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
                 encoding='utf-8',
                 errors='replace'
             )
-            if process.returncode != 0:
-                stderr_msg = process.stderr[-500:] if process.stderr else "未知错误"
-                logger.error(f"ffmpeg完整stderr: {process.stderr}")
-                raise RuntimeError(f"ffmpeg编码失败 (code {process.returncode}): {stderr_msg}")
-
+            
+            # 轮询等待进程完成，同时检查取消标志
+            # Python文档: "poll() - Check if child process has terminated...Otherwise, returns None"
+            while self._ffmpeg_process.poll() is None:
+                if self._cancelled:
+                    self._ffmpeg_process.terminate()
+                    self._ffmpeg_process.wait()  # 等待进程实际终止
+                    self._ffmpeg_process = None
+                    raise InterruptedError("导出已取消")
+                time.sleep(0.1)  # 100ms轮询间隔
+            
+            # 获取输出
+            stdout, stderr = self._ffmpeg_process.communicate()
+            returncode = self._ffmpeg_process.returncode
+            self._ffmpeg_process = None
+            
+            if returncode != 0:
+                stderr_msg = stderr[-500:] if stderr else "未知错误"
+                logger.error(f"ffmpeg pass1 stderr: {stderr}")
+                raise RuntimeError(f"ffmpeg 2pass第一遍失败 (code {returncode}): {stderr_msg}")
+            
+            # ===== 两个pass之间检查取消 =====
+            if self._cancelled:
+                raise InterruptedError("导出已取消")
+            
+            # ===== Pass 2: 编码阶段 =====
+            pass2_cmd = [
+                self._ffmpeg_path,
+                "-hide_banner",
+                "-framerate", str(fps),
+                "-i", input_pattern,
+                "-c:v", "libx264",
+                "-profile:v", "high",
+                "-level", "4.0",
+                "-pix_fmt", "yuv420p",
+                "-b:v", bitrate,
+                "-pass", "2",
+                "-passlogfile", passlog_prefix,
+                "-an",
+                "-y",
+                output_file
+            ]
+            
+            logger.info(f"执行ffmpeg 2pass第二遍: {' '.join(pass2_cmd)}")
+            
+            self._ffmpeg_process = subprocess.Popen(
+                pass2_cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                encoding='utf-8',
+                errors='replace'
+            )
+            
+            # 同样使用轮询等待
+            while self._ffmpeg_process.poll() is None:
+                if self._cancelled:
+                    self._ffmpeg_process.terminate()
+                    self._ffmpeg_process.wait()
+                    self._ffmpeg_process = None
+                    raise InterruptedError("导出已取消")
+                time.sleep(0.1)
+            
+            stdout, stderr = self._ffmpeg_process.communicate()
+            returncode = self._ffmpeg_process.returncode
+            self._ffmpeg_process = None
+            
+            if returncode != 0:
+                stderr_msg = stderr[-500:] if stderr else "未知错误"
+                logger.error(f"ffmpeg pass2 stderr: {stderr}")
+                raise RuntimeError(f"ffmpeg 2pass第二遍失败 (code {returncode}): {stderr_msg}")
+                
+            logger.info("2pass编码完成")
+            
         finally:
-            if os.path.exists(temp_dir):
-                shutil.rmtree(temp_dir)
+            # 确保进程引用被清理
+            self._ffmpeg_process = None
+            # 清理passlogfile生成的临时文件
+            for pattern in [f"{passlog_prefix}*.log*", f"{passlog_prefix}*.mbtree"]:
+                for f in glob.glob(pattern):
+                    try:
+                        os.remove(f)
+                        logger.debug(f"已清理临时文件: {f}")
+                    except OSError:
+                        pass
 
     def _export_video_from_image(
         self,
@@ -406,37 +537,17 @@ class ExportWorker(QThread):
 
             logger.info(f"成功生成 {total_frames} 帧")
 
-            # 使用ffmpeg编码
-            self.progress_updated.emit(base_progress + 50, "正在编码视频...")
+            # 使用2pass ffmpeg编码
+            self.progress_updated.emit(base_progress + 50, "正在编码视频(2pass)...")
             input_pattern = f"{temp_dir}/frame_%06d.png"
             output_file = output_path.replace("\\", "/")
 
-            ffmpeg_cmd = [
-                self._ffmpeg_path,
-                "-hide_banner",
-                "-framerate", str(fps),
-                "-i", input_pattern,
-                "-c:v", "libx264",
-                "-profile:v", "high",
-                "-level", "4.0",
-                "-pix_fmt", "yuv420p",
-                "-b:v", "3000k",
-                "-an", "-y",
-                output_file
-            ]
-
-            logger.info(f"执行ffmpeg命令: {' '.join(ffmpeg_cmd)}")
-
-            process = subprocess.run(
-                ffmpeg_cmd,
-                capture_output=True,
-                encoding='utf-8',
-                errors='replace'
+            self._run_ffmpeg_2pass(
+                input_pattern=input_pattern,
+                output_file=output_file,
+                fps=fps,
+                bitrate="3000k"
             )
-            if process.returncode != 0:
-                stderr_msg = process.stderr[-500:] if process.stderr else "未知错误"
-                logger.error(f"ffmpeg完整stderr: {process.stderr}")
-                raise RuntimeError(f"ffmpeg编码失败 (code {process.returncode}): {stderr_msg}")
 
         finally:
             if os.path.exists(temp_dir):
