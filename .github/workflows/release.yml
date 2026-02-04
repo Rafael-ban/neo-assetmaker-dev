@@ -110,6 +110,12 @@ jobs:
           $pyprojectToml = $pyprojectToml -replace 'version = "[^"]+"', "version = `"$version`""
           Set-Content pyproject.toml $pyprojectToml -NoNewline
           Write-Host "Updated pyproject.toml"
+
+          # Update simulator/Cargo.toml (Rust 模拟器版本)
+          $cargoToml = Get-Content simulator/Cargo.toml -Raw
+          $cargoToml = $cargoToml -replace '(?m)^version = "[^"]+"', "version = `"$version`""
+          Set-Content simulator/Cargo.toml $cargoToml -NoNewline
+          Write-Host "Updated simulator/Cargo.toml"
         shell: pwsh
 
       # ========== Rust 模拟器编译 ==========
@@ -166,11 +172,8 @@ jobs:
 
       - name: Install dependencies
         run: |
-          uv pip install --system -e . -v
-          uv pip install --system cx_Freeze -v
-          python -c "import PyQt6; print(f'PyQt6 installed at: {PyQt6.__file__}')"
-        env:
-          UV_SYSTEM_PYTHON: 1
+          uv sync --group dev
+          uv run python -c "import PyQt6; print(f'PyQt6 installed at: {PyQt6.__file__}')"
 
       - name: Cache FFmpeg
         id: cache-ffmpeg
@@ -200,7 +203,7 @@ jobs:
         shell: pwsh
 
       - name: Build with cx_Freeze and Inno Setup
-        run: python build.py
+        run: uv run python build.py
         env:
           UV_DEFAULT_INDEX: https://pypi.org/simple
 
