@@ -470,22 +470,22 @@ class ConfigPanel(QWidget):
     def _connect_signals(self):
         """连接信号"""
         # 基本信息
-        self.btn_new_uuid.clicked.connect(self._on_new_uuid)
+        self.btn_new_uuid.clicked.connect(lambda: self._on_new_uuid())
         self.edit_name.textChanged.connect(self._on_config_changed)
         self.edit_description.textChanged.connect(self._on_config_changed)
         self.combo_screen.currentIndexChanged.connect(self._on_config_changed)
         self.edit_icon.textChanged.connect(self._on_config_changed)
-        self.btn_browse_icon.clicked.connect(self._browse_icon)
+        self.btn_browse_icon.clicked.connect(lambda: self._browse_icon())
         self.btn_capture_frame.clicked.connect(self.capture_frame_requested.emit)
 
         # 视频配置
         self.edit_loop_file.textChanged.connect(self._on_config_changed)
-        self.btn_browse_loop.clicked.connect(self._browse_loop)
-        self.radio_loop_video.toggled.connect(self._on_loop_mode_changed)
-        self.radio_loop_image.toggled.connect(self._on_loop_mode_changed)
+        self.btn_browse_loop.clicked.connect(lambda: self._browse_loop())
+        self.radio_loop_video.toggled.connect(lambda: self._on_loop_mode_changed())
+        self.radio_loop_image.toggled.connect(lambda: self._on_loop_mode_changed())
         self.check_intro_enabled.stateChanged.connect(self._on_config_changed)
         self.edit_intro_file.textChanged.connect(self._on_config_changed)
-        self.btn_browse_intro.clicked.connect(self._browse_intro)
+        self.btn_browse_intro.clicked.connect(lambda: self._browse_intro())
         self.spin_intro_duration.valueChanged.connect(self._on_intro_duration_changed)
 
         # 过渡效果
@@ -511,16 +511,16 @@ class ConfigPanel(QWidget):
         self.edit_ark_staff.textChanged.connect(self._on_config_changed)
         self.edit_ark_color.textChanged.connect(self._on_config_changed)
         self.btn_ark_color.clicked.connect(lambda: self._pick_color(self.edit_ark_color))
-        self.btn_ark_class_icon.clicked.connect(self._on_select_class_icon)
-        self.btn_clear_class_icon.clicked.connect(self._on_clear_class_icon)
-        self.btn_ark_logo.clicked.connect(self._on_select_logo)
-        self.btn_clear_logo.clicked.connect(self._on_clear_logo)
+        self.btn_ark_class_icon.clicked.connect(lambda: self._on_select_class_icon())
+        self.btn_clear_class_icon.clicked.connect(lambda: self._on_clear_class_icon())
+        self.btn_ark_logo.clicked.connect(lambda: self._on_select_logo())
+        self.btn_clear_logo.clicked.connect(lambda: self._on_clear_logo())
 
         # Image叠加信号
         self.spin_img_appear.valueChanged.connect(self._on_config_changed)
         self.spin_img_duration.valueChanged.connect(self._on_config_changed)
         self.edit_img_overlay.textChanged.connect(self._on_config_changed)
-        self.btn_img_overlay.clicked.connect(self._on_select_img_overlay)
+        self.btn_img_overlay.clicked.connect(lambda: self._on_select_img_overlay())
 
         # 操作按钮
         self.btn_validate.clicked.connect(self.validate_requested.emit)
