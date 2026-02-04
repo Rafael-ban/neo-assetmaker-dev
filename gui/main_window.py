@@ -34,6 +34,7 @@ class MainWindow(QMainWindow):
         self._project_path: str = ""
         self._base_dir: str = ""
         self._is_modified: bool = False
+        self._initializing: bool = True  # 初始化期间防护标志
 
         # 为每个视频存储独立的入点/出点
         self._loop_in_out: tuple[int, int] = (0, 0)   # 循环视频的(入点, 出点)
@@ -52,6 +53,7 @@ class MainWindow(QMainWindow):
         QTimer.singleShot(2000, self._check_update_on_startup)
 
         logger.info("主窗口初始化完成")
+        self._initializing = False  # 初始化完成
 
     def _setup_icon(self):
         """设置窗口图标"""
@@ -563,6 +565,10 @@ class MainWindow(QMainWindow):
             rotation = self.video_preview.get_rotation()
 
             # 启动 Rust 模拟器
+            popen_kwargs = {}
+            if sys.platform == 'win32':
+                popen_kwargs['creationflags'] = subprocess.CREATE_NO_WINDOW
+
             subprocess.Popen([
                 simulator_path,
                 "--config", config_path,
@@ -570,7 +576,7 @@ class MainWindow(QMainWindow):
                 "--app-dir", app_dir,
                 "--cropbox", f"{cropbox[0]},{cropbox[1]},{cropbox[2]},{cropbox[3]}",
                 "--rotation", str(rotation)
-            ])
+            ], **popen_kwargs)
 
             logger.info(f"模拟器已启动: {simulator_path}")
 
@@ -650,7 +656,7 @@ class MainWindow(QMainWindow):
             f"<h3>{APP_NAME}</h3>"
             f"<p>版本: {APP_VERSION}</p>"
             f"<p>明日方舟通行证素材制作器</p>"
-            f"<p>by Rafael_ban</p>"
+            f"<p>作者: Rafael_ban & 初微弦音</p>"
         )
 
     def _on_check_update(self):
@@ -929,6 +935,10 @@ class MainWindow(QMainWindow):
 
     def _on_loop_mode_changed(self, is_image: bool):
         """循环模式切换"""
+        # 防止在初始化期间触发
+        if self._initializing:
+            return
+
         # 清空预览
         self.video_preview.clear()
         self._loop_image_path = None

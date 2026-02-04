@@ -376,13 +376,16 @@ class ExportWorker(QThread):
             
             logger.info(f"执行ffmpeg 2pass第一遍: {' '.join(pass1_cmd)}")
 
-            self._ffmpeg_process = subprocess.Popen(
-                pass1_cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                encoding='utf-8',
-                errors='replace'
-            )
+            popen_kwargs = {
+                'stdout': subprocess.PIPE,
+                'stderr': subprocess.PIPE,
+                'encoding': 'utf-8',
+                'errors': 'replace'
+            }
+            if sys.platform == 'win32':
+                popen_kwargs['creationflags'] = subprocess.CREATE_NO_WINDOW
+
+            self._ffmpeg_process = subprocess.Popen(pass1_cmd, **popen_kwargs)
 
             # 使用 communicate(timeout) 循环等待进程完成
             # Python文档警告: 使用 poll() + PIPE 会导致死锁，必须用 communicate()
@@ -435,13 +438,16 @@ class ExportWorker(QThread):
             
             logger.info(f"执行ffmpeg 2pass第二遍: {' '.join(pass2_cmd)}")
 
-            self._ffmpeg_process = subprocess.Popen(
-                pass2_cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                encoding='utf-8',
-                errors='replace'
-            )
+            popen_kwargs2 = {
+                'stdout': subprocess.PIPE,
+                'stderr': subprocess.PIPE,
+                'encoding': 'utf-8',
+                'errors': 'replace'
+            }
+            if sys.platform == 'win32':
+                popen_kwargs2['creationflags'] = subprocess.CREATE_NO_WINDOW
+
+            self._ffmpeg_process = subprocess.Popen(pass2_cmd, **popen_kwargs2)
 
             # 使用 communicate(timeout) 循环等待进程完成
             stdout, stderr = "", ""

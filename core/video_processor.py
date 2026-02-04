@@ -223,12 +223,15 @@ class VideoProcessor:
             progress_callback(0.1, "开始处理视频...")
 
         try:
-            process = subprocess.Popen(
-                cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                universal_newlines=True
-            )
+            popen_kwargs = {
+                'stdout': subprocess.PIPE,
+                'stderr': subprocess.PIPE,
+                'universal_newlines': True
+            }
+            if sys.platform == 'win32':
+                popen_kwargs['creationflags'] = subprocess.CREATE_NO_WINDOW
+
+            process = subprocess.Popen(cmd, **popen_kwargs)
 
             if progress_callback:
                 progress_callback(0.5, "正在编码...")

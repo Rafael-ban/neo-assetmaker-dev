@@ -134,7 +134,13 @@ class UpdateDialog(QDialog):
         self.text_changelog = QTextBrowser()
         self.text_changelog.setOpenExternalLinks(True)
         self.text_changelog.setStyleSheet(
-            "background-color: #f5f5f5; border: 1px solid #ddd; border-radius: 4px;"
+            "QTextBrowser { "
+            "background-color: #f5f5f5; "
+            "color: #333333; "
+            "border: 1px solid #ddd; "
+            "border-radius: 4px; "
+            "padding: 8px; "
+            "}"
         )
         layout.addWidget(self.text_changelog, stretch=1)
 
@@ -279,6 +285,23 @@ class UpdateDialog(QDialog):
 
             # Convert markdown to simple HTML (basic conversion)
             changelog = release_info.body or "暂无更新说明"
+
+            # 解析 changelog，只显示当前版本内容
+            # 假设格式为 "## v1.x.x" 或 "# v1.x.x" 开头的段落
+            lines = changelog.split('\n')
+            result_lines = []
+            found_first_version = False
+            for line in lines:
+                # 检测版本标题（## v1.x.x 或 # v1.x.x）
+                if line.strip().startswith('#') and 'v' in line.lower():
+                    if found_first_version:
+                        break  # 遇到下一个版本标题，停止
+                    found_first_version = True
+                if found_first_version:
+                    result_lines.append(line)
+
+            changelog = '\n'.join(result_lines) if result_lines else changelog
+
             # Basic markdown to HTML conversion
             changelog = changelog.replace('\n\n', '</p><p>')
             changelog = changelog.replace('\n', '<br>')
