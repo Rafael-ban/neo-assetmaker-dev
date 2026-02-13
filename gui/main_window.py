@@ -4,6 +4,8 @@
 import os
 import sys
 import logging
+import tempfile
+import shutil
 from typing import Optional
 
 logger = logging.getLogger(__name__)
@@ -20,6 +22,7 @@ from config.epconfig import EPConfig
 from config.constants import APP_NAME, APP_VERSION, get_resolution_spec
 from gui.widgets.config_panel import ConfigPanel
 from gui.widgets.video_preview import VideoPreviewWidget
+from gui.widgets.transition_preview import TransitionPreviewWidget
 from gui.widgets.timeline import TimelineWidget
 from gui.widgets.json_preview import JsonPreviewWidget
 
@@ -34,6 +37,7 @@ class MainWindow(QMainWindow):
         self._project_path: str = ""
         self._base_dir: str = ""
         self._is_modified: bool = False
+        self._temp_dir: Optional[str] = None  # 临时项目目录路径，None 表示非临时项目
         self._initializing: bool = True  # 初始化期间防护标志
 
         # 为每个视频存储独立的入点/出点
@@ -48,6 +52,10 @@ class MainWindow(QMainWindow):
 
         self._update_title()
         self._check_first_run()
+
+        # 自动创建临时项目，用户可立即开始编辑
+        if self._config is None:
+            self._init_temp_project()
 
         # 启动时延迟检查更新（2秒后）
         QTimer.singleShot(2000, self._check_update_on_startup)
@@ -94,11 +102,13 @@ class MainWindow(QMainWindow):
         preview_layout.setContentsMargins(5, 5, 5, 5)
         preview_layout.setSpacing(5)
 
-        # 标签页：循环视频 / 入场视频
+        # 标签页：入场视频 / 过渡图片 / 循环视频
         self.preview_tabs = QTabWidget()
         self.video_preview = VideoPreviewWidget()  # 循环视频预览
         self.intro_preview = VideoPreviewWidget()  # 入场视频预览
+        self.transition_preview = TransitionPreviewWidget()  # 过渡图片预览
         self.preview_tabs.addTab(self.intro_preview, "入场视频")
+        self.preview_tabs.addTab(self.transition_preview, "过渡图片")
         self.preview_tabs.addTab(self.video_preview, "循环视频")
         preview_layout.addWidget(self.preview_tabs, stretch=1)
 
@@ -194,6 +204,7 @@ class MainWindow(QMainWindow):
         self.config_panel.validate_requested.connect(self._on_validate)
         self.config_panel.export_requested.connect(self._on_export)
         self.config_panel.capture_frame_requested.connect(self._on_capture_frame)
+        self.config_panel.transition_image_changed.connect(self._on_transition_image_changed)
 
         # 标签页切换
         self.preview_tabs.currentChanged.connect(self._on_preview_tab_changed)
@@ -238,6 +249,52 @@ class MainWindow(QMainWindow):
             if dialog.should_not_show_again():
                 settings.setValue("first_run_completed", True)
 
+    def _init_temp_project(self):
+        """创建临时项目，用户可立即开始编辑"""
+        temp_dir = tempfile.mkdtemp(prefix="neo_assetmaker_")
+        self._temp_dir = temp_dir
+
+        self._config = EPConfig()
+        self._base_dir = temp_dir
+        self._project_path = ""  # 留空，首次保存时触发"另存为"
+        self._is_modified = False
+
+        self.config_panel.set_config(self._config, self._base_dir)
+        self.json_preview.set_config(self._config, self._base_dir)
+        self.video_preview.set_epconfig(self._config)
+        self._update_title()
+        self.status_bar.showMessage("已创建临时项目，可以开始编辑")
+        logger.info(f"已初始化临时项目: {temp_dir}")
+
+    def _cleanup_temp_dir(self):
+        """清理临时项目目录"""
+        if self._temp_dir and os.path.exists(self._temp_dir):
+            try:
+                shutil.rmtree(self._temp_dir)
+                logger.info(f"已清理临时目录: {self._temp_dir}")
+            except Exception as e:
+                logger.warning(f"清理临时目录失败: {e}")
+        self._temp_dir = None
+
+    def _migrate_temp_to_permanent(self, dest_dir: str):
+        """将临时项目中的工作文件迁移到永久目录"""
+        if not self._temp_dir or not os.path.exists(self._temp_dir):
+            return
+
+        try:
+            for filename in os.listdir(self._temp_dir):
+                src = os.path.join(self._temp_dir, filename)
+                dst = os.path.join(dest_dir, filename)
+                if os.path.isfile(src) and not os.path.exists(dst):
+                    shutil.copy2(src, dst)
+                    logger.debug(f"已迁移文件: {filename}")
+
+            self._cleanup_temp_dir()
+            logger.info(f"已将临时项目迁移到: {dest_dir}")
+        except Exception as e:
+            logger.warning(f"迁移临时项目失败: {e}")
+            # 迁移失败时保留临时目录作为备份
+
     def _on_shortcuts(self):
         """显示快捷键帮助"""
         from gui.dialogs.shortcuts_dialog import ShortcutsDialog
@@ -255,6 +312,8 @@ class MainWindow(QMainWindow):
         title = f"{APP_NAME} v{APP_VERSION}"
         if self._project_path:
             title = f"{os.path.basename(self._project_path)} - {title}"
+        elif self._temp_dir:
+            title = f"临时项目 - {title}"
         if self._is_modified:
             title = f"* {title}"
         self.setWindowTitle(title)
@@ -270,6 +329,9 @@ class MainWindow(QMainWindow):
         )
         if not dir_path:
             return
+
+        # 清理临时项目
+        self._cleanup_temp_dir()
 
         # 创建新配置
         self._config = EPConfig()
@@ -295,6 +357,9 @@ class MainWindow(QMainWindow):
         )
         if not path:
             return
+
+        # 清理临时项目
+        self._cleanup_temp_dir()
 
         try:
             self._config = EPConfig.load_from_file(path)
@@ -374,10 +439,21 @@ class MainWindow(QMainWindow):
             return
 
         try:
+            new_base_dir = os.path.dirname(path)
+
+            # 从临时项目迁移到永久目录
+            if self._temp_dir and self._base_dir == self._temp_dir:
+                self._migrate_temp_to_permanent(new_base_dir)
+
             self._config.save_to_file(path)
             self._project_path = path
-            self._base_dir = os.path.dirname(path)
+            self._base_dir = new_base_dir
             self._is_modified = False
+
+            # 更新面板的 base_dir
+            self.config_panel.set_config(self._config, self._base_dir)
+            self.json_preview.set_config(self._config, self._base_dir)
+
             self._update_title()
             self.status_bar.showMessage(f"已保存: {path}")
         except Exception as e:
@@ -742,7 +818,7 @@ class MainWindow(QMainWindow):
         if path and os.path.exists(path):
             self.video_preview.load_video(path)
             # 切换到循环视频标签页
-            self.preview_tabs.setCurrentIndex(1)
+            self.preview_tabs.setCurrentIndex(2)
         else:
             logger.warning(f"视频文件不存在: {path}")
 
@@ -813,24 +889,25 @@ class MainWindow(QMainWindow):
         current_in = self.timeline.get_in_point()
         current_out = self.timeline.get_out_point()
 
-        # 根据切换前的状态保存（index 是切换后的目标）
         if index == 0:
-            # 即将切换到入场视频，保存循环视频的入点/出点
+            # 入场视频
             self._loop_in_out = (current_in, current_out)
-            # 连接入场视频预览
             self._connect_timeline_to_preview(self.intro_preview)
-            # 恢复入场视频的入点/出点
             self.timeline.set_in_point(self._intro_in_out[0])
             self.timeline.set_out_point(self._intro_in_out[1])
+            self.timeline.show()
             logger.debug("切换到入场视频预览")
-        else:
-            # 即将切换到循环视频，保存入场视频的入点/出点
+        elif index == 1:
+            # 过渡图片（静态，不需要时间轴）
+            self.timeline.hide()
+            logger.debug("切换到过渡图片预览")
+        elif index == 2:
+            # 循环视频
             self._intro_in_out = (current_in, current_out)
-            # 连接循环视频预览
             self._connect_timeline_to_preview(self.video_preview)
-            # 恢复循环视频的入点/出点
             self.timeline.set_in_point(self._loop_in_out[0])
             self.timeline.set_out_point(self._loop_in_out[1])
+            self.timeline.show()
             logger.debug("切换到循环视频预览")
 
     def _on_intro_video_loaded(self, total_frames: int, fps: float):
@@ -862,26 +939,26 @@ class MainWindow(QMainWindow):
 
     def _on_set_in_point(self):
         """设置入点为当前帧"""
-        # 获取当前激活的预览器
-        if self.preview_tabs.currentIndex() == 0:
-            # 入场视频
+        index = self.preview_tabs.currentIndex()
+        if index == 0:
             current_frame = self.intro_preview.current_frame_index
-        else:
-            # 循环视频
+        elif index == 2:
             current_frame = self.video_preview.current_frame_index
+        else:
+            return  # 过渡图片标签页无入点操作
 
         self.timeline.set_in_point(current_frame)
         logger.debug(f"设置入点: {current_frame}")
 
     def _on_set_out_point(self):
         """设置出点为当前帧"""
-        # 获取当前激活的预览器
-        if self.preview_tabs.currentIndex() == 0:
-            # 入场视频
+        index = self.preview_tabs.currentIndex()
+        if index == 0:
             current_frame = self.intro_preview.current_frame_index
-        else:
-            # 循环视频
+        elif index == 2:
             current_frame = self.video_preview.current_frame_index
+        else:
+            return  # 过渡图片标签页无出点操作
 
         self.timeline.set_out_point(current_frame)
         logger.debug(f"设置出点: {current_frame}")
@@ -948,6 +1025,10 @@ class MainWindow(QMainWindow):
         self._loop_in_out = (0, 0)
 
         logger.info(f"循环模式切换为: {'图片' if is_image else '视频'}")
+
+    def _on_transition_image_changed(self, trans_type: str, abs_path: str):
+        """过渡图片变更"""
+        self.transition_preview.load_image(trans_type, abs_path)
 
     def _on_video_loaded(self, total_frames: int, fps: float):
         """视频加载完成"""
@@ -1240,6 +1321,7 @@ class MainWindow(QMainWindow):
         """关闭事件"""
         if self._check_save():
             self._save_settings()
+            self._cleanup_temp_dir()
             event.accept()
         else:
             event.ignore()

@@ -38,6 +38,7 @@ class ConfigPanel(QWidget):
     validate_requested = pyqtSignal()  # 验证配置请求信号
     export_requested = pyqtSignal()  # 导出素材请求信号
     capture_frame_requested = pyqtSignal()  # 截取视频帧请求信号
+    transition_image_changed = pyqtSignal(str, str)  # 过渡图片变更信号 (trans_type, abs_path)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -351,6 +352,16 @@ class ConfigPanel(QWidget):
         self.edit_ark_name.setToolTip("干员名称，显示在UI顶部")
         ark_layout.addRow("干员名称:", self.edit_ark_name)
 
+        self.edit_ark_top_left_rhodes = QLineEdit()
+        self.edit_ark_top_left_rhodes.setPlaceholderText("可选，非空时替代默认Rhodes Logo")
+        self.edit_ark_top_left_rhodes.setToolTip("左上角自定义文字（旋转90°竖排显示），留空使用默认图片")
+        ark_layout.addRow("左上角文字:", self.edit_ark_top_left_rhodes)
+
+        self.edit_ark_top_right_bar_text = QLineEdit()
+        self.edit_ark_top_right_bar_text.setPlaceholderText("可选，非空时覆盖右上栏文字")
+        self.edit_ark_top_right_bar_text.setToolTip("右上角栏自定义文字（旋转90°竖排显示）")
+        ark_layout.addRow("右上栏文字:", self.edit_ark_top_right_bar_text)
+
         self.edit_ark_code = QLineEdit("ARKNIGHTS - UNK0")
         self.edit_ark_code.setToolTip("干员代号，显示在名称下方")
         ark_layout.addRow("干员代号:", self.edit_ark_code)
@@ -505,6 +516,8 @@ class ConfigPanel(QWidget):
         self.combo_overlay_type.currentIndexChanged.connect(self._on_overlay_type_changed)
         self.spin_ark_appear.valueChanged.connect(self._on_config_changed)
         self.edit_ark_name.textChanged.connect(self._on_config_changed)
+        self.edit_ark_top_left_rhodes.textChanged.connect(self._on_config_changed)
+        self.edit_ark_top_right_bar_text.textChanged.connect(self._on_config_changed)
         self.edit_ark_code.textChanged.connect(self._on_config_changed)
         self.edit_ark_barcode.textChanged.connect(self._on_config_changed)
         self.edit_ark_aux.textChanged.connect(self._on_config_changed)
@@ -565,6 +578,10 @@ class ConfigPanel(QWidget):
                     self.spin_trans_in_duration.setValue(config.transition_in.options.duration)
                     self.edit_trans_in_color.setText(config.transition_in.options.background_color)
                     self.edit_trans_in_image.setText(config.transition_in.options.image or "")
+                    if config.transition_in.options.image and self._base_dir:
+                        abs_path = os.path.join(self._base_dir, config.transition_in.options.image)
+                        if os.path.exists(abs_path):
+                            self.transition_image_changed.emit("in", abs_path)
 
             # 过渡效果 - 循环
             if config.transition_loop.type != TransitionType.NONE:
@@ -575,6 +592,10 @@ class ConfigPanel(QWidget):
                     self.spin_trans_loop_duration.setValue(config.transition_loop.options.duration)
                     self.edit_trans_loop_color.setText(config.transition_loop.options.background_color)
                     self.edit_trans_loop_image.setText(config.transition_loop.options.image or "")
+                    if config.transition_loop.options.image and self._base_dir:
+                        abs_path = os.path.join(self._base_dir, config.transition_loop.options.image)
+                        if os.path.exists(abs_path):
+                            self.transition_image_changed.emit("loop", abs_path)
 
             # 叠加UI
             index = self.combo_overlay_type.findData(config.overlay.type.value)
@@ -585,6 +606,8 @@ class ConfigPanel(QWidget):
                 opts = config.overlay.arknights_options
                 self.spin_ark_appear.setValue(opts.appear_time)
                 self.edit_ark_name.setText(opts.operator_name)
+                self.edit_ark_top_left_rhodes.setText(opts.top_left_rhodes or "")
+                self.edit_ark_top_right_bar_text.setText(opts.top_right_bar_text or "")
                 self.edit_ark_code.setText(opts.operator_code)
                 self.edit_ark_barcode.setText(opts.barcode_text)
                 self.edit_ark_aux.setPlainText(opts.aux_text)
@@ -666,6 +689,8 @@ class ConfigPanel(QWidget):
                 arknights_options=ArknightsOverlayOptions(
                     appear_time=self.spin_ark_appear.value(),
                     operator_name=self.edit_ark_name.text(),
+                    top_left_rhodes=self.edit_ark_top_left_rhodes.text(),
+                    top_right_bar_text=self.edit_ark_top_right_bar_text.text(),
                     operator_code=self.edit_ark_code.text(),
                     barcode_text=self.edit_ark_barcode.text(),
                     aux_text=self.edit_ark_aux.toPlainText(),
@@ -924,6 +949,7 @@ class ConfigPanel(QWidget):
                     else:
                         self.edit_trans_loop_image.setText(rel_path)
                     self._on_config_changed()
+                    self.transition_image_changed.emit(trans_type, dest_path)
             finally:
                 QApplication.restoreOverrideCursor()
 

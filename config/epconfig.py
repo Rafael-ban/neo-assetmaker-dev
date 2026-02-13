@@ -158,6 +158,8 @@ class ArknightsOverlayOptions:
     """明日方舟叠加UI选项"""
     appear_time: int = 100000  # 微秒
     operator_name: str = "OPERATOR"
+    top_left_rhodes: str = ""  # 左上角自定义文字，非空时替代默认Rhodes Logo
+    top_right_bar_text: str = ""  # 右上角栏自定义文字
     operator_code: str = "ARKNIGHTS - UNK0"
     barcode_text: str = "OPERATOR - ARKNIGHTS"
     aux_text: str = "Operator of Rhodes Island\nUndefined/Rhodes Island\n Hypergryph"
@@ -170,12 +172,16 @@ class ArknightsOverlayOptions:
         result = {
             "appear_time": self.appear_time,
             "operator_name": self.operator_name,
-            "operator_code": self.operator_code,
-            "barcode_text": self.barcode_text,
-            "aux_text": self.aux_text,
-            "staff_text": self.staff_text,
-            "color": self.color
         }
+        if self.top_left_rhodes:
+            result["top_left_rhodes"] = self.top_left_rhodes
+        if self.top_right_bar_text:
+            result["top_right_bar_text"] = self.top_right_bar_text
+        result["operator_code"] = self.operator_code
+        result["barcode_text"] = self.barcode_text
+        result["aux_text"] = self.aux_text
+        result["staff_text"] = self.staff_text
+        result["color"] = self.color
         if self.logo:
             result["logo"] = self.logo
         if self.operator_class_icon:
@@ -187,6 +193,8 @@ class ArknightsOverlayOptions:
         return cls(
             appear_time=data.get("appear_time", 100000),
             operator_name=data.get("operator_name", "OPERATOR"),
+            top_left_rhodes=data.get("top_left_rhodes", ""),
+            top_right_bar_text=data.get("top_right_bar_text", ""),
             operator_code=data.get("operator_code", "ARKNIGHTS - UNK0"),
             barcode_text=data.get("barcode_text", "OPERATOR - ARKNIGHTS"),
             aux_text=data.get("aux_text", "Operator of Rhodes Island\nUndefined/Rhodes Island\n Hypergryph"),
