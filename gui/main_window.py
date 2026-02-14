@@ -43,6 +43,7 @@ class MainWindow(QMainWindow):
         # 为每个视频存储独立的入点/出点
         self._loop_in_out: tuple[int, int] = (0, 0)   # 循环视频的(入点, 出点)
         self._intro_in_out: tuple[int, int] = (0, 0)  # 入场视频的(入点, 出点)
+        self._timeline_preview: Optional['VideoPreviewWidget'] = None  # 时间轴当前连接的预览器
 
         self._setup_ui()
         self._setup_menu()
@@ -361,6 +362,17 @@ class MainWindow(QMainWindow):
         self._project_path = os.path.join(dir_path, "epconfig.json")
         self._is_modified = True
 
+        # 清空所有预览组件（防止旧项目内容残留）
+        self.video_preview.clear()
+        self.intro_preview.clear()
+        self.frame_capture_preview.clear()
+        self.transition_preview.clear_image("in")
+        self.transition_preview.clear_image("loop")
+        self._loop_image_path = None
+        self.timeline.set_total_frames(0)
+        self._loop_in_out = (0, 0)
+        self._intro_in_out = (0, 0)
+
         # 更新UI
         self.config_panel.set_config(self._config, self._base_dir)
         self.json_preview.set_config(self._config, self._base_dir)
@@ -388,6 +400,17 @@ class MainWindow(QMainWindow):
             self._project_path = path
             self._base_dir = os.path.dirname(path)
             self._is_modified = False
+
+            # 清空所有预览组件（防止旧项目内容残留）
+            self.video_preview.clear()
+            self.intro_preview.clear()
+            self.frame_capture_preview.clear()
+            self.transition_preview.clear_image("in")
+            self.transition_preview.clear_image("loop")
+            self._loop_image_path = None
+            self.timeline.set_total_frames(0)
+            self._loop_in_out = (0, 0)
+            self._intro_in_out = (0, 0)
 
             # 更新UI
             self.config_panel.set_config(self._config, self._base_dir)
@@ -897,6 +920,9 @@ class MainWindow(QMainWindow):
         )
         self.timeline.rotation_clicked.connect(preview.rotate_clockwise)
 
+        # 记录当前连接的预览器
+        self._timeline_preview = preview
+
         # 更新时间轴显示
         if preview.total_frames > 0:
             self.timeline.set_total_frames(preview.total_frames)
@@ -907,21 +933,24 @@ class MainWindow(QMainWindow):
 
     def _on_preview_tab_changed(self, index: int):
         """预览标签页切换"""
-        # 保存当前标签页的入点/出点
+        # 保存当前 in/out 到正确的位置（基于当前连接的预览器）
         current_in = self.timeline.get_in_point()
         current_out = self.timeline.get_out_point()
+        if self._timeline_preview is self.intro_preview:
+            self._intro_in_out = (current_in, current_out)
+        elif self._timeline_preview is self.video_preview:
+            self._loop_in_out = (current_in, current_out)
 
         if index == 0:
             # 入场视频
-            self._loop_in_out = (current_in, current_out)
             self._connect_timeline_to_preview(self.intro_preview)
             self.timeline.set_in_point(self._intro_in_out[0])
             self.timeline.set_out_point(self._intro_in_out[1])
             self.timeline.show()
             logger.debug("切换到入场视频预览")
         elif index == 1:
-            # 截取帧编辑（静态，不需要时间轴）
-            self.timeline.hide()
+            # 截取帧编辑 - 保持时间轴可见以便导航视频选帧
+            self.timeline.show()
             logger.debug("切换到截取帧编辑")
         elif index == 2:
             # 过渡图片（静态，不需要时间轴）
@@ -929,7 +958,6 @@ class MainWindow(QMainWindow):
             logger.debug("切换到过渡图片预览")
         elif index == 3:
             # 循环视频
-            self._intro_in_out = (current_in, current_out)
             self._connect_timeline_to_preview(self.video_preview)
             self.timeline.set_in_point(self._loop_in_out[0])
             self.timeline.set_out_point(self._loop_in_out[1])
@@ -950,12 +978,12 @@ class MainWindow(QMainWindow):
 
     def _on_intro_frame_changed(self, frame: int):
         """入场视频帧变更"""
-        if self.preview_tabs.currentIndex() == 0:
+        if self.preview_tabs.currentIndex() in (0, 1):
             self.timeline.set_current_frame(frame)
 
     def _on_intro_playback_changed(self, is_playing: bool):
         """入场视频播放状态变更"""
-        if self.preview_tabs.currentIndex() == 0:
+        if self.preview_tabs.currentIndex() in (0, 1):
             self.timeline.set_playing(is_playing)
 
     def _on_intro_rotation_changed(self, rotation: int):
@@ -1099,7 +1127,10 @@ class MainWindow(QMainWindow):
 
         # 保存为模拟器读取的文件
         out_path = os.path.join(self._base_dir, f"trans_{trans_type}_image.png")
-        cv2.imwrite(out_path, resized)
+        success, encoded = cv2.imencode('.png', resized)
+        if success:
+            with open(out_path, 'wb') as f:
+                f.write(encoded.tobytes())
 
     def _get_target_resolution(self):
         """获取当前选择的目标分辨率"""
@@ -1198,7 +1229,10 @@ class MainWindow(QMainWindow):
         cropped = frame[y:y+h, x:x+w]
 
         icon_path = os.path.join(self._base_dir, "icon.png")
-        if cv2.imwrite(icon_path, cropped):
+        success, encoded = cv2.imencode('.png', cropped)
+        if success:
+            with open(icon_path, 'wb') as f:
+                f.write(encoded.tobytes())
             self.config_panel.edit_icon.setText("icon.png")
             self.status_bar.showMessage("已保存图标")
         else:
@@ -1352,8 +1386,6 @@ class MainWindow(QMainWindow):
                     if success:
                         with open(dst_path, 'wb') as f:
                             f.write(encoded.tobytes())
-                        # 更新配置中的路径为相对路径
-                        ark_opts.operator_class_icon = dst_filename
                         logger.info(f"已导出职业图标: {dst_path}")
 
         # 处理Logo (75x35)
@@ -1374,8 +1406,6 @@ class MainWindow(QMainWindow):
                     if success:
                         with open(dst_path, 'wb') as f:
                             f.write(encoded.tobytes())
-                        # 更新配置中的路径为相对路径
-                        ark_opts.logo = dst_filename
                         logger.info(f"已导出Logo: {dst_path}")
 
     def _process_image_overlay(self, output_dir: str):
@@ -1404,7 +1434,6 @@ class MainWindow(QMainWindow):
                     if success:
                         with open(dst_path, 'wb') as f:
                             f.write(encoded.tobytes())
-                        self._config.overlay.image_options.image = dst_filename
                         logger.info(f"已导出叠加图片: {dst_path}")
 
     def _on_export_completed(self, success: bool, message: str):
