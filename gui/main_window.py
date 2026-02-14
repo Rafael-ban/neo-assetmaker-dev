@@ -565,7 +565,7 @@ class MainWindow(QMainWindow):
 
         # 处理 ImageOverlay 路径
         try:
-            self._process_image_overlay()
+            self._process_image_overlay(dir_path)
         except Exception as e:
             logger.error(f"处理 ImageOverlay 失败: {e}")
 
@@ -1378,9 +1378,11 @@ class MainWindow(QMainWindow):
                         ark_opts.logo = dst_filename
                         logger.info(f"已导出Logo: {dst_path}")
 
-    def _process_image_overlay(self):
-        """处理 ImageOverlay 的路径标准化"""
+    def _process_image_overlay(self, output_dir: str):
+        """处理 ImageOverlay 的图片导出和路径标准化"""
         from config.epconfig import OverlayType
+        from core.image_processor import ImageProcessor
+        import cv2
 
         if not self._config:
             return
@@ -1389,9 +1391,21 @@ class MainWindow(QMainWindow):
             return
 
         if self._config.overlay.image_options and self._config.overlay.image_options.image:
-            # 更新为标准化路径
-            self._config.overlay.image_options.image = "overlay.argb"
-            logger.info("已更新 ImageOverlay 路径为: overlay.argb")
+            src_path = self._config.overlay.image_options.image
+            if not os.path.isabs(src_path):
+                src_path = os.path.join(self._base_dir, src_path)
+
+            if os.path.exists(src_path):
+                img = ImageProcessor.load_image(src_path)
+                if img is not None:
+                    dst_filename = "overlay.png"
+                    dst_path = os.path.join(output_dir, dst_filename)
+                    success, encoded = cv2.imencode('.png', img)
+                    if success:
+                        with open(dst_path, 'wb') as f:
+                            f.write(encoded.tobytes())
+                        self._config.overlay.image_options.image = dst_filename
+                        logger.info(f"已导出叠加图片: {dst_path}")
 
     def _on_export_completed(self, success: bool, message: str):
         """导出完成回调"""

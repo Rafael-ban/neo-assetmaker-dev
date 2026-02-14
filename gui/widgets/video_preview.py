@@ -180,7 +180,10 @@ class VideoPreviewWidget(QWidget):
             logger.error(f"图片文件不存在: {image_path}")
             return False
 
-        img = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
+        # 使用 open + cv2.imdecode 避免 OpenCV 的中文路径编码问题
+        with open(image_path, 'rb') as f:
+            data = np.frombuffer(f.read(), dtype=np.uint8)
+        img = cv2.imdecode(data, cv2.IMREAD_UNCHANGED)
         if img is None:
             logger.error(f"无法读取图片: {image_path}")
             return False
@@ -659,6 +662,12 @@ class VideoPreviewWidget(QWidget):
 
         self._bound_cropbox()
         self._emit_cropbox_changed()
+        if self.current_frame is not None:
+            self._display_frame(self.current_frame)
+
+    def resizeEvent(self, event):
+        """窗口大小变化时重绘当前帧"""
+        super().resizeEvent(event)
         if self.current_frame is not None:
             self._display_frame(self.current_frame)
 

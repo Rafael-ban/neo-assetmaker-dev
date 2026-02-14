@@ -439,7 +439,7 @@ class ConfigPanel(QWidget):
 
         self.spin_img_duration = QSpinBox()
         self.spin_img_duration.setRange(0, 5000000)
-        self.spin_img_duration.setValue(100000)
+        self.spin_img_duration.setValue(0)
         self.spin_img_duration.setToolTip("图片叠加持续时间(微秒)")
         img_layout.addRow("持续时间(微秒):", self.spin_img_duration)
 
