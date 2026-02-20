@@ -189,7 +189,11 @@ class ArknightsOverlayOptions:
         if self.logo:
             result["logo"] = "ark_logo.png" if normalize_paths else self.logo
         if self.operator_class_icon:
-            result["operator_class_icon"] = "class_icon.png" if normalize_paths else self.operator_class_icon
+            # 保持内置职业图标的路径不变
+            if self.operator_class_icon.startswith("class_icons/"):
+                result["operator_class_icon"] = self.operator_class_icon
+            else:
+                result["operator_class_icon"] = "class_icon.png" if normalize_paths else self.operator_class_icon
         return result
 
     @classmethod

@@ -7,7 +7,7 @@ from typing import Dict, Any, List
 
 # ===== 应用信息 =====
 APP_NAME = "明日方舟通行证素材制作器"
-APP_VERSION = "1.5.7"
+APP_VERSION = "2.3.0"
 
 # ===== 基础尺寸配置 =====
 SCREEN_WIDTH = 360
@@ -88,6 +88,38 @@ OPERATOR_CLASS_PRESETS = {
     "医疗": "medic",
     "辅助": "supporter",
     "特种": "specialist"
+}
+
+# ===== 职业代码映射（从character_table.json中的Profession字段） =====
+PROFESSION_CODE_MAP = {
+    1: "vanguard",      # 先锋
+    2: "guard",         # 近卫
+    3: "defender",      # 重装
+    4: "sniper",        # 狙击
+    5: "caster",        # 术师
+    6: "medic",         # 医疗
+    7: "supporter",     # 辅助
+    8: "specialist",    # 特种
+    16: "supporter",    # 辅助（某些特殊辅助）
+    32: "caster",       # 术师（某些特殊术师）
+    64: "specialist",   # 特种（新约能天使等）
+    128: "defender",    # 重装（某些特殊重装）
+    256: "guard",       # 近卫（某些特殊近卫）
+    512: "vanguard",    # 先锋（某些特殊先锋）
+    1024: "medic",     # 医疗（某些特殊医疗）
+    2048: "specialist" # 特种（某些特殊特种）
+}
+
+# ===== 职业名称映射（从职业代码到中文名称） =====
+PROFESSION_NAME_MAP = {
+    "vanguard": "先锋",
+    "guard": "近卫",
+    "defender": "重装",
+    "sniper": "狙击",
+    "caster": "术师",
+    "medic": "医疗",
+    "supporter": "辅助",
+    "specialist": "特种"
 }
 
 

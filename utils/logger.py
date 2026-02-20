@@ -8,6 +8,9 @@ from datetime import datetime
 from logging.handlers import RotatingFileHandler
 from typing import Optional
 
+# 导入增强的日志管理器
+from utils.enhanced_logger import EnhancedLogger, get_logger as get_enhanced_logger
+
 
 def setup_logger(log_dir: Optional[str] = None) -> logging.Logger:
     """
@@ -98,6 +101,18 @@ def setup_logger(log_dir: Optional[str] = None) -> logging.Logger:
         root_logger.info(f"日志系统已初始化，日志文件: {log_file}")
     else:
         root_logger.warning("日志系统已初始化（仅控制台输出）")
+
+    # 初始化增强的日志管理器
+    try:
+        get_enhanced_logger(
+            log_file=log_file,
+            max_size=10 * 1024 * 1024,  # 10MB
+            backup_count=5,
+            log_level="INFO"
+        )
+        root_logger.info("增强的日志管理器已初始化")
+    except Exception as e:
+        root_logger.warning(f"增强的日志管理器初始化失败: {e}")
 
     return root_logger
 

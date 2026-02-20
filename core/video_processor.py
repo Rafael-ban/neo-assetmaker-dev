@@ -80,17 +80,33 @@ class VideoProcessor:
         if os.path.isfile(app_ffmpeg):
             return app_ffmpeg
 
-        # 2. 在当前工作目录查找
+        # 2. 在 ffmpeg 目录中查找
+        ffmpeg_dir_ffmpeg = os.path.join(get_app_dir(), "ffmpeg", "ffmpeg.exe")
+        if os.path.isfile(ffmpeg_dir_ffmpeg):
+            return ffmpeg_dir_ffmpeg
+
+        # 3. 在当前工作目录查找
         local_ffmpeg = os.path.join(os.getcwd(), "ffmpeg.exe")
         if os.path.isfile(local_ffmpeg):
             return local_ffmpeg
 
-        # 3. 在系统 PATH 中查找
+        # 4. 在系统 PATH 中查找（使用 where 命令）
         try:
             cmd = ["where", "ffmpeg"] if os.name == 'nt' else ["which", "ffmpeg"]
             result = subprocess.run(cmd, capture_output=True, text=True)
             if result.returncode == 0:
                 return result.stdout.strip().split('\n')[0]
+        except Exception:
+            pass
+
+        # 5. 直接检查系统 PATH 环境变量中的路径
+        try:
+            path_env = os.environ.get("PATH", "")
+            paths = path_env.split(os.pathsep)
+            for path in paths:
+                ffmpeg_path = os.path.join(path, "ffmpeg.exe")
+                if os.path.isfile(ffmpeg_path):
+                    return ffmpeg_path
         except Exception:
             pass
 

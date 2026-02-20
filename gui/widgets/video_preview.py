@@ -103,7 +103,14 @@ class VideoPreviewWidget(QWidget):
         self.video_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.video_label.setMinimumSize(320, 180)
         self.video_label.setStyleSheet(
-            "background-color: #1a1a1a; border: 1px solid #333;"
+            """
+            background-color: #121212;
+            border: 2px solid #333;
+            border-radius: 8px;
+            color: #cccccc;
+            font-size: 14px;
+            font-weight: 500;
+            """
         )
         self.video_label.setSizePolicy(
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
@@ -115,7 +122,17 @@ class VideoPreviewWidget(QWidget):
 
         # 信息标签（控制按钮已移至时间轴组件）
         self.info_label = QLabel("帧: 0/0 | 裁剪: (0, 0, 0, 0)")
-        self.info_label.setStyleSheet("color: #888; font-size: 11px; padding: 2px 5px;")
+        self.info_label.setStyleSheet(
+            """
+            color: #aaaaaa;
+            font-size: 11px;
+            padding: 4px 10px;
+            background-color: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 4px;
+            margin-top: 5px;
+            """
+        )
         layout.addWidget(self.info_label)
 
     def set_target_resolution(self, width: int, height: int):
@@ -146,10 +163,26 @@ class VideoPreviewWidget(QWidget):
             self.cap.release()
         self.pause()
 
-        self.cap = cv2.VideoCapture(path)
+        # 处理中文路径问题
+        try:
+            # 尝试直接加载
+            self.cap = cv2.VideoCapture(path)
+            if not self.cap.isOpened():
+                # 如果失败，尝试使用 Unicode 路径
+                logger.warning("直接加载失败，尝试使用 Unicode 路径")
+                # 在 Windows 上，使用 utf-8 编码处理中文路径
+                import sys
+                if sys.platform.startswith('win'):
+                    # 使用路径的原始字符串
+                    self.cap = cv2.VideoCapture(str(path))
+        except Exception as e:
+            logger.error(f"加载视频时出错: {e}")
+            self.video_label.setText(f"加载失败: {str(e)}")
+            return False
+
         if not self.cap.isOpened():
             logger.error(f"无法打开视频: {path}")
-            self.video_label.setText("无法加载视频")
+            self.video_label.setText("无法打开视频")
             return False
 
         self.video_path = path
@@ -226,16 +259,21 @@ class VideoPreviewWidget(QWidget):
         rotated_w, rotated_h = self._get_rotated_video_size()
         w, h = self.target_width, self.target_height
 
-        if w > rotated_w:
-            w = rotated_w
-            h = int(w / self.target_aspect_ratio)
-        if h > rotated_h:
-            h = rotated_h
-            w = int(h * self.target_aspect_ratio)
+        # 计算缩放比例，使图片能够完整显示在目标尺寸内
+        scale_w = w / rotated_w
+        scale_h = h / rotated_h
+        scale = min(scale_w, scale_h)
 
-        x = (rotated_w - w) // 2
-        y = (rotated_h - h) // 2
-        self.cropbox = [x, y, w, h]
+        # 计算缩放后的图片尺寸
+        scaled_w = int(rotated_w * scale)
+        scaled_h = int(rotated_h * scale)
+
+        # 计算居中位置
+        x = (w - scaled_w) // 2
+        y = (h - scaled_h) // 2
+
+        # 设置裁剪框为缩放后的图片尺寸和位置
+        self.cropbox = [x, y, scaled_w, scaled_h]
         self._emit_cropbox_changed()
 
     def _bound_cropbox(self):
@@ -333,6 +371,32 @@ class VideoPreviewWidget(QWidget):
                 f"Crop: x={x} y={y} w={w} h={h}",
                 (10, 55), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 1
             )
+
+        # 如果是静态图片（total_frames == 1），创建黑色背景并将图片居中显示
+        if self.total_frames == 1 and not self._preview_mode:
+            # 创建黑色背景（目标尺寸）
+            black_bg = np.zeros((self.target_height, self.target_width, 3), dtype=np.uint8)
+
+            # 计算缩放后的图片尺寸和位置
+            frame_h, frame_w = display_frame.shape[:2]
+            scale_w = self.target_width / frame_w
+            scale_h = self.target_height / frame_h
+            scale = min(scale_w, scale_h)
+
+            scaled_w = int(frame_w * scale)
+            scaled_h = int(frame_h * scale)
+
+            # 缩放图片
+            if scale != 1.0:
+                display_frame = cv2.resize(display_frame, (scaled_w, scaled_h))
+
+            # 计算居中位置
+            offset_x = (self.target_width - scaled_w) // 2
+            offset_y = (self.target_height - scaled_h) // 2
+
+            # 将缩放后的图片放置在黑色背景上
+            black_bg[offset_y:offset_y+scaled_h, offset_x:offset_x+scaled_w] = display_frame
+            display_frame = black_bg
 
         # 转换为QPixmap
         rgb_frame = cv2.cvtColor(display_frame, cv2.COLOR_BGR2RGB)

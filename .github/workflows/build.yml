@@ -2,9 +2,9 @@ name: Build
 
 on:
   push:
-    branches: [main, master]
+    branches: [main, master, dev]
   pull_request:
-    branches: [main, master]
+    branches: [main, master, dev]
   workflow_dispatch:
 
 jobs:
@@ -103,7 +103,7 @@ jobs:
         shell: pwsh
 
       - name: Build with cx_Freeze and Inno Setup
-        run: uv run python build.py
+        run: uv run python build.py --skip-flasher
         env:
           UV_DEFAULT_INDEX: https://pypi.org/simple
 
