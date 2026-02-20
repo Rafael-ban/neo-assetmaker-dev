@@ -14,7 +14,8 @@ from PyQt6.QtCore import pyqtSignal, Qt
 from qfluentwidgets import (
     PushButton, PrimaryPushButton,
     LineEdit, ComboBox, SubtitleLabel, StrongBodyLabel,
-    CardWidget, SearchLineEdit, ScrollArea
+    CardWidget, SearchLineEdit, ScrollArea,
+    setCustomStyleSheet
 )
 
 # 创建自定义GroupBox类，应用Fluent样式
@@ -24,23 +25,11 @@ from PyQt6.QtCore import Qt
 class FluentGroupBox(QtGroupBox):
     def __init__(self, title="", parent=None):
         super().__init__(title, parent)
-        self.setStyleSheet("""
-            QGroupBox {
-                font-weight: bold;
-                color: #333;
-                border: 1px solid #e9ecef;
-                border-radius: 8px;
-                padding: 12px;
-                margin: 8px 0;
-                background-color: white;
-            }
-            QGroupBox::title {
-                subcontrol-position: top left;
-                padding: 0 8px;
-                background-color: white;
-                border-radius: 4px;
-            }
-        """)
+        setCustomStyleSheet(
+            self,
+            "QGroupBox { font-weight: bold; color: #333; border: 1px solid #e9ecef; border-radius: 8px; padding: 12px; margin: 8px 0; background-color: white; } QGroupBox::title { subcontrol-position: top left; padding: 0 8px; background-color: white; border-radius: 4px; }",
+            "QGroupBox { font-weight: bold; color: #ccc; border: 1px solid #555; border-radius: 8px; padding: 12px; margin: 8px 0; background-color: #2b2b2b; } QGroupBox::title { subcontrol-position: top left; padding: 0 8px; background-color: #2b2b2b; border-radius: 4px; }"
+        )
 
 from config.epconfig import EPConfig, ScreenType
 from config.constants import RESOLUTION_SPECS, OPERATOR_CLASS_PRESETS

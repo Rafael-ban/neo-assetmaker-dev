@@ -15,7 +15,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt
 from qfluentwidgets import (
     PushButton, PrimaryPushButton, SubtitleLabel, StrongBodyLabel, BodyLabel,
-    ProgressBar
+    ProgressBar, setCustomStyleSheet
 )
 
 from core.update_service import UpdateService, ReleaseInfo
@@ -132,14 +132,10 @@ class UpdateDialog(QDialog):
         # Changelog content (markdown rendered as HTML)
         self.text_changelog = QTextBrowser()
         self.text_changelog.setOpenExternalLinks(True)
-        self.text_changelog.setStyleSheet(
-            "QTextBrowser { "
-            "background-color: #f5f5f5; "
-            "color: #333333; "
-            "border: 1px solid #ddd; "
-            "border-radius: 4px; "
-            "padding: 8px; "
-            "}"
+        setCustomStyleSheet(
+            self.text_changelog,
+            "QTextBrowser { background-color: #f5f5f5; color: #333333; border: 1px solid #ddd; border-radius: 4px; padding: 8px; }",
+            "QTextBrowser { background-color: #2b2b2b; color: #ddd; border: 1px solid #555; border-radius: 4px; padding: 8px; }"
         )
         layout.addWidget(self.text_changelog, stretch=1)
 
@@ -217,7 +213,7 @@ class UpdateDialog(QDialog):
             "点击\"立即安装\"将关闭程序并启动安装程序。\n"
             "安装完成后请重新启动应用。"
         )
-        self.label_install_hint.setStyleSheet("color: #666;")
+        setCustomStyleSheet(self.label_install_hint, "color: #666;", "color: #aaa;")
         self.label_install_hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self.label_install_hint)
 

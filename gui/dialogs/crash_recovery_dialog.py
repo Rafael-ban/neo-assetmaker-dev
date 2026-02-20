@@ -13,6 +13,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QFont
 
+from qfluentwidgets import setCustomStyleSheet
 from core.crash_recovery_service import RecoveryInfo, CrashRecoveryService
 
 logger = logging.getLogger(__name__)
@@ -28,26 +29,11 @@ class RecoveryListWidget(QListWidget):
         self._recovery_items: List[RecoveryInfo] = []
 
         # 设置样式
-        self.setStyleSheet("""
-            QListWidget {
-                border: 1px solid #ddd;
-                border-radius: 5px;
-                padding: 5px;
-                background-color: white;
-            }
-            QListWidget::item {
-                padding: 10px;
-                margin: 2px;
-                border-radius: 3px;
-            }
-            QListWidget::item:hover {
-                background-color: #f0f0f0;
-            }
-            QListWidget::item:selected {
-                background-color: #ff6b8b;
-                color: white;
-            }
-        """)
+        setCustomStyleSheet(
+            self,
+            "QListWidget { border: 1px solid #ddd; border-radius: 5px; padding: 5px; background-color: white; } QListWidget::item { padding: 10px; margin: 2px; border-radius: 3px; } QListWidget::item:hover { background-color: #f0f0f0; } QListWidget::item:selected { background-color: #ff6b8b; color: white; }",
+            "QListWidget { border: 1px solid #555; border-radius: 5px; padding: 5px; background-color: #2b2b2b; color: #ddd; } QListWidget::item { padding: 10px; margin: 2px; border-radius: 3px; } QListWidget::item:hover { background-color: #404040; } QListWidget::item:selected { background-color: #ff6b8b; color: white; }"
+        )
 
         # 连接信号
         self.itemClicked.connect(self._on_item_clicked)
@@ -124,7 +110,7 @@ class CrashRecoveryDialog(QDialog):
             "选择一个项目后，点击\"恢复\"按钮将项目恢复到指定位置。"
         )
         desc_label.setWordWrap(True)
-        desc_label.setStyleSheet("color: #666; margin-bottom: 10px;")
+        setCustomStyleSheet(desc_label, "color: #666; margin-bottom: 10px;", "color: #aaa; margin-bottom: 10px;")
         layout.addWidget(desc_label)
 
         # 恢复项目列表
@@ -145,16 +131,11 @@ class CrashRecoveryDialog(QDialog):
         self.detail_text = QTextEdit()
         self.detail_text.setReadOnly(True)
         self.detail_text.setMaximumHeight(150)
-        self.detail_text.setStyleSheet("""
-            QTextEdit {
-                background-color: #f8f9fa;
-                border: 1px solid #ddd;
-                border-radius: 5px;
-                padding: 10px;
-                font-family: Consolas, monospace;
-                font-size: 12px;
-            }
-        """)
+        setCustomStyleSheet(
+            self.detail_text,
+            "QTextEdit { background-color: #f8f9fa; color: #333; border: 1px solid #ddd; border-radius: 5px; padding: 10px; font-family: Consolas, monospace; font-size: 12px; }",
+            "QTextEdit { background-color: #2b2b2b; color: #ddd; border: 1px solid #555; border-radius: 5px; padding: 10px; font-family: Consolas, monospace; font-size: 12px; }"
+        )
         detail_layout.addWidget(self.detail_text)
 
         detail_group.setLayout(detail_layout)

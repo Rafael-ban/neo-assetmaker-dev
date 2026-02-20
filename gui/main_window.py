@@ -16,7 +16,8 @@ from qfluentwidgets import (
     SubtitleLabel,
     ComboBox, SpinBox,
     DoubleSpinBox, CheckBox, LineEdit,
-    ScrollArea, FluentIcon
+    ScrollArea, FluentIcon,
+    setCustomStyleSheet, isDarkTheme
 )
 from PyQt6.QtGui import QAction, QKeySequence, QIcon
 from PyQt6.QtWidgets import (
@@ -1631,8 +1632,11 @@ class MainWindow(QMainWindow):
 
             # 标题
             title_label = QLabel("素材商城")
-            title_label.setStyleSheet(
-                "font-size: 18px; font-weight: bold; color: #333;")
+            setCustomStyleSheet(
+                title_label,
+                "font-size: 18px; font-weight: bold; color: #333;",
+                "font-size: 18px; font-weight: bold; color: #eee;"
+            )
             market_layout.addWidget(title_label)
 
             # 直接创建WebEngineView显示素材商城网页
@@ -1709,8 +1713,11 @@ class MainWindow(QMainWindow):
                 # 设置URL
                 web_view.setUrl(
                     QUrl("https://oplst.iccmc.cc/%E9%80%9A%E8%A1%8C%E8%AF%81%E8%B5%84%E6%BA%90%E5%88%86%E4%BA%AB(2.x%E7%89%88%E6%9C%AC_proj0cpy)"))
-                web_view.setStyleSheet(
-                    "border: 1px solid #e9ecef; border-radius: 8px;")
+                setCustomStyleSheet(
+                    web_view,
+                    "border: 1px solid #e9ecef; border-radius: 8px;",
+                    "border: 1px solid #555; border-radius: 8px;"
+                )
                 market_layout.addWidget(web_view)
 
                 # 添加网站链接和下载提示
@@ -1723,15 +1730,22 @@ class MainWindow(QMainWindow):
 
                 # 添加下载提示
                 download_hint = QLabel("提示: 点击下载链接将自动保存到 Downloads 文件夹")
-                download_hint.setStyleSheet("color: #666; font-size: 12px;")
+                setCustomStyleSheet(
+                    download_hint,
+                    "color: #666; font-size: 12px;",
+                    "color: #aaa; font-size: 12px;"
+                )
                 market_layout.addWidget(download_hint)
 
             except Exception as e:
                 # 如果无法加载WebEngine，显示错误信息
                 text_browser = QTextBrowser()
                 text_browser.setOpenExternalLinks(True)
-                text_browser.setStyleSheet(
-                    "border: 1px solid #e9ecef; border-radius: 8px;")
+                setCustomStyleSheet(
+                    text_browser,
+                    "border: 1px solid #e9ecef; border-radius: 8px;",
+                    "border: 1px solid #555; border-radius: 8px;"
+                )
                 error_html = f"""
                 <div style="color: #ff6b8b; padding: 10px;">
                     <h3>无法加载网页视图</h3>
@@ -1793,16 +1807,22 @@ class MainWindow(QMainWindow):
 
             # 标题
             title_label = QLabel("项目介绍")
-            title_label.setStyleSheet(
-                "font-size: 18px; font-weight: bold; color: #333;")
+            setCustomStyleSheet(
+                title_label,
+                "font-size: 18px; font-weight: bold; color: #333;",
+                "font-size: 18px; font-weight: bold; color: #eee;"
+            )
             about_layout.addWidget(title_label)
 
             # 创建WebEngineView
             try:
                 web_view = QWebEngineView()
                 web_view.setUrl(QUrl("https://ep.iccmc.cc"))
-                web_view.setStyleSheet(
-                    "border: 1px solid #e9ecef; border-radius: 8px;")  # 添加边框
+                setCustomStyleSheet(
+                    web_view,
+                    "border: 1px solid #e9ecef; border-radius: 8px;",
+                    "border: 1px solid #555; border-radius: 8px;"
+                )
                 about_layout.addWidget(web_view)
 
                 # 添加网站链接
@@ -1817,8 +1837,11 @@ class MainWindow(QMainWindow):
                 # 如果无法加载WebEngine，显示错误信息
                 text_browser = QTextBrowser()
                 text_browser.setOpenExternalLinks(True)
-                text_browser.setStyleSheet(
-                    "border: 1px solid #e9ecef; border-radius: 8px;")  # 添加边框
+                setCustomStyleSheet(
+                    text_browser,
+                    "border: 1px solid #e9ecef; border-radius: 8px;",
+                    "border: 1px solid #555; border-radius: 8px;"
+                )
                 error_html = f"""
                 <div style="color: #ff6b8b; padding: 10px;">
                     <h3>无法加载网页视图</h3>
@@ -1876,8 +1899,11 @@ class MainWindow(QMainWindow):
 
         # 添加加载中提示
         loading_label = QLabel("正在加载素材内容...")
-        loading_label.setStyleSheet(
-            "font-size: 14px; color: #666; text-align: center;")
+        setCustomStyleSheet(
+            loading_label,
+            "font-size: 14px; color: #666; text-align: center;",
+            "font-size: 14px; color: #aaa; text-align: center;"
+        )
         self.scroll_layout.addWidget(loading_label)
 
         # 异步加载内容
@@ -2021,15 +2047,21 @@ class MainWindow(QMainWindow):
 
                 # 版本标题
                 version_label = QLabel(version_name)
-                version_label.setStyleSheet(
-                    "font-size: 14px; font-weight: bold; color: #666; margin-top: 10px;")
+                setCustomStyleSheet(
+                    version_label,
+                    "font-size: 14px; font-weight: bold; color: #666; margin-top: 10px;",
+                    "font-size: 14px; font-weight: bold; color: #aaa; margin-top: 10px;"
+                )
                 version_layout.addWidget(version_label)
 
                 # 内容显示
                 content_text = QTextEdit()
                 content_text.setReadOnly(True)
-                content_text.setStyleSheet(
-                    "background-color: #f8f9fa; padding: 10px; font-family: Arial, sans-serif;")
+                setCustomStyleSheet(
+                    content_text,
+                    "background-color: #f8f9fa; padding: 10px; font-family: Arial, sans-serif;",
+                    "background-color: #333; color: #ddd; padding: 10px; font-family: Arial, sans-serif;"
+                )
                 content_text.setText(content)
                 version_layout.addWidget(content_text)
 
@@ -2057,14 +2089,20 @@ class MainWindow(QMainWindow):
                 error_layout = QVBoxLayout(error_container)
 
                 error_label = QLabel(version_name)
-                error_label.setStyleSheet(
-                    "font-size: 14px; font-weight: bold; color: #666; margin-top: 10px;")
+                setCustomStyleSheet(
+                    error_label,
+                    "font-size: 14px; font-weight: bold; color: #666; margin-top: 10px;",
+                    "font-size: 14px; font-weight: bold; color: #aaa; margin-top: 10px;"
+                )
                 error_layout.addWidget(error_label)
 
                 error_text = QTextEdit()
                 error_text.setReadOnly(True)
-                error_text.setStyleSheet(
-                    "background-color: #f8f9fa; padding: 10px; font-family: Arial, sans-serif;")
+                setCustomStyleSheet(
+                    error_text,
+                    "background-color: #f8f9fa; padding: 10px; font-family: Arial, sans-serif;",
+                    "background-color: #333; color: #ddd; padding: 10px; font-family: Arial, sans-serif;"
+                )
                 error_text.setText(f"{version_name}资源:\n\n加载失败: {str(e)}")
                 error_layout.addWidget(error_text)
 
@@ -2092,15 +2130,21 @@ class MainWindow(QMainWindow):
 
         # 版本标题
         version_label = QLabel(version_name)
-        version_label.setStyleSheet(
-            "font-size: 14px; font-weight: bold; color: #666; margin-top: 10px;")
+        setCustomStyleSheet(
+            version_label,
+            "font-size: 14px; font-weight: bold; color: #666; margin-top: 10px;",
+            "font-size: 14px; font-weight: bold; color: #aaa; margin-top: 10px;"
+        )
         version_layout.addWidget(version_label)
 
         # 内容显示
         content_text = QTextEdit()
         content_text.setReadOnly(True)
-        content_text.setStyleSheet(
-            "background-color: #f8f9fa; padding: 10px; font-family: Arial, sans-serif;")
+        setCustomStyleSheet(
+            content_text,
+            "background-color: #f8f9fa; padding: 10px; font-family: Arial, sans-serif;",
+            "background-color: #333; color: #ddd; padding: 10px; font-family: Arial, sans-serif;"
+        )
         content_text.setText(content)
         version_layout.addWidget(content_text)
 
@@ -2115,14 +2159,20 @@ class MainWindow(QMainWindow):
         error_layout = QVBoxLayout(error_container)
 
         error_label = QLabel(version_name)
-        error_label.setStyleSheet(
-            "font-size: 14px; font-weight: bold; color: #666; margin-top: 10px;")
+        setCustomStyleSheet(
+            error_label,
+            "font-size: 14px; font-weight: bold; color: #666; margin-top: 10px;",
+            "font-size: 14px; font-weight: bold; color: #aaa; margin-top: 10px;"
+        )
         error_layout.addWidget(error_label)
 
         error_text = QTextEdit()
         error_text.setReadOnly(True)
-        error_text.setStyleSheet(
-            "background-color: #f8f9fa; padding: 10px; font-family: Arial, sans-serif;")
+        setCustomStyleSheet(
+            error_text,
+            "background-color: #f8f9fa; padding: 10px; font-family: Arial, sans-serif;",
+            "background-color: #333; color: #ddd; padding: 10px; font-family: Arial, sans-serif;"
+        )
         error_text.setText(f"{version_name}资源:\n\n加载失败: {error_msg}")
         error_layout.addWidget(error_text)
 
@@ -2193,8 +2243,11 @@ class MainWindow(QMainWindow):
 
             # 标题
             title_label = QLabel("设置")
-            title_label.setStyleSheet(
-                "font-size: 18px; font-weight: bold; color: #333; margin: 10px 0;")
+            setCustomStyleSheet(
+                title_label,
+                "font-size: 18px; font-weight: bold; color: #333; margin: 10px 0;",
+                "font-size: 18px; font-weight: bold; color: #eee; margin: 10px 0;"
+            )
             settings_layout.addWidget(title_label)
 
             # 滚动区域
@@ -2207,14 +2260,21 @@ class MainWindow(QMainWindow):
 
             # 应用设置
             app_group = QGroupBox("应用设置")
-            app_group.setStyleSheet(
-                "QGroupBox { font-weight: bold; color: #555; border: 1px solid #ddd; border-radius: 6px; padding: 10px; margin: 5px 0; } QGroupBox::title { subcontrol-position: top left; padding: 0 10px; background-color: #f8f9fa; border-radius: 4px; }")
+            setCustomStyleSheet(
+                app_group,
+                "QGroupBox { font-weight: bold; color: #555; border: 1px solid #ddd; border-radius: 6px; padding: 10px; margin: 5px 0; } QGroupBox::title { subcontrol-position: top left; padding: 0 10px; background-color: #f8f9fa; border-radius: 4px; }",
+                "QGroupBox { font-weight: bold; color: #ccc; border: 1px solid #555; border-radius: 6px; padding: 10px; margin: 5px 0; } QGroupBox::title { subcontrol-position: top left; padding: 0 10px; background-color: #333; border-radius: 4px; }"
+            )
             app_layout = QVBoxLayout()
             app_layout.setSpacing(10)
 
             # 版本信息
             version_label = QLabel(f"当前版本: {APP_VERSION}")
-            version_label.setStyleSheet("padding: 5px; color: #666;")
+            setCustomStyleSheet(
+                version_label,
+                "padding: 5px; color: #666;",
+                "padding: 5px; color: #aaa;"
+            )
             app_layout.addWidget(version_label)
 
             # 更新设置
@@ -2235,8 +2295,9 @@ class MainWindow(QMainWindow):
             self.update_freq_combo = QComboBox()
             self.update_freq_combo.addItems(["每天", "每周", "每月"])
             self.update_freq_combo.setCurrentText("每天")
-            self.update_freq_combo.setStyleSheet("""
-                QComboBox {
+            setCustomStyleSheet(
+                self.update_freq_combo,
+                """QComboBox {
                     background-color: white;
                     border: 1px solid #ddd;
                     border-radius: 4px;
@@ -2256,8 +2317,31 @@ class MainWindow(QMainWindow):
                     border: 1px solid #ddd;
                     border-radius: 4px;
                     padding: 4px;
+                }""",
+                """QComboBox {
+                    background-color: #333;
+                    color: #ddd;
+                    border: 1px solid #555;
+                    border-radius: 4px;
+                    padding: 4px 8px;
+                    min-width: 120px;
                 }
-            """)
+                QComboBox:hover {
+                    border-color: #ff6b8b;
+                }
+                QComboBox::drop-down {
+                    border-left: 1px solid #555;
+                    border-top-right-radius: 4px;
+                    border-bottom-right-radius: 4px;
+                }
+                QComboBox QAbstractItemView {
+                    background-color: #333;
+                    color: #ddd;
+                    border: 1px solid #555;
+                    border-radius: 4px;
+                    padding: 4px;
+                }"""
+            )
             update_freq_layout.addWidget(update_freq_label)
             update_freq_layout.addWidget(self.update_freq_combo)
             update_freq_layout.addStretch()
@@ -2268,8 +2352,11 @@ class MainWindow(QMainWindow):
 
             # 界面设置
             ui_group = QGroupBox("界面设置")
-            ui_group.setStyleSheet(
-                "QGroupBox { font-weight: bold; color: #555; border: 1px solid #ddd; border-radius: 6px; padding: 10px; margin: 5px 0; } QGroupBox::title { subcontrol-position: top left; padding: 0 10px; background-color: #f8f9fa; border-radius: 4px; }")
+            setCustomStyleSheet(
+                ui_group,
+                "QGroupBox { font-weight: bold; color: #555; border: 1px solid #ddd; border-radius: 6px; padding: 10px; margin: 5px 0; } QGroupBox::title { subcontrol-position: top left; padding: 0 10px; background-color: #f8f9fa; border-radius: 4px; }",
+                "QGroupBox { font-weight: bold; color: #ccc; border: 1px solid #555; border-radius: 6px; padding: 10px; margin: 5px 0; } QGroupBox::title { subcontrol-position: top left; padding: 0 10px; background-color: #333; border-radius: 4px; }"
+            )
             ui_layout = QVBoxLayout()
             ui_layout.setSpacing(10)
 
@@ -2280,8 +2367,9 @@ class MainWindow(QMainWindow):
             self.font_size_combo = QComboBox()
             self.font_size_combo.addItems(["小", "中", "大"])
             self.font_size_combo.setCurrentText("中")
-            self.font_size_combo.setStyleSheet("""
-                QComboBox {
+            setCustomStyleSheet(
+                self.font_size_combo,
+                """QComboBox {
                     background-color: white;
                     border: 1px solid #ddd;
                     border-radius: 4px;
@@ -2301,8 +2389,31 @@ class MainWindow(QMainWindow):
                     border: 1px solid #ddd;
                     border-radius: 4px;
                     padding: 4px;
+                }""",
+                """QComboBox {
+                    background-color: #333;
+                    color: #ddd;
+                    border: 1px solid #555;
+                    border-radius: 4px;
+                    padding: 4px 8px;
+                    min-width: 120px;
                 }
-            """)
+                QComboBox:hover {
+                    border-color: #ff6b8b;
+                }
+                QComboBox::drop-down {
+                    border-left: 1px solid #555;
+                    border-top-right-radius: 4px;
+                    border-bottom-right-radius: 4px;
+                }
+                QComboBox QAbstractItemView {
+                    background-color: #333;
+                    color: #ddd;
+                    border: 1px solid #555;
+                    border-radius: 4px;
+                    padding: 4px;
+                }"""
+            )
             font_layout.addWidget(font_label)
             font_layout.addWidget(self.font_size_combo)
             font_layout.addStretch()
@@ -2315,8 +2426,9 @@ class MainWindow(QMainWindow):
             self.theme_combo = QComboBox()
             self.theme_combo.addItems(["默认", "自定义图片"])
             self.theme_combo.setCurrentText("默认")
-            self.theme_combo.setStyleSheet("""
-                QComboBox {
+            setCustomStyleSheet(
+                self.theme_combo,
+                """QComboBox {
                     background-color: white;
                     border: 1px solid #ddd;
                     border-radius: 4px;
@@ -2336,8 +2448,31 @@ class MainWindow(QMainWindow):
                     border: 1px solid #ddd;
                     border-radius: 4px;
                     padding: 4px;
+                }""",
+                """QComboBox {
+                    background-color: #333;
+                    color: #ddd;
+                    border: 1px solid #555;
+                    border-radius: 4px;
+                    padding: 4px 8px;
+                    min-width: 120px;
                 }
-            """)
+                QComboBox:hover {
+                    border-color: #ff6b8b;
+                }
+                QComboBox::drop-down {
+                    border-left: 1px solid #555;
+                    border-top-right-radius: 4px;
+                    border-bottom-right-radius: 4px;
+                }
+                QComboBox QAbstractItemView {
+                    background-color: #333;
+                    color: #ddd;
+                    border: 1px solid #555;
+                    border-radius: 4px;
+                    padding: 4px;
+                }"""
+            )
             theme_layout.addWidget(theme_label)
             theme_layout.addWidget(self.theme_combo)
             theme_layout.addStretch()
@@ -2367,8 +2502,11 @@ class MainWindow(QMainWindow):
             self.image_button.clicked.connect(
                 lambda: self._open_image_dialog())
             self.image_path_label = QLabel("未选择")
-            self.image_path_label.setStyleSheet(
-                "color: #666; font-size: 12px;")
+            setCustomStyleSheet(
+                self.image_path_label,
+                "color: #666; font-size: 12px;",
+                "color: #aaa; font-size: 12px;"
+            )
             image_layout.addWidget(image_label)
             image_layout.addWidget(self.image_button)
             image_layout.addWidget(self.image_path_label)
@@ -2394,8 +2532,11 @@ class MainWindow(QMainWindow):
 
             # 语言设置
             lang_group = QGroupBox("语言设置")
-            lang_group.setStyleSheet(
-                "QGroupBox { font-weight: bold; color: #555; border: 1px solid #ddd; border-radius: 6px; padding: 10px; margin: 5px 0; } QGroupBox::title { subcontrol-position: top left; padding: 0 10px; background-color: #f8f9fa; border-radius: 4px; }")
+            setCustomStyleSheet(
+                lang_group,
+                "QGroupBox { font-weight: bold; color: #555; border: 1px solid #ddd; border-radius: 6px; padding: 10px; margin: 5px 0; } QGroupBox::title { subcontrol-position: top left; padding: 0 10px; background-color: #f8f9fa; border-radius: 4px; }",
+                "QGroupBox { font-weight: bold; color: #ccc; border: 1px solid #555; border-radius: 6px; padding: 10px; margin: 5px 0; } QGroupBox::title { subcontrol-position: top left; padding: 0 10px; background-color: #333; border-radius: 4px; }"
+            )
             lang_layout = QVBoxLayout()
             lang_layout.setSpacing(10)
 
@@ -2406,8 +2547,9 @@ class MainWindow(QMainWindow):
             self.lang_combo = QComboBox()
             self.lang_combo.addItems(["简体中文", "English"])
             self.lang_combo.setCurrentText("简体中文")
-            self.lang_combo.setStyleSheet("""
-                QComboBox {
+            setCustomStyleSheet(
+                self.lang_combo,
+                """QComboBox {
                     background-color: white;
                     border: 1px solid #ddd;
                     border-radius: 4px;
@@ -2427,8 +2569,31 @@ class MainWindow(QMainWindow):
                     border: 1px solid #ddd;
                     border-radius: 4px;
                     padding: 4px;
+                }""",
+                """QComboBox {
+                    background-color: #333;
+                    color: #ddd;
+                    border: 1px solid #555;
+                    border-radius: 4px;
+                    padding: 4px 8px;
+                    min-width: 120px;
                 }
-            """)
+                QComboBox:hover {
+                    border-color: #ff6b8b;
+                }
+                QComboBox::drop-down {
+                    border-left: 1px solid #555;
+                    border-top-right-radius: 4px;
+                    border-bottom-right-radius: 4px;
+                }
+                QComboBox QAbstractItemView {
+                    background-color: #333;
+                    color: #ddd;
+                    border: 1px solid #555;
+                    border-radius: 4px;
+                    padding: 4px;
+                }"""
+            )
             lang_combo_layout.addWidget(lang_combo_label)
             lang_combo_layout.addWidget(self.lang_combo)
             lang_combo_layout.addStretch()
@@ -2436,7 +2601,11 @@ class MainWindow(QMainWindow):
 
             # 语言提示
             lang_tip = QLabel("* 语言设置需要重启应用生效")
-            lang_tip.setStyleSheet("color: #999; font-size: 12px;")
+            setCustomStyleSheet(
+                lang_tip,
+                "color: #999; font-size: 12px;",
+                "color: #888; font-size: 12px;"
+            )
             lang_layout.addWidget(lang_tip)
 
             lang_group.setLayout(lang_layout)
@@ -2444,15 +2613,19 @@ class MainWindow(QMainWindow):
 
             # 帮助设置
             help_group = QGroupBox("帮助")
-            help_group.setStyleSheet(
-                "QGroupBox { font-weight: bold; color: #555; border: 1px solid #ddd; border-radius: 6px; padding: 10px; margin: 5px 0; } QGroupBox::title { subcontrol-position: top left; padding: 0 10px; background-color: #f8f9fa; border-radius: 4px; }")
+            setCustomStyleSheet(
+                help_group,
+                "QGroupBox { font-weight: bold; color: #555; border: 1px solid #ddd; border-radius: 6px; padding: 10px; margin: 5px 0; } QGroupBox::title { subcontrol-position: top left; padding: 0 10px; background-color: #f8f9fa; border-radius: 4px; }",
+                "QGroupBox { font-weight: bold; color: #ccc; border: 1px solid #555; border-radius: 6px; padding: 10px; margin: 5px 0; } QGroupBox::title { subcontrol-position: top left; padding: 0 10px; background-color: #333; border-radius: 4px; }"
+            )
             help_layout = QVBoxLayout()
             help_layout.setSpacing(10)
 
             # 快捷键帮助
             shortcuts_button = PushButton("快捷键帮助")
-            shortcuts_button.setStyleSheet("""
-                QPushButton {
+            setCustomStyleSheet(
+                shortcuts_button,
+                """QPushButton {
                     background-color: #f0f0f0;
                     color: #333;
                     padding: 8px 16px;
@@ -2462,15 +2635,27 @@ class MainWindow(QMainWindow):
                 }
                 QPushButton:hover {
                     background-color: #e0e0e0;
+                }""",
+                """QPushButton {
+                    background-color: #404040;
+                    color: #ddd;
+                    padding: 8px 16px;
+                    border: 1px solid #555;
+                    border-radius: 4px;
+                    text-align: left;
                 }
-            """)
+                QPushButton:hover {
+                    background-color: #4a4a4a;
+                }"""
+            )
             shortcuts_button.clicked.connect(self._on_shortcuts)
             help_layout.addWidget(shortcuts_button)
 
             # 检查更新
             update_button = PushButton("检查更新")
-            update_button.setStyleSheet("""
-                QPushButton {
+            setCustomStyleSheet(
+                update_button,
+                """QPushButton {
                     background-color: #f0f0f0;
                     color: #333;
                     padding: 8px 16px;
@@ -2480,15 +2665,27 @@ class MainWindow(QMainWindow):
                 }
                 QPushButton:hover {
                     background-color: #e0e0e0;
+                }""",
+                """QPushButton {
+                    background-color: #404040;
+                    color: #ddd;
+                    padding: 8px 16px;
+                    border: 1px solid #555;
+                    border-radius: 4px;
+                    text-align: left;
                 }
-            """)
+                QPushButton:hover {
+                    background-color: #4a4a4a;
+                }"""
+            )
             update_button.clicked.connect(self._on_check_update)
             help_layout.addWidget(update_button)
 
             # 关于
             about_button = PushButton("关于")
-            about_button.setStyleSheet("""
-                QPushButton {
+            setCustomStyleSheet(
+                about_button,
+                """QPushButton {
                     background-color: #f0f0f0;
                     color: #333;
                     padding: 8px 16px;
@@ -2498,8 +2695,19 @@ class MainWindow(QMainWindow):
                 }
                 QPushButton:hover {
                     background-color: #e0e0e0;
+                }""",
+                """QPushButton {
+                    background-color: #404040;
+                    color: #ddd;
+                    padding: 8px 16px;
+                    border: 1px solid #555;
+                    border-radius: 4px;
+                    text-align: left;
                 }
-            """)
+                QPushButton:hover {
+                    background-color: #4a4a4a;
+                }"""
+            )
             about_button.clicked.connect(self._on_about)
             help_layout.addWidget(about_button)
 
@@ -2508,8 +2716,11 @@ class MainWindow(QMainWindow):
 
             # 个性化设置
             personal_group = QGroupBox("个性化设置")
-            personal_group.setStyleSheet(
-                "QGroupBox { font-weight: bold; color: #555; border: 1px solid #ddd; border-radius: 6px; padding: 10px; margin: 5px 0; } QGroupBox::title { subcontrol-position: top left; padding: 0 10px; background-color: #f8f9fa; border-radius: 4px; }")
+            setCustomStyleSheet(
+                personal_group,
+                "QGroupBox { font-weight: bold; color: #555; border: 1px solid #ddd; border-radius: 6px; padding: 10px; margin: 5px 0; } QGroupBox::title { subcontrol-position: top left; padding: 0 10px; background-color: #f8f9fa; border-radius: 4px; }",
+                "QGroupBox { font-weight: bold; color: #ccc; border: 1px solid #555; border-radius: 6px; padding: 10px; margin: 5px 0; } QGroupBox::title { subcontrol-position: top left; padding: 0 10px; background-color: #333; border-radius: 4px; }"
+            )
             personal_layout = QVBoxLayout()
             personal_layout.setSpacing(10)
 
@@ -2562,8 +2773,11 @@ class MainWindow(QMainWindow):
 
             # 视频设置
             video_group = QGroupBox("视频设置")
-            video_group.setStyleSheet(
-                "QGroupBox { font-weight: bold; color: #555; border: 1px solid #ddd; border-radius: 6px; padding: 10px; margin: 5px 0; } QGroupBox::title { subcontrol-position: top left; padding: 0 10px; background-color: #f8f9fa; border-radius: 4px; }")
+            setCustomStyleSheet(
+                video_group,
+                "QGroupBox { font-weight: bold; color: #555; border: 1px solid #ddd; border-radius: 6px; padding: 10px; margin: 5px 0; } QGroupBox::title { subcontrol-position: top left; padding: 0 10px; background-color: #f8f9fa; border-radius: 4px; }",
+                "QGroupBox { font-weight: bold; color: #ccc; border: 1px solid #555; border-radius: 6px; padding: 10px; margin: 5px 0; } QGroupBox::title { subcontrol-position: top left; padding: 0 10px; background-color: #333; border-radius: 4px; }"
+            )
             video_layout = QVBoxLayout()
             video_layout.setSpacing(10)
 
@@ -2574,8 +2788,9 @@ class MainWindow(QMainWindow):
             self.preview_combo = QComboBox()
             self.preview_combo.addItems(["低", "中", "高"])
             self.preview_combo.setCurrentText("中")
-            self.preview_combo.setStyleSheet("""
-                QComboBox {
+            setCustomStyleSheet(
+                self.preview_combo,
+                """QComboBox {
                     background-color: white;
                     border: 1px solid #ddd;
                     border-radius: 4px;
@@ -2595,8 +2810,31 @@ class MainWindow(QMainWindow):
                     border: 1px solid #ddd;
                     border-radius: 4px;
                     padding: 4px;
+                }""",
+                """QComboBox {
+                    background-color: #333;
+                    color: #ddd;
+                    border: 1px solid #555;
+                    border-radius: 4px;
+                    padding: 4px 8px;
+                    min-width: 120px;
                 }
-            """)
+                QComboBox:hover {
+                    border-color: #ff6b8b;
+                }
+                QComboBox::drop-down {
+                    border-left: 1px solid #555;
+                    border-top-right-radius: 4px;
+                    border-bottom-right-radius: 4px;
+                }
+                QComboBox QAbstractItemView {
+                    background-color: #333;
+                    color: #ddd;
+                    border: 1px solid #555;
+                    border-radius: 4px;
+                    padding: 4px;
+                }"""
+            )
             preview_layout.addWidget(preview_label)
             preview_layout.addWidget(self.preview_combo)
             preview_layout.addStretch()
@@ -2618,8 +2856,11 @@ class MainWindow(QMainWindow):
 
             # 导出设置
             export_group = QGroupBox("导出设置")
-            export_group.setStyleSheet(
-                "QGroupBox { font-weight: bold; color: #555; border: 1px solid #ddd; border-radius: 6px; padding: 10px; margin: 5px 0; } QGroupBox::title { subcontrol-position: top left; padding: 0 10px; background-color: #f8f9fa; border-radius: 4px; }")
+            setCustomStyleSheet(
+                export_group,
+                "QGroupBox { font-weight: bold; color: #555; border: 1px solid #ddd; border-radius: 6px; padding: 10px; margin: 5px 0; } QGroupBox::title { subcontrol-position: top left; padding: 0 10px; background-color: #f8f9fa; border-radius: 4px; }",
+                "QGroupBox { font-weight: bold; color: #ccc; border: 1px solid #555; border-radius: 6px; padding: 10px; margin: 5px 0; } QGroupBox::title { subcontrol-position: top left; padding: 0 10px; background-color: #333; border-radius: 4px; }"
+            )
             export_layout = QVBoxLayout()
             export_layout.setSpacing(10)
 
@@ -2630,8 +2871,9 @@ class MainWindow(QMainWindow):
             self.export_quality_combo = QComboBox()
             self.export_quality_combo.addItems(["低", "中", "高"])
             self.export_quality_combo.setCurrentText("高")
-            self.export_quality_combo.setStyleSheet("""
-                QComboBox {
+            setCustomStyleSheet(
+                self.export_quality_combo,
+                """QComboBox {
                     background-color: white;
                     border: 1px solid #ddd;
                     border-radius: 4px;
@@ -2651,8 +2893,31 @@ class MainWindow(QMainWindow):
                     border: 1px solid #ddd;
                     border-radius: 4px;
                     padding: 4px;
+                }""",
+                """QComboBox {
+                    background-color: #333;
+                    color: #ddd;
+                    border: 1px solid #555;
+                    border-radius: 4px;
+                    padding: 4px 8px;
+                    min-width: 120px;
                 }
-            """)
+                QComboBox:hover {
+                    border-color: #ff6b8b;
+                }
+                QComboBox::drop-down {
+                    border-left: 1px solid #555;
+                    border-top-right-radius: 4px;
+                    border-bottom-right-radius: 4px;
+                }
+                QComboBox QAbstractItemView {
+                    background-color: #333;
+                    color: #ddd;
+                    border: 1px solid #555;
+                    border-radius: 4px;
+                    padding: 4px;
+                }"""
+            )
             export_quality_layout.addWidget(export_quality_label)
             export_quality_layout.addWidget(self.export_quality_combo)
             export_quality_layout.addStretch()
@@ -2675,8 +2940,11 @@ class MainWindow(QMainWindow):
 
             # 网络设置
             network_group = QGroupBox("网络设置")
-            network_group.setStyleSheet(
-                "QGroupBox { font-weight: bold; color: #555; border: 1px solid #ddd; border-radius: 6px; padding: 10px; margin: 5px 0; } QGroupBox::title { subcontrol-position: top left; padding: 0 10px; background-color: #f8f9fa; border-radius: 4px; }")
+            setCustomStyleSheet(
+                network_group,
+                "QGroupBox { font-weight: bold; color: #555; border: 1px solid #ddd; border-radius: 6px; padding: 10px; margin: 5px 0; } QGroupBox::title { subcontrol-position: top left; padding: 0 10px; background-color: #f8f9fa; border-radius: 4px; }",
+                "QGroupBox { font-weight: bold; color: #ccc; border: 1px solid #555; border-radius: 6px; padding: 10px; margin: 5px 0; } QGroupBox::title { subcontrol-position: top left; padding: 0 10px; background-color: #333; border-radius: 4px; }"
+            )
             network_layout = QVBoxLayout()
             network_layout.setSpacing(10)
 
@@ -2707,14 +2975,21 @@ class MainWindow(QMainWindow):
 
             # 关于
             about_group = QGroupBox("关于")
-            about_group.setStyleSheet(
-                "QGroupBox { font-weight: bold; color: #555; border: 1px solid #ddd; border-radius: 6px; padding: 10px; margin: 5px 0; } QGroupBox::title { subcontrol-position: top left; padding: 0 10px; background-color: #f8f9fa; border-radius: 4px; }")
+            setCustomStyleSheet(
+                about_group,
+                "QGroupBox { font-weight: bold; color: #555; border: 1px solid #ddd; border-radius: 6px; padding: 10px; margin: 5px 0; } QGroupBox::title { subcontrol-position: top left; padding: 0 10px; background-color: #f8f9fa; border-radius: 4px; }",
+                "QGroupBox { font-weight: bold; color: #ccc; border: 1px solid #555; border-radius: 6px; padding: 10px; margin: 5px 0; } QGroupBox::title { subcontrol-position: top left; padding: 0 10px; background-color: #333; border-radius: 4px; }"
+            )
             about_layout = QVBoxLayout()
 
             about_info = QLabel(
                 f"{APP_NAME} v{APP_VERSION}\n\n明日方舟通行证素材制作器\n作者: Rafael_ban & 初微弦音 & 涙不在为你而流\n\n© 2026 罗德岛工程部")
             about_info.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            about_info.setStyleSheet("padding: 10px; color: #666;")
+            setCustomStyleSheet(
+                about_info,
+                "padding: 10px; color: #666;",
+                "padding: 10px; color: #aaa;"
+            )
             about_layout.addWidget(about_info)
 
             # 检查更新按钮
@@ -2735,7 +3010,11 @@ class MainWindow(QMainWindow):
 
             # 立即应用设置的提示
             apply_tip = QLabel("* 设置更改会立即生效")
-            apply_tip.setStyleSheet("color: #999; font-size: 12px;")
+            setCustomStyleSheet(
+                apply_tip,
+                "color: #999; font-size: 12px;",
+                "color: #888; font-size: 12px;"
+            )
             scroll_layout.addWidget(
                 apply_tip, alignment=Qt.AlignmentFlag.AlignCenter)
 

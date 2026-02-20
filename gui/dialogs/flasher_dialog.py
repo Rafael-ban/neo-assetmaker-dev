@@ -20,6 +20,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer
 from PyQt6.QtGui import QFont, QIcon
 
+from qfluentwidgets import setCustomStyleSheet
 from config.constants import APP_NAME
 
 import logging
@@ -398,7 +399,7 @@ class FlasherDialog(QDialog):
         # 版本信息
         version_label = QLabel("Proj0cpy 专用版 v2\n罗德岛工程部 (c)1097")
         version_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        version_label.setStyleSheet("color: #666666; margin-bottom: 15px;")
+        setCustomStyleSheet(version_label, "color: #666666; margin-bottom: 15px;", "color: #aaa; margin-bottom: 15px;")
         layout.addWidget(version_label)
         
         # 主内容区域 - 水平布局
@@ -409,64 +410,32 @@ class FlasherDialog(QDialog):
         
         # 设备信息组
         device_group = QGroupBox("设备信息")
-        device_group.setStyleSheet("QGroupBox { font-weight: bold; color: #555; border: 1px solid #ddd; border-radius: 6px; padding: 10px; margin: 5px 0; } QGroupBox::title { subcontrol-position: top left; padding: 0 10px; background-color: #f8f9fa; border-radius: 4px; }")
+        setCustomStyleSheet(
+            device_group,
+            "QGroupBox { font-weight: bold; color: #555; border: 1px solid #ddd; border-radius: 6px; padding: 10px; margin: 5px 0; } QGroupBox::title { subcontrol-position: top left; padding: 0 10px; background-color: #f8f9fa; border-radius: 4px; }",
+            "QGroupBox { font-weight: bold; color: #ccc; border: 1px solid #555; border-radius: 6px; padding: 10px; margin: 5px 0; } QGroupBox::title { subcontrol-position: top left; padding: 0 10px; background-color: #333; border-radius: 4px; }"
+        )
         device_layout = QFormLayout()
         device_layout.setSpacing(10)
         
         # 设备版本
         self.rev_combo = QComboBox()
         self.rev_combo.addItems(["0.2系列", "0.3/0.4系列(0.3/0.3.1/0.4/....)", "0.5系列(0.5/0.5.1)", "0.6系列"])
-        self.rev_combo.setStyleSheet("""
-            QComboBox {
-                background-color: white;
-                border: 1px solid #ddd;
-                border-radius: 4px;
-                padding: 4px 8px;
-                min-width: 200px;
-            }
-            QComboBox:hover {
-                border-color: #ff6b8b;
-            }
-            QComboBox::drop-down {
-                border-left: 1px solid #ddd;
-                border-top-right-radius: 4px;
-                border-bottom-right-radius: 4px;
-            }
-            QComboBox QAbstractItemView {
-                background-color: white;
-                border: 1px solid #ddd;
-                border-radius: 4px;
-                padding: 4px;
-            }
-        """)
+        setCustomStyleSheet(
+            self.rev_combo,
+            "QComboBox { background-color: white; border: 1px solid #ddd; border-radius: 4px; padding: 4px 8px; min-width: 200px; } QComboBox:hover { border-color: #ff6b8b; } QComboBox::drop-down { border-left: 1px solid #ddd; border-top-right-radius: 4px; border-bottom-right-radius: 4px; } QComboBox QAbstractItemView { background-color: white; border: 1px solid #ddd; border-radius: 4px; padding: 4px; }",
+            "QComboBox { background-color: #333; color: #ddd; border: 1px solid #555; border-radius: 4px; padding: 4px 8px; min-width: 200px; } QComboBox:hover { border-color: #ff6b8b; } QComboBox::drop-down { border-left: 1px solid #555; border-top-right-radius: 4px; border-bottom-right-radius: 4px; } QComboBox QAbstractItemView { background-color: #333; color: #ddd; border: 1px solid #555; border-radius: 4px; padding: 4px; }"
+        )
         device_layout.addRow("设备版本:", self.rev_combo)
         
         # 屏幕类型
         self.screen_combo = QComboBox()
         self.screen_combo.addItems(["京东方/BOE（没法旋转，冠显等商家）", "瀚彩/HSD（金逸晨、鑫睿等商家）", "老五电子买的3块钱的屏幕"])
-        self.screen_combo.setStyleSheet("""
-            QComboBox {
-                background-color: white;
-                border: 1px solid #ddd;
-                border-radius: 4px;
-                padding: 4px 8px;
-                min-width: 200px;
-            }
-            QComboBox:hover {
-                border-color: #ff6b8b;
-            }
-            QComboBox::drop-down {
-                border-left: 1px solid #ddd;
-                border-top-right-radius: 4px;
-                border-bottom-right-radius: 4px;
-            }
-            QComboBox QAbstractItemView {
-                background-color: white;
-                border: 1px solid #ddd;
-                border-radius: 4px;
-                padding: 4px;
-            }
-        """)
+        setCustomStyleSheet(
+            self.screen_combo,
+            "QComboBox { background-color: white; border: 1px solid #ddd; border-radius: 4px; padding: 4px 8px; min-width: 200px; } QComboBox:hover { border-color: #ff6b8b; } QComboBox::drop-down { border-left: 1px solid #ddd; border-top-right-radius: 4px; border-bottom-right-radius: 4px; } QComboBox QAbstractItemView { background-color: white; border: 1px solid #ddd; border-radius: 4px; padding: 4px; }",
+            "QComboBox { background-color: #333; color: #ddd; border: 1px solid #555; border-radius: 4px; padding: 4px 8px; min-width: 200px; } QComboBox:hover { border-color: #ff6b8b; } QComboBox::drop-down { border-left: 1px solid #555; border-top-right-radius: 4px; border-bottom-right-radius: 4px; } QComboBox QAbstractItemView { background-color: #333; color: #ddd; border: 1px solid #555; border-radius: 4px; padding: 4px; }"
+        )
         device_layout.addRow("屏幕类型:", self.screen_combo)
         
         device_group.setLayout(device_layout)
@@ -474,70 +443,38 @@ class FlasherDialog(QDialog):
         
         # 烧录版本组
         version_group = QGroupBox("烧录版本")
-        version_group.setStyleSheet("QGroupBox { font-weight: bold; color: #555; border: 1px solid #ddd; border-radius: 6px; padding: 10px; margin: 5px 0; } QGroupBox::title { subcontrol-position: top left; padding: 0 10px; background-color: #f8f9fa; border-radius: 4px; }")
+        setCustomStyleSheet(
+            version_group,
+            "QGroupBox { font-weight: bold; color: #555; border: 1px solid #ddd; border-radius: 6px; padding: 10px; margin: 5px 0; } QGroupBox::title { subcontrol-position: top left; padding: 0 10px; background-color: #f8f9fa; border-radius: 4px; }",
+            "QGroupBox { font-weight: bold; color: #ccc; border: 1px solid #555; border-radius: 6px; padding: 10px; margin: 5px 0; } QGroupBox::title { subcontrol-position: top left; padding: 0 10px; background-color: #333; border-radius: 4px; }"
+        )
         version_layout = QVBoxLayout()
         version_layout.setSpacing(10)
         
         # 版本选择下拉框
         version_label = QLabel("可用版本:")
-        version_label.setStyleSheet("color: #666;")
+        setCustomStyleSheet(version_label, "color: #666;", "color: #aaa;")
         version_layout.addWidget(version_label)
         self.version_combo = QComboBox()
         self.version_combo.addItem("请先获取版本信息...")
-        self.version_combo.setStyleSheet("""
-            QComboBox {
-                background-color: white;
-                border: 1px solid #ddd;
-                border-radius: 4px;
-                padding: 4px 8px;
-                min-width: 200px;
-            }
-            QComboBox:hover {
-                border-color: #ff6b8b;
-            }
-            QComboBox::drop-down {
-                border-left: 1px solid #ddd;
-                border-top-right-radius: 4px;
-                border-bottom-right-radius: 4px;
-            }
-            QComboBox QAbstractItemView {
-                background-color: white;
-                border: 1px solid #ddd;
-                border-radius: 4px;
-                padding: 4px;
-            }
-        """)
+        setCustomStyleSheet(
+            self.version_combo,
+            "QComboBox { background-color: white; border: 1px solid #ddd; border-radius: 4px; padding: 4px 8px; min-width: 200px; } QComboBox:hover { border-color: #ff6b8b; } QComboBox::drop-down { border-left: 1px solid #ddd; border-top-right-radius: 4px; border-bottom-right-radius: 4px; } QComboBox QAbstractItemView { background-color: white; border: 1px solid #ddd; border-radius: 4px; padding: 4px; }",
+            "QComboBox { background-color: #333; color: #ddd; border: 1px solid #555; border-radius: 4px; padding: 4px 8px; min-width: 200px; } QComboBox:hover { border-color: #ff6b8b; } QComboBox::drop-down { border-left: 1px solid #555; border-top-right-radius: 4px; border-bottom-right-radius: 4px; } QComboBox QAbstractItemView { background-color: #333; color: #ddd; border: 1px solid #555; border-radius: 4px; padding: 4px; }"
+        )
         version_layout.addWidget(self.version_combo)
         
         # 下载源选择
         mirror_label = QLabel("下载源:")
-        mirror_label.setStyleSheet("color: #666;")
+        setCustomStyleSheet(mirror_label, "color: #666;", "color: #aaa;")
         version_layout.addWidget(mirror_label)
         self.mirror_combo = QComboBox()
         self.mirror_combo.addItem("请先获取版本信息...")
-        self.mirror_combo.setStyleSheet("""
-            QComboBox {
-                background-color: white;
-                border: 1px solid #ddd;
-                border-radius: 4px;
-                padding: 4px 8px;
-                min-width: 200px;
-            }
-            QComboBox:hover {
-                border-color: #ff6b8b;
-            }
-            QComboBox::drop-down {
-                border-left: 1px solid #ddd;
-                border-top-right-radius: 4px;
-                border-bottom-right-radius: 4px;
-            }
-            QComboBox QAbstractItemView {
-                background-color: white;
-                border: 1px solid #ddd;
-                border-radius: 4px;
-                padding: 4px;
-            }
-        """)
+        setCustomStyleSheet(
+            self.mirror_combo,
+            "QComboBox { background-color: white; border: 1px solid #ddd; border-radius: 4px; padding: 4px 8px; min-width: 200px; } QComboBox:hover { border-color: #ff6b8b; } QComboBox::drop-down { border-left: 1px solid #ddd; border-top-right-radius: 4px; border-bottom-right-radius: 4px; } QComboBox QAbstractItemView { background-color: white; border: 1px solid #ddd; border-radius: 4px; padding: 4px; }",
+            "QComboBox { background-color: #333; color: #ddd; border: 1px solid #555; border-radius: 4px; padding: 4px 8px; min-width: 200px; } QComboBox:hover { border-color: #ff6b8b; } QComboBox::drop-down { border-left: 1px solid #555; border-top-right-radius: 4px; border-bottom-right-radius: 4px; } QComboBox QAbstractItemView { background-color: #333; color: #ddd; border: 1px solid #555; border-radius: 4px; padding: 4px; }"
+        )
         version_layout.addWidget(self.mirror_combo)
         
         version_group.setLayout(version_layout)
@@ -545,7 +482,11 @@ class FlasherDialog(QDialog):
         
         # 按钮组
         button_group = QGroupBox("操作")
-        button_group.setStyleSheet("QGroupBox { font-weight: bold; color: #555; border: 1px solid #ddd; border-radius: 6px; padding: 10px; margin: 5px 0; } QGroupBox::title { subcontrol-position: top left; padding: 0 10px; background-color: #f8f9fa; border-radius: 4px; }")
+        setCustomStyleSheet(
+            button_group,
+            "QGroupBox { font-weight: bold; color: #555; border: 1px solid #ddd; border-radius: 6px; padding: 10px; margin: 5px 0; } QGroupBox::title { subcontrol-position: top left; padding: 0 10px; background-color: #f8f9fa; border-radius: 4px; }",
+            "QGroupBox { font-weight: bold; color: #ccc; border: 1px solid #555; border-radius: 6px; padding: 10px; margin: 5px 0; } QGroupBox::title { subcontrol-position: top left; padding: 0 10px; background-color: #333; border-radius: 4px; }"
+        )
         button_layout = QVBoxLayout()
         button_layout.setSpacing(8)
         
@@ -640,40 +581,30 @@ class FlasherDialog(QDialog):
         
         # 状态显示
         status_group = QGroupBox("烧录状态")
-        status_group.setStyleSheet("QGroupBox { font-weight: bold; color: #555; border: 1px solid #ddd; border-radius: 6px; padding: 10px; margin: 5px 0; } QGroupBox::title { subcontrol-position: top left; padding: 0 10px; background-color: #f8f9fa; border-radius: 4px; }")
+        setCustomStyleSheet(
+            status_group,
+            "QGroupBox { font-weight: bold; color: #555; border: 1px solid #ddd; border-radius: 6px; padding: 10px; margin: 5px 0; } QGroupBox::title { subcontrol-position: top left; padding: 0 10px; background-color: #f8f9fa; border-radius: 4px; }",
+            "QGroupBox { font-weight: bold; color: #ccc; border: 1px solid #555; border-radius: 6px; padding: 10px; margin: 5px 0; } QGroupBox::title { subcontrol-position: top left; padding: 0 10px; background-color: #333; border-radius: 4px; }"
+        )
         status_layout = QVBoxLayout()
         status_layout.setSpacing(10)
         
         self.status_text = QTextEdit()
         self.status_text.setReadOnly(True)
-        self.status_text.setStyleSheet("""
-            QTextEdit {
-                background-color: #f8f9fa;
-                border: 1px solid #ddd;
-                border-radius: 4px;
-                padding: 10px;
-                font-family: 'Consolas', 'Monaco', monospace;
-                font-size: 12px;
-                line-height: 1.4;
-            }
-        """)
+        setCustomStyleSheet(
+            self.status_text,
+            "QTextEdit { background-color: #f8f9fa; color: #333; border: 1px solid #ddd; border-radius: 4px; padding: 10px; font-family: 'Consolas', 'Monaco', monospace; font-size: 12px; line-height: 1.4; }",
+            "QTextEdit { background-color: #2b2b2b; color: #ddd; border: 1px solid #555; border-radius: 4px; padding: 10px; font-family: 'Consolas', 'Monaco', monospace; font-size: 12px; line-height: 1.4; }"
+        )
         status_layout.addWidget(self.status_text)
         
         self.progress_bar = QProgressBar()
         self.progress_bar.setValue(0)
-        self.progress_bar.setStyleSheet("""
-            QProgressBar {
-                background-color: #f8f9fa;
-                border: 1px solid #ddd;
-                border-radius: 4px;
-                padding: 2px;
-                text-align: center;
-            }
-            QProgressBar::chunk {
-                background-color: #ff6b8b;
-                border-radius: 2px;
-            }
-        """)
+        setCustomStyleSheet(
+            self.progress_bar,
+            "QProgressBar { background-color: #f8f9fa; border: 1px solid #ddd; border-radius: 4px; padding: 2px; text-align: center; } QProgressBar::chunk { background-color: #ff6b8b; border-radius: 2px; }",
+            "QProgressBar { background-color: #2b2b2b; color: #ddd; border: 1px solid #555; border-radius: 4px; padding: 2px; text-align: center; } QProgressBar::chunk { background-color: #ff6b8b; border-radius: 2px; }"
+        )
         status_layout.addWidget(self.progress_bar)
         
         status_group.setLayout(status_layout)
