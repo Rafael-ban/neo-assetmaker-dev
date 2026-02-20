@@ -111,14 +111,19 @@ class ApiClient:
         """Execute a request with automatic 401 retry after token refresh."""
         merged_headers = self._build_headers(headers)
 
-        response = self._client.request(
-            method,
-            path,
-            json=json,
-            params=params,
-            data=data,
-            headers=merged_headers,
-        )
+        try:
+            response = self._client.request(
+                method,
+                path,
+                json=json,
+                params=params,
+                data=data,
+                headers=merged_headers,
+            )
+        except httpx.TimeoutException as exc:
+            raise ApiError(0, f"请求超时: {exc}") from exc
+        except httpx.TransportError as exc:
+            raise ApiError(0, f"网络连接失败: {exc}") from exc
 
         # Attempt token refresh on 401
         if response.status_code == 401 and self._refresh_callback is not None:
@@ -127,14 +132,19 @@ class ApiClient:
             if new_token:
                 self._access_token = new_token
                 merged_headers = self._build_headers(headers)
-                response = self._client.request(
-                    method,
-                    path,
-                    json=json,
-                    params=params,
-                    data=data,
-                    headers=merged_headers,
-                )
+                try:
+                    response = self._client.request(
+                        method,
+                        path,
+                        json=json,
+                        params=params,
+                        data=data,
+                        headers=merged_headers,
+                    )
+                except httpx.TimeoutException as exc:
+                    raise ApiError(0, f"请求超时: {exc}") from exc
+                except httpx.TransportError as exc:
+                    raise ApiError(0, f"网络连接失败: {exc}") from exc
 
         return self._handle_response(response)
 

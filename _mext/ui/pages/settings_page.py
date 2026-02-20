@@ -309,6 +309,9 @@ class SettingsPage(QWidget):
         except ApiError as exc:
             logger.warning("Could not load FIDO2 credentials: %s", exc)
             self._no_keys_label.setVisible(True)
+        except Exception as exc:
+            logger.warning("Unexpected error loading FIDO2 credentials: %s", exc)
+            self._no_keys_label.setVisible(True)
 
     @Slot()
     def _on_register_fido2_key(self) -> None:

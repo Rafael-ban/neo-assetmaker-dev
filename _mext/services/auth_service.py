@@ -289,7 +289,11 @@ class AuthService(QObject):
 
     def _do_refresh_token(self) -> Optional[str]:
         """Internal refresh logic, used as callback for ApiClient 401 retry."""
-        stored_refresh = keyring.get_password(KEYRING_SERVICE_NAME, KEYRING_REFRESH_TOKEN_KEY)
+        try:
+            stored_refresh = keyring.get_password(KEYRING_SERVICE_NAME, KEYRING_REFRESH_TOKEN_KEY)
+        except Exception as exc:
+            logger.warning("Failed to read refresh token from keyring: %s", exc)
+            return None
         if not stored_refresh:
             logger.warning("No refresh token available")
             self._clear_tokens()
@@ -325,7 +329,10 @@ class AuthService(QObject):
 
         refresh = data.get("refresh_token")
         if refresh:
-            keyring.set_password(KEYRING_SERVICE_NAME, KEYRING_REFRESH_TOKEN_KEY, refresh)
+            try:
+                keyring.set_password(KEYRING_SERVICE_NAME, KEYRING_REFRESH_TOKEN_KEY, refresh)
+            except Exception:
+                logger.warning("Could not save refresh token to keyring")
 
         self._user_info = data.get("user")
 
@@ -334,7 +341,11 @@ class AuthService(QObject):
 
     def _restore_session(self) -> None:
         """Try to restore a session from a stored refresh token on startup."""
-        stored_refresh = keyring.get_password(KEYRING_SERVICE_NAME, KEYRING_REFRESH_TOKEN_KEY)
+        try:
+            stored_refresh = keyring.get_password(KEYRING_SERVICE_NAME, KEYRING_REFRESH_TOKEN_KEY)
+        except Exception:
+            logger.debug("Could not access keyring for session restore")
+            return
         if stored_refresh:
             logger.info("Found stored refresh token, attempting session restore...")
             new_token = self._do_refresh_token()
@@ -348,7 +359,7 @@ class AuthService(QObject):
         self._user_info = None
         try:
             keyring.delete_password(KEYRING_SERVICE_NAME, KEYRING_REFRESH_TOKEN_KEY)
-        except keyring.errors.PasswordDeleteError:
+        except Exception:
             pass
 
     # -- Cleanup --
