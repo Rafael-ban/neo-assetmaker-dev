@@ -9,7 +9,6 @@ from gui.widgets.video_preview import VideoPreviewWidget
 from gui.widgets.config_panel import ConfigPanel
 from config.constants import APP_NAME, APP_VERSION, get_resolution_spec
 from config.epconfig import EPConfig
-from PyQt6.QtWebEngineWidgets import QWebEngineView
 from qfluentwidgets import (
     PushButton, PrimaryPushButton, ToolButton,
     TabWidget, SegmentedWidget,
@@ -814,11 +813,12 @@ class MainWindow(QMainWindow):
         </ul>
 
         <h4>3. 素材商城</h4>
-        <p>提供现成的素材资源，方便用户直接使用。</p>
+        <p>内置素材商城客户端，提供完整的素材浏览和管理功能。</p>
         <ul>
-            <li><strong>2.x版本资源</strong>：适用于新版本设备的素材</li>
-            <li><strong>1.x版本资源</strong>：适用于旧版本设备的素材</li>
-            <li><strong>一键下载</strong>：点击链接即可下载所需素材</li>
+            <li><strong>素材浏览</strong>：搜索、筛选和排序素材资源</li>
+            <li><strong>下载管理</strong>：多任务下载，支持暂停和续传</li>
+            <li><strong>素材库</strong>：管理已下载的素材文件</li>
+            <li><strong>USB 传输</strong>：直接将素材传输到设备</li>
         </ul>
 
         <h4>4. 项目介绍</h4>
@@ -1598,181 +1598,26 @@ class MainWindow(QMainWindow):
 
     def _on_sidebar_market(self):
         """侧边栏：素材商城"""
-        # 重置所有按钮状态
         self.btn_firmware.setChecked(False)
         self.btn_material.setChecked(False)
         self.btn_market.setChecked(True)
         self.btn_about.setChecked(False)
         self.btn_settings.setChecked(False)
 
-        # 隐藏素材制作界面
         self.splitter.setVisible(False)
-
-        # 隐藏设置视图（如果存在）
         if hasattr(self, '_settings_widget'):
             self._settings_widget.setVisible(False)
-
-        # 隐藏项目介绍视图（如果存在）
         if hasattr(self, '_about_widget'):
             self._about_widget.setVisible(False)
-
-        # 隐藏烧录界面（如果存在）
         if hasattr(self, '_flasher_widget'):
             self._flasher_widget.setVisible(False)
 
-        # 检查是否已经创建了内容视图
         if not hasattr(self, '_market_widget'):
-            from PyQt6.QtWidgets import QLabel, QVBoxLayout, QTextBrowser
-
-            # 创建市场视图
-            self._market_widget = QWidget()
-            market_layout = QVBoxLayout(self._market_widget)
-            market_layout.setContentsMargins(20, 10, 20, 10)
-            market_layout.setSpacing(15)
-
-            # 标题
-            title_label = QLabel("素材商城")
-            setCustomStyleSheet(
-                title_label,
-                "font-size: 18px; font-weight: bold; color: #333;",
-                "font-size: 18px; font-weight: bold; color: #eee;"
-            )
-            market_layout.addWidget(title_label)
-
-            # 直接创建WebEngineView显示素材商城网页
-            try:
-                # 创建WebEngineView
-                web_view = QWebEngineView()
-
-                # 连接下载请求信号
-                from PyQt6.QtWebEngineCore import QWebEngineDownloadRequest
-                from PyQt6.QtWidgets import QMessageBox
-                import os
-                import logging
-
-                logger = logging.getLogger(__name__)
-
-                # 设置默认下载目录
-                downloads_dir = os.path.join(
-                    os.path.expanduser("~"), "Downloads")
-                if not os.path.exists(downloads_dir):
-                    os.makedirs(downloads_dir)
-
-                def on_download_requested(download):
-                    # 处理下载请求
-                    logger.info(f"收到下载请求: {download.url().toString()}")
-
-                    try:
-                        # 获取默认文件名
-                        default_filename = download.downloadFileName()
-                        logger.info(f"默认文件名: {default_filename}")
-
-                        # 确保文件名有效
-                        if not default_filename:
-                            default_filename = "download.bin"
-                            logger.info("使用默认文件名: download.bin")
-
-                        # 自动设置下载路径
-                        file_path = os.path.join(
-                            downloads_dir, default_filename)
-                        logger.info(f"下载路径: {file_path}")
-
-                        # 确保目录存在
-                        if not os.path.exists(os.path.dirname(file_path)):
-                            os.makedirs(os.path.dirname(file_path))
-
-                        # 开始下载
-                        download.accept()
-                        logger.info("下载已开始")
-
-                        # 连接下载完成信号
-                        def on_download_finished():
-                            if download.isFinished():
-                                logger.info(f"下载完成: {file_path}")
-                                QMessageBox.information(
-                                    self, "下载完成", f"文件已保存到: {file_path}")
-                            elif download.isCancelled():
-                                logger.info("下载已取消")
-                                QMessageBox.information(self, "下载取消", "下载已取消")
-                            else:
-                                error = download.errorString()
-                                logger.error(f"下载失败: {error}")
-                                QMessageBox.warning(
-                                    self, "下载失败", f"下载失败: {error}")
-
-                        download.finished.connect(on_download_finished)
-                    except Exception as e:
-                        logger.error(f"处理下载请求失败: {e}")
-                        QMessageBox.warning(self, "错误", f"处理下载请求失败: {str(e)}")
-
-                # 连接下载请求信号
-                profile = web_view.page().profile()
-                profile.downloadRequested.connect(on_download_requested)
-                logger.info("下载请求信号已连接")
-
-                # 设置URL
-                web_view.setUrl(
-                    QUrl("https://oplst.iccmc.cc/%E9%80%9A%E8%A1%8C%E8%AF%81%E8%B5%84%E6%BA%90%E5%88%86%E4%BA%AB(2.x%E7%89%88%E6%9C%AC_proj0cpy)"))
-                setCustomStyleSheet(
-                    web_view,
-                    "border: 1px solid #e9ecef; border-radius: 8px;",
-                    "border: 1px solid #555; border-radius: 8px;"
-                )
-                market_layout.addWidget(web_view)
-
-                # 添加网站链接和下载提示
-                url_label = QLabel(
-                    f"网站链接: <a href='https://oplst.iccmc.cc'>https://oplst.iccmc.cc</a>")
-                url_label.setOpenExternalLinks(True)
-                url_label.setStyleSheet(
-                    "color: #ff6b8b; text-decoration: underline;")
-                market_layout.addWidget(url_label)
-
-                # 添加下载提示
-                download_hint = QLabel("提示: 点击下载链接将自动保存到 Downloads 文件夹")
-                setCustomStyleSheet(
-                    download_hint,
-                    "color: #666; font-size: 12px;",
-                    "color: #aaa; font-size: 12px;"
-                )
-                market_layout.addWidget(download_hint)
-
-            except Exception as e:
-                # 如果无法加载WebEngine，显示错误信息
-                text_browser = QTextBrowser()
-                text_browser.setOpenExternalLinks(True)
-                setCustomStyleSheet(
-                    text_browser,
-                    "border: 1px solid #e9ecef; border-radius: 8px;",
-                    "border: 1px solid #555; border-radius: 8px;"
-                )
-                error_html = f"""
-                <div style="color: #ff6b8b; padding: 10px;">
-                    <h3>无法加载网页视图</h3>
-                    <p>错误信息: {str(e)}</p>
-                    <p>请直接访问: <a href='https://oplst.iccmc.cc'>https://oplst.iccmc.cc</a></p>
-                    <h3>素材商城</h3>
-                    <p>素材商城提供了各种明日方舟通行证的素材文件，包括2.x版本和1.x版本的资源。</p>
-                </div>
-                """
-                text_browser.setHtml(error_html)
-                market_layout.addWidget(text_browser)
-
-                # 添加网站链接
-                url_label = QLabel(
-                    f"网站链接: <a href='https://oplst.iccmc.cc'>https://oplst.iccmc.cc</a>")
-                url_label.setOpenExternalLinks(True)
-                url_label.setStyleSheet(
-                    "color: #ff6b8b; text-decoration: underline;")
-                market_layout.addWidget(url_label)
-
-            # 添加到内容布局
+            from _mext.ui.widget import MaterialMarketWidget
+            self._market_widget = MaterialMarketWidget(parent=self)
             self.content_layout.addWidget(self._market_widget)
 
-        # 显示市场视图
-        if hasattr(self, '_market_widget'):
-            self._market_widget.setVisible(True)
-
+        self._market_widget.setVisible(True)
         self.status_bar.showMessage("素材商城模式")
 
     def _on_sidebar_about(self):
@@ -1816,6 +1661,7 @@ class MainWindow(QMainWindow):
 
             # 创建WebEngineView
             try:
+                from PyQt6.QtWebEngineWidgets import QWebEngineView
                 web_view = QWebEngineView()
                 web_view.setUrl(QUrl("https://ep.iccmc.cc"))
                 setCustomStyleSheet(
@@ -1880,303 +1726,6 @@ class MainWindow(QMainWindow):
         self._about_widget.setVisible(True)
 
         self.status_bar.showMessage("项目介绍")
-
-    def _load_market_content(self):
-        """加载素材商城内容"""
-        from PyQt6.QtWidgets import QLabel, QTextEdit, QVBoxLayout, QWidget
-        import requests
-        from bs4 import BeautifulSoup
-        import logging
-        from PyQt6.QtCore import QThread, pyqtSignal
-
-        logger = logging.getLogger(__name__)
-
-        # 清空现有内容
-        for i in reversed(range(self.scroll_layout.count())):
-            widget = self.scroll_layout.itemAt(i).widget()
-            if widget:
-                widget.deleteLater()
-
-        # 添加加载中提示
-        loading_label = QLabel("正在加载素材内容...")
-        setCustomStyleSheet(
-            loading_label,
-            "font-size: 14px; color: #666; text-align: center;",
-            "font-size: 14px; color: #aaa; text-align: center;"
-        )
-        self.scroll_layout.addWidget(loading_label)
-
-        # 异步加载内容
-        class MarketContentLoader(QThread):
-            finished = pyqtSignal()
-            error = pyqtSignal(str)
-
-            def __init__(self, parent):
-                super().__init__(parent)
-                self.parent = parent
-                self.loading_label = loading_label
-
-            def run(self):
-                try:
-                    # 2.x版本链接
-                    url_2x = "https://oplst.iccmc.cc/%E9%80%9A%E8%A1%8C%E8%AF%81%E8%B5%84%E6%BA%90%E5%88%86%E4%BA%AB(2.x%E7%89%88%E6%9C%AC_proj0cpy)"
-                    # 1.x版本链接
-                    url_1x = "https://oplst.iccmc.cc/%E9%80%9A%E8%A1%8C%E8%AF%81%E8%B5%84%E6%BA%90%E5%88%86%E4%BA%AB%EF%BC%88srgnVS8pix%E7%89%88%E6%9C%AC%E4%B8%93%E7%94%A8%EF%BC%89"
-
-                    # 加载2.x版本内容
-                    self.parent._load_market_version_content(
-                        "2.x版本 (proj0cpy)", url_2x)
-
-                    # 加载1.x版本内容
-                    self.parent._load_market_version_content(
-                        "1.x版本 (srgnVS8pix)", url_1x)
-
-                    self.finished.emit()
-
-                except Exception as e:
-                    logger.error(f"加载素材商城内容失败: {e}")
-                    self.error.emit(str(e))
-
-        # 创建并启动加载线程
-        loader = MarketContentLoader(self)
-
-        def on_finished():
-            # 移除加载中提示
-            loading_label.deleteLater()
-            loader.deleteLater()
-
-        def on_error(error_msg):
-            # 移除加载中提示
-            loading_label.deleteLater()
-            # 显示错误信息
-            error_label = QLabel(f"加载失败: {error_msg}")
-            error_label.setStyleSheet(
-                "font-size: 14px; color: #ff6b8b; text-align: center;")
-            self.scroll_layout.addWidget(error_label)
-            loader.deleteLater()
-
-        loader.finished.connect(on_finished)
-        loader.error.connect(on_error)
-        loader.start()
-
-    def _load_market_version_content(self, version_name, url):
-        """加载特定版本的素材内容"""
-        from PyQt6.QtWidgets import QLabel, QTextEdit, QVBoxLayout, QWidget
-        import requests
-        from bs4 import BeautifulSoup
-        import logging
-        from PyQt6.QtCore import QMetaObject, Qt, QGenericArgument
-
-        logger = logging.getLogger(__name__)
-
-        try:
-            # 发送请求获取页面内容
-            response = requests.get(url, timeout=30)
-            response.raise_for_status()
-
-            # 解析HTML
-            soup = BeautifulSoup(response.text, 'html.parser')
-
-            # 提取素材文件列表
-            files = []
-
-            # 尝试解析表格形式的素材列表
-            table = soup.find('table')
-            if table:
-                # 查找表格行
-                for row in table.find_all('tr')[1:]:  # 跳过表头
-                    cells = row.find_all('td')
-                    if len(cells) >= 3:
-                        # 查找链接
-                        link = cells[0].find('a', href=True)
-                        if link:
-                            href = link.get('href')
-                            text = link.get_text(strip=True)
-                            # 只保留zip、rar、7z等压缩文件链接
-                            if any(
-                                href.endswith(ext) for ext in [
-                                    '.zip',
-                                    '.rar',
-                                    '.7z',
-                                    '.7zip',
-                                    '.tar',
-                                    '.tar.gz',
-                                    '.tgz']):
-                                size = cells[1].get_text(
-                                    strip=True) if len(cells) > 1 else ""
-                                date = cells[2].get_text(
-                                    strip=True) if len(cells) > 2 else ""
-                                files.append((text or href, href, size, date))
-
-            # 如果表格解析失败，尝试查找所有链接
-            if not files:
-                for a in soup.find_all('a', href=True):
-                    href = a.get('href')
-                    text = a.get_text(strip=True)
-                    # 只保留zip、rar、7z等压缩文件链接
-                    if any(
-                        href.endswith(ext) for ext in [
-                            '.zip',
-                            '.rar',
-                            '.7z',
-                            '.7zip',
-                            '.tar',
-                            '.tar.gz',
-                            '.tgz']):
-                        files.append((text or href, href, "", ""))
-
-            # 准备内容
-            if files:
-                content = f"{version_name}资源:\n\n"
-                for file_name, file_url, size, date in files:
-                    if size and date:
-                        content += f"{file_name}  -  大小: {size}  -  日期: {date}\n"
-                    elif size:
-                        content += f"{file_name}  -  大小: {size}\n"
-                    else:
-                        content += f"{file_name}\n"
-                content += f"\n来自: {url}"
-            else:
-                content = f"{version_name}资源:\n\n未找到素材文件\n\n来自: {url}"
-
-            # 在主线程中创建UI元素
-            def create_ui():
-                # 创建版本容器
-                version_container = QWidget()
-                version_layout = QVBoxLayout(version_container)
-
-                # 版本标题
-                version_label = QLabel(version_name)
-                setCustomStyleSheet(
-                    version_label,
-                    "font-size: 14px; font-weight: bold; color: #666; margin-top: 10px;",
-                    "font-size: 14px; font-weight: bold; color: #aaa; margin-top: 10px;"
-                )
-                version_layout.addWidget(version_label)
-
-                # 内容显示
-                content_text = QTextEdit()
-                content_text.setReadOnly(True)
-                setCustomStyleSheet(
-                    content_text,
-                    "background-color: #f8f9fa; padding: 10px; font-family: Arial, sans-serif;",
-                    "background-color: #333; color: #ddd; padding: 10px; font-family: Arial, sans-serif;"
-                )
-                content_text.setText(content)
-                version_layout.addWidget(content_text)
-
-                # 添加到滚动布局
-                self.scroll_layout.addWidget(version_container)
-
-            # 使用QMetaObject.invokeMethod在主线程中执行
-            QMetaObject.invokeMethod(
-                self,
-                "_add_market_content",
-                Qt.ConnectionType.QueuedConnection,
-                QGenericArgument(
-                    'QString',
-                    version_name),
-                QGenericArgument(
-                    'QString',
-                    content))
-
-        except Exception as e:
-            logger.error(f"加载{version_name}内容失败: {e}")
-
-            # 在主线程中显示错误信息
-            def show_error():
-                error_container = QWidget()
-                error_layout = QVBoxLayout(error_container)
-
-                error_label = QLabel(version_name)
-                setCustomStyleSheet(
-                    error_label,
-                    "font-size: 14px; font-weight: bold; color: #666; margin-top: 10px;",
-                    "font-size: 14px; font-weight: bold; color: #aaa; margin-top: 10px;"
-                )
-                error_layout.addWidget(error_label)
-
-                error_text = QTextEdit()
-                error_text.setReadOnly(True)
-                setCustomStyleSheet(
-                    error_text,
-                    "background-color: #f8f9fa; padding: 10px; font-family: Arial, sans-serif;",
-                    "background-color: #333; color: #ddd; padding: 10px; font-family: Arial, sans-serif;"
-                )
-                error_text.setText(f"{version_name}资源:\n\n加载失败: {str(e)}")
-                error_layout.addWidget(error_text)
-
-                self.scroll_layout.addWidget(error_container)
-
-            # 使用QMetaObject.invokeMethod在主线程中执行
-            QMetaObject.invokeMethod(
-                self,
-                "_add_market_error",
-                Qt.ConnectionType.QueuedConnection,
-                QGenericArgument(
-                    'QString',
-                    version_name),
-                QGenericArgument(
-                    'QString',
-                    str(e)))
-
-    def _add_market_content(self, version_name, content):
-        """在主线程中添加市场内容"""
-        from PyQt6.QtWidgets import QLabel, QTextEdit, QVBoxLayout, QWidget
-
-        # 创建版本容器
-        version_container = QWidget()
-        version_layout = QVBoxLayout(version_container)
-
-        # 版本标题
-        version_label = QLabel(version_name)
-        setCustomStyleSheet(
-            version_label,
-            "font-size: 14px; font-weight: bold; color: #666; margin-top: 10px;",
-            "font-size: 14px; font-weight: bold; color: #aaa; margin-top: 10px;"
-        )
-        version_layout.addWidget(version_label)
-
-        # 内容显示
-        content_text = QTextEdit()
-        content_text.setReadOnly(True)
-        setCustomStyleSheet(
-            content_text,
-            "background-color: #f8f9fa; padding: 10px; font-family: Arial, sans-serif;",
-            "background-color: #333; color: #ddd; padding: 10px; font-family: Arial, sans-serif;"
-        )
-        content_text.setText(content)
-        version_layout.addWidget(content_text)
-
-        # 添加到滚动布局
-        self.scroll_layout.addWidget(version_container)
-
-    def _add_market_error(self, version_name, error_msg):
-        """在主线程中添加市场错误信息"""
-        from PyQt6.QtWidgets import QLabel, QTextEdit, QVBoxLayout, QWidget
-
-        error_container = QWidget()
-        error_layout = QVBoxLayout(error_container)
-
-        error_label = QLabel(version_name)
-        setCustomStyleSheet(
-            error_label,
-            "font-size: 14px; font-weight: bold; color: #666; margin-top: 10px;",
-            "font-size: 14px; font-weight: bold; color: #aaa; margin-top: 10px;"
-        )
-        error_layout.addWidget(error_label)
-
-        error_text = QTextEdit()
-        error_text.setReadOnly(True)
-        setCustomStyleSheet(
-            error_text,
-            "background-color: #f8f9fa; padding: 10px; font-family: Arial, sans-serif;",
-            "background-color: #333; color: #ddd; padding: 10px; font-family: Arial, sans-serif;"
-        )
-        error_text.setText(f"{version_name}资源:\n\n加载失败: {error_msg}")
-        error_layout.addWidget(error_text)
-
-        self.scroll_layout.addWidget(error_container)
 
     def _on_settings_mode_changed(self, mode):
         """设置模式切换"""
@@ -4525,6 +4074,10 @@ class MainWindow(QMainWindow):
 
             # 停止自动保存服务
             self._auto_save_service.stop()
+
+            # 关闭素材商城服务
+            if hasattr(self, '_market_widget'):
+                self._market_widget.shutdown()
 
             event.accept()
         else:

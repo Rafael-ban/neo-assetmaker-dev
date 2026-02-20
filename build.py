@@ -135,6 +135,8 @@ def run_cxfreeze(skip_flasher=False):
             shutil.rmtree(cache_path)
             print(f"  Cleared: {cache_path}")
 
+    os.environ["QT_API"] = "pyqt6"
+
     from cx_Freeze import setup, Executable
 
     site_packages = get_site_packages()
@@ -144,6 +146,11 @@ def run_cxfreeze(skip_flasher=False):
         "qfluentwidgets",
         "cv2", "PIL", "numpy", "jsonschema", "thefuzz",
         "logging", "json", "uuid", "dataclasses",
+        "qtpy", "httpx", "httpcore", "httpx._transports",
+        "keyring", "keyring.backends",
+        "platformdirs",
+        "fido2", "fido2.hid", "fido2.client", "fido2.webauthn",
+        "usb", "usb.core", "usb.backend", "usb.backend.libusb1",
     ]
 
     includes = [
@@ -158,6 +165,28 @@ def run_cxfreeze(skip_flasher=False):
         "gui.widgets", "gui.widgets.config_panel",
         "gui.widgets.video_preview", "gui.widgets.timeline", "gui.widgets.json_preview",
         "utils", "utils.logger", "utils.file_utils", "utils.color_utils",
+        "_mext", "_mext.core", "_mext.core.config",
+        "_mext.core.constants", "_mext.core.service_manager",
+        "_mext.services", "_mext.services.api_client",
+        "_mext.services.auth_service", "_mext.services.download_engine",
+        "_mext.services.download_worker", "_mext.services.fido2_client",
+        "_mext.services.fido2_worker", "_mext.services.usb_service",
+        "_mext.services.mtp_service", "_mext.services.pkce_utils",
+        "_mext.models", "_mext.models.user",
+        "_mext.models.material", "_mext.models.download",
+        "_mext.utils", "_mext.utils.crypto", "_mext.utils.platform",
+        "_mext.ui", "_mext.ui.widget",
+        "_mext.ui.pages", "_mext.ui.pages.market_page",
+        "_mext.ui.pages.library_page", "_mext.ui.pages.login_page",
+        "_mext.ui.pages.downloads_page", "_mext.ui.pages.usb_page",
+        "_mext.ui.pages.settings_page",
+        "_mext.ui.dialogs", "_mext.ui.dialogs.fido2_pin_dialog",
+        "_mext.ui.dialogs.fido2_touch_dialog",
+        "_mext.ui.components", "_mext.ui.components.material_card",
+        "_mext.ui.components.search_bar",
+        "_mext.ui.components.filter_panel", "_mext.ui.components.download_progress",
+        "_mext.ui.components.fido2_credential_card",
+        "_mext.ui.components.usb_device_card",
     ]
 
     excludes = [
@@ -165,6 +194,7 @@ def run_cxfreeze(skip_flasher=False):
         "notebook", "jupyter", "torch.testing", "torch.utils.tensorboard",
         "torch.utils.benchmark", "torch.distributed", "torchvision",
         "torchaudio", "scipy.spatial.cKDTree", "sympy",
+        "PySide6", "PySide6.QtCore", "PySide6.QtGui", "PySide6.QtWidgets",
     ]
 
     include_files = [("resources", "resources")]
@@ -208,6 +238,12 @@ def run_cxfreeze(skip_flasher=False):
             plugin_path = os.path.join(pyqt6_plugins, plugin)
             if os.path.exists(plugin_path):
                 include_files.append((plugin_path, f"lib/PyQt6/Qt6/plugins/{plugin}"))
+
+    # libusb DLL（pyusb/fido2 运行时依赖）
+    libusb_dll = os.path.join(site_packages, "fido2", "libusb-1.0.dll")
+    if os.path.exists(libusb_dll):
+        include_files.append((libusb_dll, "libusb-1.0.dll"))
+        print(f"  Including libusb: {libusb_dll}")
 
     build_options = {
         "packages": packages,

@@ -21,6 +21,9 @@ else:
 # 添加项目根目录到路径
 sys.path.insert(0, APP_DIR)
 
+# 扩展模块运行环境设置
+os.environ["QT_API"] = "pyqt6"
+
 
 def check_dependencies():
     """检查必要的依赖是否已安装"""
