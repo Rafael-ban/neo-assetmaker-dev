@@ -104,8 +104,6 @@ jobs:
 
       - name: Build with cx_Freeze and Inno Setup
         run: uv run python build.py --skip-flasher
-        env:
-          UV_DEFAULT_INDEX: https://pypi.org/simple
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4

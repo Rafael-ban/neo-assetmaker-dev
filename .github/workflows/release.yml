@@ -207,8 +207,6 @@ jobs:
 
       - name: Build with cx_Freeze and Inno Setup
         run: uv run python build.py
-        env:
-          UV_DEFAULT_INDEX: https://pypi.org/simple
 
       - name: Verify build output
         run: |

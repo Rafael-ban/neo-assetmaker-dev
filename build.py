@@ -7,7 +7,6 @@ import subprocess
 import argparse
 import shutil
 import urllib.request
-import zipfile
 
 sys.setrecursionlimit(10000)
 
@@ -25,7 +24,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description=f"{PROJECT_NAME} Build Tool")
     parser.add_argument('--no-installer', action='store_true', help='Skip installer packaging')
     parser.add_argument('--clean', action='store_true', help='Clean build directories')
-    parser.add_argument('--skip-flasher', action='store_true', help='Skip epass_flasher build (not recommended)')
+    parser.add_argument('--skip-flasher', action='store_true', help='Skip epass_flasher/bin check (not recommended)')
     return parser.parse_args()
 
 
@@ -79,91 +78,11 @@ def find_inno_setup():
     return None
 
 
-def check_uv():
-    """检查 uv 是否可用"""
-    try:
-        result = subprocess.run(["uv", "--version"], capture_output=True, check=True)
-        version = result.stdout.decode().strip()
-        print(f"  uv: {version}")
-        return True
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        return False
-
-
-def build_epass_flasher():
-    """构建 epass_flasher.exe"""
-    flasher_dir = "epass_flasher"
-    flasher_exe = os.path.join(flasher_dir, "dist", "epass_flasher.exe")
-
-    # 检查目录是否存在
-    if not os.path.exists(flasher_dir):
-        print("  Warning: epass_flasher directory not found")
-        return False
-
-    # 检查子模块是否已初始化
-    flasher_pyproject = os.path.join(flasher_dir, "pyproject.toml")
-    if not os.path.exists(flasher_pyproject):
-        print("  ERROR: epass_flasher submodule not initialized")
-        print("         Run: git submodule update --init --recursive")
-        print("         Or in CI: add 'submodules: true' to actions/checkout")
-        return False
-
-    # 如果已存在且比源文件新，跳过构建
-    flasher_main = os.path.join(flasher_dir, "main.py")
-    if os.path.exists(flasher_exe) and os.path.exists(flasher_main):
-        if os.path.getmtime(flasher_exe) > os.path.getmtime(flasher_main):
-            print("  epass_flasher.exe is up to date")
-            return True
-
-    print("Building epass_flasher...")
-
-    # 检查 uv 是否可用
-    if not check_uv():
-        print("  Warning: uv not found, skipping epass_flasher build")
-        return False
-
-    # CI 中删除 uv.lock，强制使用 UV_DEFAULT_INDEX 环境变量指定的源
-    # （epass_flasher 的 uv.lock 锁定了清华镜像 URL，CI 无法访问）
-    lock_file = os.path.join(flasher_dir, "uv.lock")
-    if os.environ.get("UV_DEFAULT_INDEX") and os.path.exists(lock_file):
-        print("  Removing uv.lock to use UV_DEFAULT_INDEX...")
-        os.remove(lock_file)
-
-    # 同步依赖（--group dev: 安装 dev 依赖，包含 PyInstaller）
-    print("  Syncing dependencies...")
-    result = subprocess.run(
-        ["uv", "sync", "--group", "dev"],
-        cwd=flasher_dir
-    )
-    if result.returncode != 0:
-        print("  ERROR: uv sync failed")
-        return False
-
-    # 使用 PyInstaller 打包（不捕获输出，让用户看到完整错误信息）
-    print("  Running PyInstaller...")
-    result = subprocess.run(
-        ["uv", "run", "pyinstaller", "main.spec", "--clean", "-y"],
-        cwd=flasher_dir
-    )
-    if result.returncode != 0:
-        print("  ERROR: PyInstaller failed, see error messages above")
-        return False
-
-    if os.path.exists(flasher_exe):
-        print(f"  Built: {flasher_exe}")
-        return True
-    else:
-        print("  Warning: epass_flasher.exe not found after build")
-        return False
 
 
 def check_requirements():
     """检查构建环境"""
     print("Checking build environment...")
-
-    # 检查 uv
-    if not check_uv():
-        print("  uv: not found (epass_flasher will not be built)")
 
     try:
         import cx_Freeze
@@ -207,15 +126,6 @@ def clean_build():
 
 def run_cxfreeze(skip_flasher=False):
     """执行 cx_Freeze 打包"""
-    # 先构建 epass_flasher
-    if not skip_flasher:
-        if not build_epass_flasher():
-            print("\nERROR: epass_flasher build failed, aborting")
-            print("       Use --skip-flasher to skip this check (not recommended)")
-            return False
-    else:
-        print("Skipping epass_flasher build (--skip-flasher)")
-
 
     # 强制清理 __pycache__，确保使用最新源代码编译
     print("Clearing __pycache__ before build...")
@@ -244,6 +154,7 @@ def run_cxfreeze(skip_flasher=False):
         "gui", "gui.main_window", "gui.dialogs",
         "gui.dialogs.export_progress_dialog", "gui.dialogs.welcome_dialog",
         "gui.dialogs.shortcuts_dialog", "gui.dialogs.update_dialog",
+        "gui.dialogs.flasher_dialog",
         "gui.widgets", "gui.widgets.config_panel",
         "gui.widgets.video_preview", "gui.widgets.timeline", "gui.widgets.json_preview",
         "utils", "utils.logger", "utils.file_utils", "utils.color_utils",
@@ -279,17 +190,17 @@ def run_cxfreeze(skip_flasher=False):
                 include_files.append((src, dll))
                 print(f"  Including FFmpeg DLL: {dll}")
 
-    # 添加烧录工具
-    flasher_exe = os.path.join("epass_flasher", "dist", "epass_flasher.exe")
-    if os.path.exists(flasher_exe):
-        include_files.append((flasher_exe, "epass_flasher.exe"))
-        print(f"  Including flasher: {flasher_exe}")
+    # 添加烧录工具 bin 目录（flasher_dialog 直接调用的工具）
+    flasher_bin_dir = os.path.join("epass_flasher", "bin")
+    if os.path.exists(flasher_bin_dir):
+        include_files.append((flasher_bin_dir, os.path.join("epass_flasher", "bin")))
+        print(f"  Including flasher bin dir: {flasher_bin_dir}")
     elif not skip_flasher:
-        print("\nERROR: epass_flasher.exe not found, aborting")
+        print("\nERROR: epass_flasher/bin/ not found, aborting")
         print("       Use --skip-flasher to skip this check (not recommended)")
         return False
     else:
-        print("  Warning: epass_flasher.exe not found (skipped due to --skip-flasher)")
+        print("  Warning: epass_flasher/bin/ not found (skipped due to --skip-flasher)")
 
     pyqt6_plugins = os.path.join(site_packages, "PyQt6", "Qt6", "plugins")
     if os.path.exists(pyqt6_plugins):

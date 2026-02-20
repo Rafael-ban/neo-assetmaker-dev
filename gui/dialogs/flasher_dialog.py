@@ -6,7 +6,6 @@ import sys
 import json
 import subprocess
 import time
-import threading
 import hashlib
 import shutil
 import requests
@@ -22,6 +21,7 @@ from PyQt6.QtGui import QFont, QIcon
 
 from qfluentwidgets import setCustomStyleSheet
 from config.constants import APP_NAME
+from utils.file_utils import get_app_dir
 
 import logging
 logger = logging.getLogger(__name__)
@@ -114,23 +114,6 @@ class FlasherWorker(QThread):
         test_file = os.path.join(bin_dir, "xfel.exe")
         if not os.path.exists(test_file):
             raise Exception(f"烧录工具不完整，请确保epass_flasher目录包含所有必要文件")
-        
-        # 检查是否为占位符版本
-        try:
-            with open(test_file, 'r', encoding='utf-8') as f:
-                content = f.read()
-                if '占位符版本' in content or 'placeholder' in content.lower():
-                    raise Exception(
-                        "当前使用的是epass_flasher占位符版本，无法执行实际的烧录操作。\n\n"
-                        "如需使用完整的固件烧录功能，请执行以下步骤之一：\n"
-                        "1. 手动克隆子模块：git clone https://github.com/rhodesepass/epass_flasher.git epass_flasher\n"
-                        "2. 初始化Git子模块：git submodule update --init --recursive\n\n"
-                        "详细说明请查看 epass_flasher/README.md"
-                    )
-        except Exception as e:
-            if '占位符版本' in str(e):
-                raise
-            # 如果读取失败，可能是真正的exe文件，继续执行
         
         # 1. 获取manifest
         self.status_updated.emit("获取固件信息...")
@@ -565,7 +548,12 @@ class FlasherDialog(QDialog):
             }
         """)
         self.update_firmware_button.clicked.connect(self._on_update_firmware)
-        
+
+        # 冻结环境禁用在线更新（无 git，安装目录可能无写权限）
+        if getattr(sys, 'frozen', False):
+            self.update_firmware_button.setEnabled(False)
+            self.update_firmware_button.setToolTip("打包版本不支持在线更新，请更新应用程序")
+
         button_layout.addWidget(self.install_driver_button)
         button_layout.addWidget(self.get_version_button)
         button_layout.addWidget(self.start_button)
@@ -620,7 +608,7 @@ class FlasherDialog(QDialog):
         
         # 工作线程
         self.worker = None
-        self.flasher_dir = os.path.join(os.path.dirname(__file__), "..", "..", "epass_flasher")
+        self.flasher_dir = os.path.join(get_app_dir(), "epass_flasher")
         self.bin_path = os.path.join(self.flasher_dir, "bin")  # 添加bin_path属性
         
         # 固件信息
@@ -632,18 +620,9 @@ class FlasherDialog(QDialog):
         """开始烧录"""
         # 检查epass_flasher目录
         if not os.path.exists(self.flasher_dir):
-            QMessageBox.warning(
-                self, 
-                "提示", 
-                "epass_flasher目录不存在，固件烧录功能暂不可用。\n\n"
-                "当前使用的是占位符版本，无法执行实际的烧录操作。\n\n"
-                "如需使用完整的固件烧录功能，请执行以下步骤之一：\n"
-                "1. 手动克隆子模块：git clone https://github.com/rhodesepass/epass_flasher.git epass_flasher\n"
-                "2. 初始化Git子模块：git submodule update --init --recursive\n\n"
-                "详细说明请查看 epass_flasher/README.md"
-            )
+            QMessageBox.warning(self, "提示", "epass_flasher 目录不存在，固件烧录功能暂不可用。")
             return
-        
+
         # 获取设备信息
         rev_index = self.rev_combo.currentIndex()
         rev_map = {0: "0.2", 1: "0.3", 2: "0.5", 3: "0.6"}
@@ -670,7 +649,6 @@ class FlasherDialog(QDialog):
         
         # 禁用按钮
         self.start_button.setEnabled(False)
-        self.cancel_button.setText("停止")
         
         # 清空状态
         self.status_text.clear()
@@ -715,7 +693,6 @@ class FlasherDialog(QDialog):
         self.status_text.append(f"错误: {error}")
         self.status_text.append("烧录失败")
         self.start_button.setEnabled(True)
-        self.cancel_button.setText("取消")
         QMessageBox.critical(self, "错误", f"烧录失败: {error}")
     
     def _on_finished(self):
@@ -723,7 +700,6 @@ class FlasherDialog(QDialog):
         self.status_text.append("=== 烧录完成 ===")
         self.status_text.append("设备正在重启，请耐心等待...")
         self.start_button.setEnabled(True)
-        self.cancel_button.setText("关闭")
         QMessageBox.information(self, "完成", "烧录完成！设备正在重启，请耐心等待。")
     
     def _on_get_version(self):
@@ -731,16 +707,7 @@ class FlasherDialog(QDialog):
         try:
             # 检查epass_flasher目录
             if not os.path.exists(self.flasher_dir):
-                QMessageBox.warning(
-                    self, 
-                    "提示", 
-                    "epass_flasher目录不存在，固件烧录功能暂不可用。\n\n"
-                    "当前使用的是占位符版本，无法执行实际的烧录操作。\n\n"
-                    "如需使用完整的固件烧录功能，请执行以下步骤之一：\n"
-                    "1. 手动克隆子模块：git clone https://github.com/rhodesepass/epass_flasher.git epass_flasher\n"
-                    "2. 初始化Git子模块：git submodule update --init --recursive\n\n"
-                    "详细说明请查看 epass_flasher/README.md"
-                )
+                QMessageBox.warning(self, "提示", "epass_flasher 目录不存在，固件烧录功能暂不可用。")
                 return
             
             # 获取设备信息
@@ -819,16 +786,7 @@ class FlasherDialog(QDialog):
             
             # 检查epass_flasher目录
             if not os.path.exists(self.flasher_dir):
-                QMessageBox.warning(
-                    self, 
-                    "提示", 
-                    "epass_flasher目录不存在，固件烧录功能暂不可用。\n\n"
-                    "当前使用的是占位符版本，无法执行实际的烧录操作。\n\n"
-                    "如需使用完整的固件烧录功能，请执行以下步骤之一：\n"
-                    "1. 手动克隆子模块：git clone https://github.com/rhodesepass/epass_flasher.git epass_flasher\n"
-                    "2. 初始化Git子模块：git submodule update --init --recursive\n\n"
-                    "详细说明请查看 epass_flasher/README.md"
-                )
+                QMessageBox.warning(self, "提示", "epass_flasher 目录不存在，固件烧录功能暂不可用。")
                 return
             
             # 检查驱动安装文件
