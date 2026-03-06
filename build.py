@@ -7,12 +7,11 @@ import subprocess
 import argparse
 import shutil
 import urllib.request
-import zipfile
 
 sys.setrecursionlimit(10000)
 
 PROJECT_NAME = "ArknightsPassMaker"
-VERSION = "1.5.7"
+VERSION = "2.4.0"
 MAIN_SCRIPT = "main.py"
 ICON_FILE = "resources/icons/favicon.ico"
 BUILD_DIR = PROJECT_NAME
@@ -25,7 +24,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description=f"{PROJECT_NAME} Build Tool")
     parser.add_argument('--no-installer', action='store_true', help='Skip installer packaging')
     parser.add_argument('--clean', action='store_true', help='Clean build directories')
-    parser.add_argument('--skip-flasher', action='store_true', help='Skip epass_flasher build (not recommended)')
+    parser.add_argument('--skip-flasher', action='store_true', help='Skip epass_flasher/bin check (not recommended)')
     return parser.parse_args()
 
 
@@ -79,91 +78,11 @@ def find_inno_setup():
     return None
 
 
-def check_uv():
-    """检查 uv 是否可用"""
-    try:
-        result = subprocess.run(["uv", "--version"], capture_output=True, check=True)
-        version = result.stdout.decode().strip()
-        print(f"  uv: {version}")
-        return True
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        return False
-
-
-def build_epass_flasher():
-    """构建 epass_flasher.exe"""
-    flasher_dir = "epass_flasher"
-    flasher_exe = os.path.join(flasher_dir, "dist", "epass_flasher.exe")
-
-    # 检查目录是否存在
-    if not os.path.exists(flasher_dir):
-        print("  Warning: epass_flasher directory not found")
-        return False
-
-    # 检查子模块是否已初始化
-    flasher_pyproject = os.path.join(flasher_dir, "pyproject.toml")
-    if not os.path.exists(flasher_pyproject):
-        print("  ERROR: epass_flasher submodule not initialized")
-        print("         Run: git submodule update --init --recursive")
-        print("         Or in CI: add 'submodules: true' to actions/checkout")
-        return False
-
-    # 如果已存在且比源文件新，跳过构建
-    flasher_main = os.path.join(flasher_dir, "main.py")
-    if os.path.exists(flasher_exe) and os.path.exists(flasher_main):
-        if os.path.getmtime(flasher_exe) > os.path.getmtime(flasher_main):
-            print("  epass_flasher.exe is up to date")
-            return True
-
-    print("Building epass_flasher...")
-
-    # 检查 uv 是否可用
-    if not check_uv():
-        print("  Warning: uv not found, skipping epass_flasher build")
-        return False
-
-    # CI 中删除 uv.lock，强制使用 UV_DEFAULT_INDEX 环境变量指定的源
-    # （epass_flasher 的 uv.lock 锁定了清华镜像 URL，CI 无法访问）
-    lock_file = os.path.join(flasher_dir, "uv.lock")
-    if os.environ.get("UV_DEFAULT_INDEX") and os.path.exists(lock_file):
-        print("  Removing uv.lock to use UV_DEFAULT_INDEX...")
-        os.remove(lock_file)
-
-    # 同步依赖（--group dev: 安装 dev 依赖，包含 PyInstaller）
-    print("  Syncing dependencies...")
-    result = subprocess.run(
-        ["uv", "sync", "--group", "dev"],
-        cwd=flasher_dir
-    )
-    if result.returncode != 0:
-        print("  ERROR: uv sync failed")
-        return False
-
-    # 使用 PyInstaller 打包（不捕获输出，让用户看到完整错误信息）
-    print("  Running PyInstaller...")
-    result = subprocess.run(
-        ["uv", "run", "pyinstaller", "main.spec", "--clean", "-y"],
-        cwd=flasher_dir
-    )
-    if result.returncode != 0:
-        print("  ERROR: PyInstaller failed, see error messages above")
-        return False
-
-    if os.path.exists(flasher_exe):
-        print(f"  Built: {flasher_exe}")
-        return True
-    else:
-        print("  Warning: epass_flasher.exe not found after build")
-        return False
 
 
 def check_requirements():
     """检查构建环境"""
     print("Checking build environment...")
-
-    # 检查 uv
-    if not check_uv():
-        print("  uv: not found (epass_flasher will not be built)")
 
     try:
         import cx_Freeze
@@ -207,15 +126,12 @@ def clean_build():
 
 def run_cxfreeze(skip_flasher=False):
     """执行 cx_Freeze 打包"""
-    # 先构建 epass_flasher
-    if not skip_flasher:
-        if not build_epass_flasher():
-            print("\nERROR: epass_flasher build failed, aborting")
-            print("       Use --skip-flasher to skip this check (not recommended)")
-            return False
-    else:
-        print("Skipping epass_flasher build (--skip-flasher)")
 
+    # 确保项目根目录在 Python 路径中（支持 --no-install-project 模式）
+    project_root = os.path.dirname(os.path.abspath(__file__))
+    if project_root not in sys.path:
+        sys.path.insert(0, project_root)
+    print(f"Project root: {project_root}")
 
     # 强制清理 __pycache__，确保使用最新源代码编译
     print("Clearing __pycache__ before build...")
@@ -225,27 +141,62 @@ def run_cxfreeze(skip_flasher=False):
             shutil.rmtree(cache_path)
             print(f"  Cleared: {cache_path}")
 
+    os.environ["QT_API"] = "pyqt6"
+
     from cx_Freeze import setup, Executable
 
     site_packages = get_site_packages()
 
     packages = [
         "PyQt6", "PyQt6.QtCore", "PyQt6.QtGui", "PyQt6.QtWidgets",
+        "qfluentwidgets",
         "cv2", "PIL", "numpy", "jsonschema", "thefuzz",
         "logging", "json", "uuid", "dataclasses",
+        "qtpy", "httpx", "httpcore", "httpx._transports",
+        "keyring", "keyring.backends",
+        "platformdirs",
+        "fido2", "fido2.hid", "fido2.client", "fido2.webauthn",
+        "usb", "usb.core", "usb.backend", "usb.backend.libusb1",
     ]
 
     includes = [
-        "config", "config.constants", "config.epconfig",
+        "config", "config.constants", "config.epconfig", "config.operator_db",
         "core", "core.validator", "core.video_processor", "core.image_processor",
         "core.export_service", "core.overlay_renderer",
-        "core.update_service",
+        "core.update_service", "core.error_handler",
+        "core.crash_recovery_service", "core.auto_save_service",
+        "core.optimized_processor",
         "gui", "gui.main_window", "gui.dialogs",
         "gui.dialogs.export_progress_dialog", "gui.dialogs.welcome_dialog",
         "gui.dialogs.shortcuts_dialog", "gui.dialogs.update_dialog",
+        "gui.dialogs.flasher_dialog", "gui.dialogs.crash_recovery_dialog",
         "gui.widgets", "gui.widgets.config_panel",
         "gui.widgets.video_preview", "gui.widgets.timeline", "gui.widgets.json_preview",
+        "gui.widgets.basic_config_panel", "gui.widgets.transition_preview",
         "utils", "utils.logger", "utils.file_utils", "utils.color_utils",
+        "utils.enhanced_logger",
+        "_mext", "_mext.core", "_mext.core.config",
+        "_mext.core.constants", "_mext.core.service_manager",
+        "_mext.services", "_mext.services.api_client",
+        "_mext.services.auth_service", "_mext.services.download_engine",
+        "_mext.services.download_worker", "_mext.services.fido2_client",
+        "_mext.services.fido2_worker", "_mext.services.usb_service",
+        "_mext.services.mtp_service", "_mext.services.pkce_utils",
+        "_mext.models", "_mext.models.user",
+        "_mext.models.material", "_mext.models.download",
+        "_mext.utils", "_mext.utils.crypto", "_mext.utils.platform",
+        "_mext.ui", "_mext.ui.widget",
+        "_mext.ui.pages", "_mext.ui.pages.market_page",
+        "_mext.ui.pages.library_page", "_mext.ui.pages.login_page",
+        "_mext.ui.pages.downloads_page", "_mext.ui.pages.usb_page",
+        "_mext.ui.pages.settings_page",
+        "_mext.ui.dialogs", "_mext.ui.dialogs.fido2_pin_dialog",
+        "_mext.ui.dialogs.fido2_touch_dialog",
+        "_mext.ui.components", "_mext.ui.components.material_card",
+        "_mext.ui.components.search_bar",
+        "_mext.ui.components.filter_panel", "_mext.ui.components.download_progress",
+        "_mext.ui.components.fido2_credential_card",
+        "_mext.ui.components.usb_device_card",
     ]
 
     excludes = [
@@ -253,6 +204,7 @@ def run_cxfreeze(skip_flasher=False):
         "notebook", "jupyter", "torch.testing", "torch.utils.tensorboard",
         "torch.utils.benchmark", "torch.distributed", "torchvision",
         "torchaudio", "scipy.spatial.cKDTree", "sympy",
+        "PySide6", "PySide6.QtCore", "PySide6.QtGui", "PySide6.QtWidgets",
     ]
 
     include_files = [("resources", "resources")]
@@ -278,17 +230,24 @@ def run_cxfreeze(skip_flasher=False):
                 include_files.append((src, dll))
                 print(f"  Including FFmpeg DLL: {dll}")
 
-    # 添加烧录工具
-    flasher_exe = os.path.join("epass_flasher", "dist", "epass_flasher.exe")
-    if os.path.exists(flasher_exe):
-        include_files.append((flasher_exe, "epass_flasher.exe"))
-        print(f"  Including flasher: {flasher_exe}")
+    # 添加烧录工具 bin 目录（flasher_dialog 直接调用的工具）
+    flasher_bin_dir = os.path.join("epass_flasher", "bin")
+    if os.path.exists(flasher_bin_dir):
+        include_files.append((flasher_bin_dir, os.path.join("epass_flasher", "bin")))
+        print(f"  Including flasher bin dir: {flasher_bin_dir}")
     elif not skip_flasher:
-        print("\nERROR: epass_flasher.exe not found, aborting")
+        print("\nERROR: epass_flasher/bin/ not found, aborting")
         print("       Use --skip-flasher to skip this check (not recommended)")
         return False
     else:
-        print("  Warning: epass_flasher.exe not found (skipped due to --skip-flasher)")
+        print("  Warning: epass_flasher/bin/ not found (skipped due to --skip-flasher)")
+
+    # 添加本地模块目录（确保 cx_Freeze 能找到）
+    local_modules = ["gui", "core", "config", "utils", "_mext"]
+    for module in local_modules:
+        if os.path.exists(module):
+            include_files.append((module, module))
+            print(f"  Including local module: {module}")
 
     pyqt6_plugins = os.path.join(site_packages, "PyQt6", "Qt6", "plugins")
     if os.path.exists(pyqt6_plugins):
@@ -296,6 +255,12 @@ def run_cxfreeze(skip_flasher=False):
             plugin_path = os.path.join(pyqt6_plugins, plugin)
             if os.path.exists(plugin_path):
                 include_files.append((plugin_path, f"lib/PyQt6/Qt6/plugins/{plugin}"))
+
+    # libusb DLL（pyusb/fido2 运行时依赖）
+    libusb_dll = os.path.join(site_packages, "fido2", "libusb-1.0.dll")
+    if os.path.exists(libusb_dll):
+        include_files.append((libusb_dll, "libusb-1.0.dll"))
+        print(f"  Including libusb: {libusb_dll}")
 
     build_options = {
         "packages": packages,
@@ -306,7 +271,8 @@ def run_cxfreeze(skip_flasher=False):
         "build_exe": BUILD_DIR,
     }
 
-    base = "Win32GUI" if sys.platform == "win32" else None
+    # Windows 上使用 "gui" base 避免出现控制台窗口（cx_Freeze 7.0+ 用 "gui" 替代了旧的 "Win32GUI"）
+    base = "gui" if sys.platform == "win32" else None
     original_argv = sys.argv
     sys.argv = [sys.argv[0], "build"]
 
