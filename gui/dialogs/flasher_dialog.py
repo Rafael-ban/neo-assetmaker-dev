@@ -6,8 +6,8 @@ import sys
 import json
 import subprocess
 import time
-import threading
 import hashlib
+import shutil
 import requests
 from typing import Optional, Dict, Any
 
@@ -19,7 +19,9 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer
 from PyQt6.QtGui import QFont, QIcon
 
+from qfluentwidgets import setCustomStyleSheet
 from config.constants import APP_NAME
+from utils.file_utils import get_app_dir
 
 import logging
 logger = logging.getLogger(__name__)
@@ -374,97 +376,239 @@ class FlasherDialog(QDialog):
         title_label = QLabel("电子通行证烧录程序")
         title_label.setFont(QFont("Microsoft YaHei", 16, QFont.Weight.Bold))
         title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        title_label.setStyleSheet("color: #ff6b8b;")
+        title_label.setStyleSheet("color: #ff6b8b; margin: 10px 0;")
         layout.addWidget(title_label)
         
         # 版本信息
         version_label = QLabel("Proj0cpy 专用版 v2\n罗德岛工程部 (c)1097")
         version_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        version_label.setStyleSheet("color: #666666;")
+        setCustomStyleSheet(version_label, "color: #666666; margin-bottom: 15px;", "color: #aaa; margin-bottom: 15px;")
         layout.addWidget(version_label)
+        
+        # 主内容区域 - 水平布局
+        main_content_layout = QHBoxLayout()
+        
+        # 左侧：选项区域
+        left_layout = QVBoxLayout()
         
         # 设备信息组
         device_group = QGroupBox("设备信息")
+        setCustomStyleSheet(
+            device_group,
+            "QGroupBox { font-weight: bold; color: #555; border: 1px solid #ddd; border-radius: 6px; padding: 10px; margin: 5px 0; } QGroupBox::title { subcontrol-position: top left; padding: 0 10px; background-color: #f8f9fa; border-radius: 4px; }",
+            "QGroupBox { font-weight: bold; color: #ccc; border: 1px solid #555; border-radius: 6px; padding: 10px; margin: 5px 0; } QGroupBox::title { subcontrol-position: top left; padding: 0 10px; background-color: #333; border-radius: 4px; }"
+        )
         device_layout = QFormLayout()
+        device_layout.setSpacing(10)
         
         # 设备版本
         self.rev_combo = QComboBox()
         self.rev_combo.addItems(["0.2系列", "0.3/0.4系列(0.3/0.3.1/0.4/....)", "0.5系列(0.5/0.5.1)", "0.6系列"])
+        setCustomStyleSheet(
+            self.rev_combo,
+            "QComboBox { background-color: white; border: 1px solid #ddd; border-radius: 4px; padding: 4px 8px; min-width: 200px; } QComboBox:hover { border-color: #ff6b8b; } QComboBox::drop-down { border-left: 1px solid #ddd; border-top-right-radius: 4px; border-bottom-right-radius: 4px; } QComboBox QAbstractItemView { background-color: white; border: 1px solid #ddd; border-radius: 4px; padding: 4px; }",
+            "QComboBox { background-color: #333; color: #ddd; border: 1px solid #555; border-radius: 4px; padding: 4px 8px; min-width: 200px; } QComboBox:hover { border-color: #ff6b8b; } QComboBox::drop-down { border-left: 1px solid #555; border-top-right-radius: 4px; border-bottom-right-radius: 4px; } QComboBox QAbstractItemView { background-color: #333; color: #ddd; border: 1px solid #555; border-radius: 4px; padding: 4px; }"
+        )
         device_layout.addRow("设备版本:", self.rev_combo)
         
         # 屏幕类型
         self.screen_combo = QComboBox()
         self.screen_combo.addItems(["京东方/BOE（没法旋转，冠显等商家）", "瀚彩/HSD（金逸晨、鑫睿等商家）", "老五电子买的3块钱的屏幕"])
+        setCustomStyleSheet(
+            self.screen_combo,
+            "QComboBox { background-color: white; border: 1px solid #ddd; border-radius: 4px; padding: 4px 8px; min-width: 200px; } QComboBox:hover { border-color: #ff6b8b; } QComboBox::drop-down { border-left: 1px solid #ddd; border-top-right-radius: 4px; border-bottom-right-radius: 4px; } QComboBox QAbstractItemView { background-color: white; border: 1px solid #ddd; border-radius: 4px; padding: 4px; }",
+            "QComboBox { background-color: #333; color: #ddd; border: 1px solid #555; border-radius: 4px; padding: 4px 8px; min-width: 200px; } QComboBox:hover { border-color: #ff6b8b; } QComboBox::drop-down { border-left: 1px solid #555; border-top-right-radius: 4px; border-bottom-right-radius: 4px; } QComboBox QAbstractItemView { background-color: #333; color: #ddd; border: 1px solid #555; border-radius: 4px; padding: 4px; }"
+        )
         device_layout.addRow("屏幕类型:", self.screen_combo)
         
         device_group.setLayout(device_layout)
-        layout.addWidget(device_group)
+        left_layout.addWidget(device_group)
         
         # 烧录版本组
         version_group = QGroupBox("烧录版本")
+        setCustomStyleSheet(
+            version_group,
+            "QGroupBox { font-weight: bold; color: #555; border: 1px solid #ddd; border-radius: 6px; padding: 10px; margin: 5px 0; } QGroupBox::title { subcontrol-position: top left; padding: 0 10px; background-color: #f8f9fa; border-radius: 4px; }",
+            "QGroupBox { font-weight: bold; color: #ccc; border: 1px solid #555; border-radius: 6px; padding: 10px; margin: 5px 0; } QGroupBox::title { subcontrol-position: top left; padding: 0 10px; background-color: #333; border-radius: 4px; }"
+        )
         version_layout = QVBoxLayout()
+        version_layout.setSpacing(10)
         
         # 版本选择下拉框
-        version_layout.addWidget(QLabel("可用版本:"))
+        version_label = QLabel("可用版本:")
+        setCustomStyleSheet(version_label, "color: #666;", "color: #aaa;")
+        version_layout.addWidget(version_label)
         self.version_combo = QComboBox()
         self.version_combo.addItem("请先获取版本信息...")
+        setCustomStyleSheet(
+            self.version_combo,
+            "QComboBox { background-color: white; border: 1px solid #ddd; border-radius: 4px; padding: 4px 8px; min-width: 200px; } QComboBox:hover { border-color: #ff6b8b; } QComboBox::drop-down { border-left: 1px solid #ddd; border-top-right-radius: 4px; border-bottom-right-radius: 4px; } QComboBox QAbstractItemView { background-color: white; border: 1px solid #ddd; border-radius: 4px; padding: 4px; }",
+            "QComboBox { background-color: #333; color: #ddd; border: 1px solid #555; border-radius: 4px; padding: 4px 8px; min-width: 200px; } QComboBox:hover { border-color: #ff6b8b; } QComboBox::drop-down { border-left: 1px solid #555; border-top-right-radius: 4px; border-bottom-right-radius: 4px; } QComboBox QAbstractItemView { background-color: #333; color: #ddd; border: 1px solid #555; border-radius: 4px; padding: 4px; }"
+        )
         version_layout.addWidget(self.version_combo)
         
         # 下载源选择
-        version_layout.addWidget(QLabel("下载源:"))
+        mirror_label = QLabel("下载源:")
+        setCustomStyleSheet(mirror_label, "color: #666;", "color: #aaa;")
+        version_layout.addWidget(mirror_label)
         self.mirror_combo = QComboBox()
         self.mirror_combo.addItem("请先获取版本信息...")
+        setCustomStyleSheet(
+            self.mirror_combo,
+            "QComboBox { background-color: white; border: 1px solid #ddd; border-radius: 4px; padding: 4px 8px; min-width: 200px; } QComboBox:hover { border-color: #ff6b8b; } QComboBox::drop-down { border-left: 1px solid #ddd; border-top-right-radius: 4px; border-bottom-right-radius: 4px; } QComboBox QAbstractItemView { background-color: white; border: 1px solid #ddd; border-radius: 4px; padding: 4px; }",
+            "QComboBox { background-color: #333; color: #ddd; border: 1px solid #555; border-radius: 4px; padding: 4px 8px; min-width: 200px; } QComboBox:hover { border-color: #ff6b8b; } QComboBox::drop-down { border-left: 1px solid #555; border-top-right-radius: 4px; border-bottom-right-radius: 4px; } QComboBox QAbstractItemView { background-color: #333; color: #ddd; border: 1px solid #555; border-radius: 4px; padding: 4px; }"
+        )
         version_layout.addWidget(self.mirror_combo)
         
         version_group.setLayout(version_layout)
-        layout.addWidget(version_group)
+        left_layout.addWidget(version_group)
+        
+        # 按钮组
+        button_group = QGroupBox("操作")
+        setCustomStyleSheet(
+            button_group,
+            "QGroupBox { font-weight: bold; color: #555; border: 1px solid #ddd; border-radius: 6px; padding: 10px; margin: 5px 0; } QGroupBox::title { subcontrol-position: top left; padding: 0 10px; background-color: #f8f9fa; border-radius: 4px; }",
+            "QGroupBox { font-weight: bold; color: #ccc; border: 1px solid #555; border-radius: 6px; padding: 10px; margin: 5px 0; } QGroupBox::title { subcontrol-position: top left; padding: 0 10px; background-color: #333; border-radius: 4px; }"
+        )
+        button_layout = QVBoxLayout()
+        button_layout.setSpacing(8)
+        
+        self.install_driver_button = QPushButton("安装驱动")
+        self.install_driver_button.setStyleSheet("""
+            QPushButton {
+                background-color: #4CAF50;
+                color: white;
+                padding: 10px 20px;
+                border: none;
+                border-radius: 4px;
+                font-weight: 500;
+            }
+            QPushButton:hover {
+                background-color: #45a049;
+            }
+            QPushButton:pressed {
+                background-color: #3d8b40;
+            }
+        """)
+        self.install_driver_button.clicked.connect(self._on_install_driver)
+        
+        self.get_version_button = QPushButton("获取版本信息")
+        self.get_version_button.setStyleSheet("""
+            QPushButton {
+                background-color: #666666;
+                color: white;
+                padding: 10px 20px;
+                border: none;
+                border-radius: 4px;
+                font-weight: 500;
+            }
+            QPushButton:hover {
+                background-color: #555555;
+            }
+            QPushButton:pressed {
+                background-color: #444444;
+            }
+        """)
+        self.get_version_button.clicked.connect(self._on_get_version)
+        
+        self.start_button = QPushButton("开始烧录")
+        self.start_button.setStyleSheet("""
+            QPushButton {
+                background-color: #ff6b8b;
+                color: white;
+                padding: 10px 20px;
+                border: none;
+                border-radius: 4px;
+                font-weight: 500;
+            }
+            QPushButton:hover {
+                background-color: #ff527b;
+            }
+            QPushButton:pressed {
+                background-color: #ff3861;
+            }
+        """)
+        self.start_button.clicked.connect(self._on_start)
+        
+        self.update_firmware_button = QPushButton("更新固件")
+        self.update_firmware_button.setStyleSheet("""
+            QPushButton {
+                background-color: #2196F3;
+                color: white;
+                padding: 10px 20px;
+                border: none;
+                border-radius: 4px;
+                font-weight: 500;
+            }
+            QPushButton:hover {
+                background-color: #1976D2;
+            }
+            QPushButton:pressed {
+                background-color: #1565C0;
+            }
+        """)
+        self.update_firmware_button.clicked.connect(self._on_update_firmware)
+
+        # 冻结环境禁用在线更新（无 git，安装目录可能无写权限）
+        if getattr(sys, 'frozen', False):
+            self.update_firmware_button.setEnabled(False)
+            self.update_firmware_button.setToolTip("打包版本不支持在线更新，请更新应用程序")
+
+        button_layout.addWidget(self.install_driver_button)
+        button_layout.addWidget(self.get_version_button)
+        button_layout.addWidget(self.start_button)
+        button_layout.addWidget(self.update_firmware_button)
+        
+        button_group.setLayout(button_layout)
+        left_layout.addWidget(button_group)
+        
+        left_layout.addStretch()
+        
+        # 右侧：日志区域
+        right_layout = QVBoxLayout()
         
         # 状态显示
         status_group = QGroupBox("烧录状态")
+        setCustomStyleSheet(
+            status_group,
+            "QGroupBox { font-weight: bold; color: #555; border: 1px solid #ddd; border-radius: 6px; padding: 10px; margin: 5px 0; } QGroupBox::title { subcontrol-position: top left; padding: 0 10px; background-color: #f8f9fa; border-radius: 4px; }",
+            "QGroupBox { font-weight: bold; color: #ccc; border: 1px solid #555; border-radius: 6px; padding: 10px; margin: 5px 0; } QGroupBox::title { subcontrol-position: top left; padding: 0 10px; background-color: #333; border-radius: 4px; }"
+        )
         status_layout = QVBoxLayout()
+        status_layout.setSpacing(10)
         
         self.status_text = QTextEdit()
         self.status_text.setReadOnly(True)
-        self.status_text.setStyleSheet("background-color: #f8f9fa;")
+        setCustomStyleSheet(
+            self.status_text,
+            "QTextEdit { background-color: #f8f9fa; color: #333; border: 1px solid #ddd; border-radius: 4px; padding: 10px; font-family: 'Consolas', 'Monaco', monospace; font-size: 12px; line-height: 1.4; }",
+            "QTextEdit { background-color: #2b2b2b; color: #ddd; border: 1px solid #555; border-radius: 4px; padding: 10px; font-family: 'Consolas', 'Monaco', monospace; font-size: 12px; line-height: 1.4; }"
+        )
         status_layout.addWidget(self.status_text)
         
         self.progress_bar = QProgressBar()
         self.progress_bar.setValue(0)
+        setCustomStyleSheet(
+            self.progress_bar,
+            "QProgressBar { background-color: #f8f9fa; border: 1px solid #ddd; border-radius: 4px; padding: 2px; text-align: center; } QProgressBar::chunk { background-color: #ff6b8b; border-radius: 2px; }",
+            "QProgressBar { background-color: #2b2b2b; color: #ddd; border: 1px solid #555; border-radius: 4px; padding: 2px; text-align: center; } QProgressBar::chunk { background-color: #ff6b8b; border-radius: 2px; }"
+        )
         status_layout.addWidget(self.progress_bar)
         
         status_group.setLayout(status_layout)
-        layout.addWidget(status_group)
+        right_layout.addWidget(status_group)
         
-        # 按钮
-        button_layout = QHBoxLayout()
+
         
-        self.install_driver_button = QPushButton("安装驱动")
-        self.install_driver_button.setStyleSheet("background-color: #4CAF50; color: white; padding: 10px 20px;")
-        self.install_driver_button.clicked.connect(self._on_install_driver)
+        # 设置左右布局比例
+        main_content_layout.addLayout(left_layout, 1)
+        main_content_layout.addLayout(right_layout, 2)
         
-        self.get_version_button = QPushButton("获取版本信息")
-        self.get_version_button.setStyleSheet("background-color: #666666; color: white; padding: 10px 20px;")
-        self.get_version_button.clicked.connect(self._on_get_version)
-        
-        self.start_button = QPushButton("开始烧录")
-        self.start_button.setStyleSheet("background-color: #ff6b8b; color: white; padding: 10px 20px;")
-        self.start_button.clicked.connect(self._on_start)
-        
-        self.cancel_button = QPushButton("取消")
-        self.cancel_button.clicked.connect(self._on_cancel)
-        
-        button_layout.addStretch()
-        button_layout.addWidget(self.install_driver_button)
-        button_layout.addWidget(self.get_version_button)
-        button_layout.addWidget(self.start_button)
-        button_layout.addWidget(self.cancel_button)
-        button_layout.addStretch()
-        
-        layout.addLayout(button_layout)
+        layout.addLayout(main_content_layout)
         
         # 工作线程
         self.worker = None
-        self.flasher_dir = os.path.join(os.path.dirname(__file__), "..", "..", "epass_flasher")
+        self.flasher_dir = os.path.join(get_app_dir(), "epass_flasher")
         self.bin_path = os.path.join(self.flasher_dir, "bin")  # 添加bin_path属性
         
         # 固件信息
@@ -476,9 +620,9 @@ class FlasherDialog(QDialog):
         """开始烧录"""
         # 检查epass_flasher目录
         if not os.path.exists(self.flasher_dir):
-            QMessageBox.critical(self, "错误", "epass_flasher目录不存在，请确保项目完整")
+            QMessageBox.warning(self, "提示", "epass_flasher 目录不存在，固件烧录功能暂不可用。")
             return
-        
+
         # 获取设备信息
         rev_index = self.rev_combo.currentIndex()
         rev_map = {0: "0.2", 1: "0.3", 2: "0.5", 3: "0.6"}
@@ -505,7 +649,6 @@ class FlasherDialog(QDialog):
         
         # 禁用按钮
         self.start_button.setEnabled(False)
-        self.cancel_button.setText("停止")
         
         # 清空状态
         self.status_text.clear()
@@ -539,8 +682,6 @@ class FlasherDialog(QDialog):
             if reply == QMessageBox.StandardButton.Yes:
                 self.worker.stop()
                 self.status_text.append("正在停止烧录...")
-        else:
-            self.reject()
     
     def _on_status_update(self, message):
         """状态更新"""
@@ -552,7 +693,6 @@ class FlasherDialog(QDialog):
         self.status_text.append(f"错误: {error}")
         self.status_text.append("烧录失败")
         self.start_button.setEnabled(True)
-        self.cancel_button.setText("取消")
         QMessageBox.critical(self, "错误", f"烧录失败: {error}")
     
     def _on_finished(self):
@@ -560,7 +700,6 @@ class FlasherDialog(QDialog):
         self.status_text.append("=== 烧录完成 ===")
         self.status_text.append("设备正在重启，请耐心等待...")
         self.start_button.setEnabled(True)
-        self.cancel_button.setText("关闭")
         QMessageBox.information(self, "完成", "烧录完成！设备正在重启，请耐心等待。")
     
     def _on_get_version(self):
@@ -568,7 +707,8 @@ class FlasherDialog(QDialog):
         try:
             # 检查epass_flasher目录
             if not os.path.exists(self.flasher_dir):
-                raise Exception("epass_flasher目录不存在，请确保项目完整")
+                QMessageBox.warning(self, "提示", "epass_flasher 目录不存在，固件烧录功能暂不可用。")
+                return
             
             # 获取设备信息
             rev_index = self.rev_combo.currentIndex()
@@ -646,7 +786,8 @@ class FlasherDialog(QDialog):
             
             # 检查epass_flasher目录
             if not os.path.exists(self.flasher_dir):
-                raise Exception("epass_flasher目录不存在，请确保项目完整")
+                QMessageBox.warning(self, "提示", "epass_flasher 目录不存在，固件烧录功能暂不可用。")
+                return
             
             # 检查驱动安装文件
             drv_bat = os.path.join(self.bin_path, "drv_install.bat")
@@ -678,6 +819,319 @@ class FlasherDialog(QDialog):
         except Exception as e:
             self.status_text.append(f"驱动安装失败: {str(e)}")
             QMessageBox.critical(self, "错误", f"驱动安装失败:\n{str(e)}")
+    
+    def _on_update_firmware(self):
+        """更新固件到最新版本"""
+        try:
+            # 确认更新
+            reply = QMessageBox.question(
+                self, 
+                "确认更新", 
+                "确定要更新固件到最新版本吗？\n\n"
+                "更新将从GitHub下载最新的epass_flasher模块。\n"
+                "更新过程可能需要几分钟时间，请确保网络连接正常。",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+            )
+            
+            if reply != QMessageBox.StandardButton.Yes:
+                return
+            
+            # 禁用按钮
+            self.update_firmware_button.setEnabled(False)
+            self.status_text.clear()
+            self.status_text.append("=== 开始更新固件 ===")
+            
+            # 创建更新线程
+            self.update_worker = FirmwareUpdateWorker(self.flasher_dir)
+            self.update_worker.progress_updated.connect(self._on_update_progress)
+            self.update_worker.status_updated.connect(self._on_update_status)
+            self.update_worker.error_occurred.connect(self._on_update_error)
+            self.update_worker.finished.connect(self._on_update_finished)
+            self.update_worker.start()
+            
+        except Exception as e:
+            QMessageBox.critical(self, "错误", f"更新失败: {str(e)}")
+            self.update_firmware_button.setEnabled(True)
+    
+    def _on_update_progress(self, message, progress):
+        """更新进度"""
+        self.status_text.append(message)
+        self.progress_bar.setValue(progress)
+    
+    def _on_update_status(self, message):
+        """更新状态"""
+        self.status_text.append(message)
+        self.status_text.verticalScrollBar().setValue(self.status_text.verticalScrollBar().maximum())
+    
+    def _on_update_error(self, error):
+        """更新错误"""
+        self.status_text.append(f"错误: {error}")
+        self.status_text.append("更新失败")
+        self.update_firmware_button.setEnabled(True)
+        QMessageBox.critical(self, "错误", f"更新失败: {error}")
+    
+    def _on_update_finished(self):
+        """更新完成"""
+        self.status_text.append("=== 更新完成 ===")
+        self.status_text.append("固件已更新到最新版本！")
+        self.progress_bar.setValue(100)
+        self.update_firmware_button.setEnabled(True)
+        QMessageBox.information(self, "完成", "固件已成功更新到最新版本！")
+
+class FirmwareUpdateWorker(QThread):
+    """固件更新工作线程"""
+    
+    progress_updated = pyqtSignal(str, int)
+    status_updated = pyqtSignal(str)
+    error_occurred = pyqtSignal(str)
+    finished = pyqtSignal()
+    
+    def __init__(self, flasher_dir: str):
+        super().__init__()
+        self.flasher_dir = flasher_dir
+        self.bin_path = os.path.join(flasher_dir, "bin")
+        self.is_running = True
+    
+    def run(self):
+        try:
+            self.status_updated.emit("正在检查当前版本...")
+            time.sleep(1)
+            
+            # 备份当前bin目录
+            backup_bin = os.path.join(self.flasher_dir, 'bin_backup')
+            current_bin = os.path.join(self.flasher_dir, 'bin')
+            
+            if os.path.exists(current_bin):
+                self.status_updated.emit("备份当前版本...")
+                if os.path.exists(backup_bin):
+                    shutil.rmtree(backup_bin)
+                shutil.copytree(current_bin, backup_bin)
+                self.progress_updated.emit("备份完成", 20)
+            
+            # 克隆最新版本（带重试机制）
+            self.status_updated.emit("正在从GitHub下载最新版本...")
+            temp_path = os.path.join(os.path.dirname(self.flasher_dir), 'epass_flasher_temp')
+            
+            if os.path.exists(temp_path):
+                shutil.rmtree(temp_path)
+            
+            # 多个镜像源尝试
+            mirrors = [
+                'https://github.com/rhodesepass/epass_flasher.git',
+                'https://hub.nuaa.cf/rhodesepass/epass_flasher.git',
+                'https://kkgithub.com/rhodesepass/epass_flasher.git',
+                'https://kgithub.com/rhodesepass/epass_flasher.git',
+                'https://gitclone.com/github.com/rhodesepass/epass_flasher.git'
+            ]
+            
+            clone_success = False
+            last_error = ""
+            
+            for attempt, mirror_url in enumerate(mirrors):
+                if not self.is_running:
+                    break
+                
+                self.status_updated.emit(f"尝试连接镜像源 {attempt + 1}/{len(mirrors)}...")
+                
+                clone_cmd = [
+                    'git', 'clone',
+                    '--depth', '1',
+                    mirror_url,
+                    temp_path
+                ]
+                
+                result = subprocess.run(clone_cmd, capture_output=True, text=True)
+                
+                if result.returncode == 0:
+                    clone_success = True
+                    self.status_updated.emit(f"镜像源 {attempt + 1} 连接成功！")
+                    break
+                else:
+                    last_error = result.stderr
+                    self.status_updated.emit(f"镜像源 {attempt + 1} 连接失败，尝试下一个...")
+                    time.sleep(2)
+            
+            if not clone_success:
+                raise Exception(
+                    f"所有镜像源连接失败，请检查网络连接。\n\n"
+                    f"最后错误信息: {last_error}\n\n"
+                    f"建议解决方案:\n"
+                    f"1. 检查网络连接是否正常\n"
+                    f"2. 尝试使用VPN或代理\n"
+                    f"3. 稍后重试"
+                )
+            
+            self.progress_updated.emit("下载完成", 60)
+            
+            # 更新bin目录
+            self.status_updated.emit("正在更新bin目录...")
+            source_bin = os.path.join(temp_path, 'bin')
+            
+            if os.path.exists(source_bin):
+                # 删除旧的bin目录内容
+                for item in os.listdir(current_bin):
+                    item_path = os.path.join(current_bin, item)
+                    try:
+                        if os.path.isfile(item_path):
+                            os.remove(item_path)
+                        else:
+                            shutil.rmtree(item_path)
+                    except Exception as e:
+                        self.status_updated.emit(f"删除失败 {item}: {e}")
+                
+                # 复制新文件
+                for item in os.listdir(source_bin):
+                    src = os.path.join(source_bin, item)
+                    dst = os.path.join(current_bin, item)
+                    
+                    if os.path.isfile(src):
+                        shutil.copy2(src, dst)
+                    else:
+                        shutil.copytree(src, dst, dirs_exist_ok=True)
+                
+                self.progress_updated.emit("bin目录更新完成", 80)
+            
+            # 更新其他文件
+            self.status_updated.emit("正在更新其他文件...")
+            for item in os.listdir(temp_path):
+                if item in ['bin', '.git']:
+                    continue
+                    
+                src = os.path.join(temp_path, item)
+                dst = os.path.join(self.flasher_dir, item)
+                
+                if os.path.isfile(src):
+                    shutil.copy2(src, dst)
+                elif os.path.isdir(src):
+                    if os.path.exists(dst):
+                        shutil.rmtree(dst)
+                    shutil.copytree(src, dst, dirs_exist_ok=True)
+            
+            self.progress_updated.emit("文件更新完成", 90)
+            
+            # 清理临时目录（使用多种方法）
+            self.status_updated.emit("正在清理临时文件...")
+            self._cleanup_temp_directory(temp_path)
+            
+            # 检查关键文件
+            xfel_path = os.path.join(current_bin, 'xfel.exe')
+            if not os.path.exists(xfel_path):
+                raise Exception("更新后xfel.exe不存在")
+            
+            self.status_updated.emit("更新成功！")
+            self.finished.emit()
+            
+        except Exception as e:
+            self.error_occurred.emit(str(e))
+    
+    def stop(self):
+        self.is_running = False
+    
+    def _cleanup_temp_directory(self, temp_path):
+        """清理临时目录，使用多种方法确保删除成功"""
+        if not os.path.exists(temp_path):
+            self.progress_updated.emit("清理完成", 100)
+            return
+        
+        cleanup_methods = [
+            ("方法1: 标准删除", self._cleanup_standard),
+            ("方法2: 强制删除", self._cleanup_force),
+            ("方法3: 递归删除", self._cleanup_recursive),
+            ("方法4: 命令行删除", self._cleanup_command)
+        ]
+        
+        for method_name, method_func in cleanup_methods:
+            if not os.path.exists(temp_path):
+                break
+                
+            try:
+                self.status_updated.emit(f"正在清理（{method_name}）...")
+                method_func(temp_path)
+                
+                if not os.path.exists(temp_path):
+                    self.status_updated.emit(f"{method_name}成功！")
+                    self.progress_updated.emit("清理完成", 100)
+                    return
+            except Exception as e:
+                self.status_updated.emit(f"{method_name}失败: {e}")
+                time.sleep(1)
+        
+        # 如果所有方法都失败，使用计划任务延迟删除
+        if os.path.exists(temp_path):
+            self.status_updated.emit("所有方法失败，创建延迟删除任务...")
+            self._schedule_cleanup(temp_path)
+            self.status_updated.emit("临时文件将在下次重启时自动删除")
+            self.progress_updated.emit("清理完成", 100)
+        else:
+            self.progress_updated.emit("清理完成", 100)
+    
+    def _cleanup_standard(self, temp_path):
+        """标准删除方法"""
+        shutil.rmtree(temp_path)
+    
+    def _cleanup_force(self, temp_path):
+        """强制删除方法"""
+        def remove_readonly(func, path, excinfo):
+            os.chmod(path, 0o777)
+            func(path)
+        
+        shutil.rmtree(temp_path, onerror=remove_readonly)
+    
+    def _cleanup_recursive(self, temp_path):
+        """递归删除方法"""
+        for root, dirs, files in os.walk(temp_path, topdown=False):
+            for name in files:
+                file_path = os.path.join(root, name)
+                try:
+                    os.chmod(file_path, 0o777)
+                    os.remove(file_path)
+                except Exception:
+                    pass
+            
+            for name in dirs:
+                dir_path = os.path.join(root, name)
+                try:
+                    os.chmod(dir_path, 0o777)
+                    os.rmdir(dir_path)
+                except Exception:
+                    pass
+        
+        try:
+            os.chmod(temp_path, 0o777)
+            os.rmdir(temp_path)
+        except Exception:
+            pass
+    
+    def _cleanup_command(self, temp_path):
+        """使用命令行删除"""
+        if sys.platform == 'win32':
+            subprocess.run(['cmd', '/c', 'rd', '/s', '/q', temp_path], 
+                         capture_output=True, shell=True)
+        else:
+            subprocess.run(['rm', '-rf', temp_path], 
+                         capture_output=True)
+    
+    def _schedule_cleanup(self, temp_path):
+        """创建延迟删除任务"""
+        if sys.platform == 'win32':
+            # Windows: 创建批处理文件并在启动时删除
+            bat_path = os.path.join(os.path.dirname(temp_path), 'cleanup_temp.bat')
+            with open(bat_path, 'w', encoding='gbk') as f:
+                f.write(f'@echo off\n')
+                f.write(f'ping 127.0.0.1 -n 3 > nul\n')
+                f.write(f'rd /s /q "{temp_path}"\n')
+                f.write(f'del "%~f0"\n')
+            
+            # 启动批处理文件
+            subprocess.Popen([bat_path], shell=True)
+        else:
+            # Linux/Mac: 使用at命令
+            try:
+                subprocess.run(['at', 'now', '+', '1', 'minute', 
+                              f'rm -rf {temp_path}'], 
+                             capture_output=True)
+            except Exception:
+                pass
 
 if __name__ == "__main__":
     import sys

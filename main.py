@@ -21,6 +21,9 @@ else:
 # 添加项目根目录到路径
 sys.path.insert(0, APP_DIR)
 
+# 扩展模块运行环境设置
+os.environ["QT_API"] = "pyqt6"
+
 
 def check_dependencies():
     """检查必要的依赖是否已安装"""
@@ -30,6 +33,16 @@ def check_dependencies():
         from PyQt6.QtWidgets import QApplication
     except ImportError:
         missing.append("PyQt6")
+
+    try:
+        from PyQt6.QtWebEngineWidgets import QWebEngineView
+    except ImportError:
+        missing.append("PyQt6-WebEngine")
+
+    try:
+        import qfluentwidgets
+    except ImportError:
+        missing.append("QFluentWidgets")
 
     try:
         import cv2
@@ -59,6 +72,10 @@ def main():
     """应用程序入口"""
     check_dependencies()
 
+    # 禁用QFluentWidgets启动提示（必须在导入QFluentWidgets之前设置）
+    import os
+    os.environ["QFluentWidgets_SUPPRESS_TIPS"] = "1"
+
     # 初始化日志系统
     from utils.logger import setup_logger, cleanup_old_logs
     setup_logger()
@@ -73,6 +90,8 @@ def main():
     from PyQt6.QtGui import QFont, QIcon
     from PyQt6.QtCore import Qt
 
+    from qfluentwidgets import setTheme, setThemeColor, Theme
+
     from gui.main_window import MainWindow
     from config.constants import APP_VERSION
 
@@ -81,6 +100,10 @@ def main():
     app.setApplicationName("明日方舟通行证素材制作器")
     app.setApplicationVersion(APP_VERSION)
     app.setOrganizationName("ArknightsPassMaker")
+
+    # 设置Fluent主题
+    setTheme(Theme.AUTO)
+    setThemeColor("#ff6b8b")
 
     # 设置应用程序图标
     icon_path = os.path.join(APP_DIR, 'resources', 'icons', 'favicon.ico')
