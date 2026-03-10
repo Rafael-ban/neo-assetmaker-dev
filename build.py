@@ -283,7 +283,7 @@ def run_cxfreeze(skip_flasher=False):
         "include_files": include_files,
         "optimize": 2,
         "build_exe": BUILD_DIR,
-        "path": [project_root] + sys.path,
+        "include_path": [project_root],
     }
 
     # Windows 上使用 "gui" base 避免出现控制台窗口（cx_Freeze 7.0+ 用 "gui" 替代了旧的 "Win32GUI"）
