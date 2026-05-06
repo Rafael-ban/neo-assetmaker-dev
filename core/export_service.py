@@ -31,7 +31,7 @@ from PyQt6.QtCore import QThread, pyqtSignal, QObject
 
 from config.constants import get_resolution_spec
 from config.epconfig import EPConfig
-from core.video_processor import find_ffmpeg, X264_PARAMS
+from core.video_processor import find_ffmpeg
 
 logger = logging.getLogger(__name__)
 
@@ -373,8 +373,8 @@ class ExportWorker(QThread):
         替代之前逐帧 numpy 拼接的方式，性能更优。
         参考: https://ffmpeg.org/ffmpeg-filters.html#pad
         """
-        crf_value = 19
-        preset = "medium"
+        qp_value = "26"
+        preset = "p7"
 
         vf_filters = []
         if padded_w > 0 and padded_h > 0:
@@ -389,19 +389,21 @@ class ExportWorker(QThread):
         if vf_filters:
             cmd.extend(["-vf", ",".join(vf_filters)])
         cmd.extend([
-            "-c:v", "libx264",
+            "-c:v", "h264_nvenc",
             "-preset", preset,
-            "-crf", str(crf_value),
-            "-profile:v", "high",
-            "-level", "4.0",
+            "-qp", str(qp_value),
+            "-rc", "constqp",
+            "-spatial-aq", "1",
+            "-temporal-aq", "1",
+            "-g", "320",
+            "-bf", "4",
             "-pix_fmt", "yuv420p",
-            "-x264-params", X264_PARAMS,
-            "-an",
+            "-an",  # 无音频
             "-y",
             output_file
         ])
 
-        logger.info(f"执行ffmpeg CRF编码 (crf={crf_value}, preset={preset}): {' '.join(cmd)}")
+        logger.info(f"执行ffmpeg QP编码 (qp={qp_value}, preset={preset}): {' '.join(cmd)}")
 
         popen_kwargs = {
             'stdout': subprocess.PIPE,
@@ -436,10 +438,10 @@ class ExportWorker(QThread):
 
         if returncode != 0:
             stderr_msg = stderr[-500:] if stderr else "未知错误"
-            logger.error(f"ffmpeg CRF编码 stderr: {stderr}")
-            raise RuntimeError(f"ffmpeg CRF编码失败 (code {returncode}): {stderr_msg}")
+            logger.error(f"ffmpeg QP编码 stderr: {stderr}")
+            raise RuntimeError(f"ffmpeg QP编码失败 (code {returncode}): {stderr_msg}")
 
-        logger.info("CRF编码完成")
+        logger.info("QP编码完成")
 
     def _export_video_from_image(
         self,
