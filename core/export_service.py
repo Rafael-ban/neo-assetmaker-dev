@@ -395,7 +395,7 @@ class ExportWorker(QThread):
             "-rc", "constqp",
             "-spatial-aq", "1",
             "-temporal-aq", "1",
-            "-g", "320",
+            "-g", "480",
             "-bf", "4",
             "-pix_fmt", "yuv420p",
             "-an",  # 无音频

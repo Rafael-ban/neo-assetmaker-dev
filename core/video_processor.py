@@ -207,7 +207,7 @@ class VideoProcessor:
             "-rc", "constqp",
             "-spatial-aq", "1",
             "-temporal-aq", "1",
-            "-g", "320",
+            "-g", "480",
             "-bf", "4",
             "-pix_fmt", "yuv420p",
             "-an",  # 无音频
@@ -282,7 +282,7 @@ class VideoProcessor:
         filter_str = ",".join(filters)
 
         return (f'ffmpeg -i "{input_path}" -vf "{filter_str}" '
-                f'-c:v h264_nvenc -preset p7 -qp 26 -rc constqp -spatial-aq 1 -temporal-aq 1 -g 320 -bf 4  -refs 4 -pix_fmt yuv420p '
+                f'-c:v h264_nvenc -preset p7 -qp 26 -rc constqp -spatial-aq 1 -temporal-aq 1 -g 480 -bf 4  -refs 4 -pix_fmt yuv420p '
                 f'-an "{output_path}"')
 
     def get_resolution_info(self, resolution: str) -> Dict[str, Any]:
