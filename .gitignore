@@ -47,6 +47,7 @@ test/
 # User settings
 config/user_settings.json
 CLAUDE.md
+.planning
 
 # Temporary update directory
 temp_update/
