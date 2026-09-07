@@ -69,51 +69,6 @@ OVERLAY_TYPES = ["none", "arknights", "image"]
 ARK_CLASS_ICON_SIZE = (50, 50)
 ARK_LOGO_SIZE = (75, 35)
 
-# ===== 职业图标预设 =====
-OPERATOR_CLASS_PRESETS = {
-    "先锋": "vanguard",
-    "近卫": "guard",
-    "重装": "defender",
-    "狙击": "sniper",
-    "术师": "caster",
-    "医疗": "medic",
-    "辅助": "supporter",
-    "特种": "specialist"
-}
-
-# ===== 职业代码映射（从character_table.json中的Profession字段） =====
-PROFESSION_CODE_MAP = {
-    1: "vanguard",      # 先锋
-    2: "guard",         # 近卫
-    3: "defender",      # 重装
-    4: "sniper",        # 狙击
-    5: "caster",        # 术师
-    6: "medic",         # 医疗
-    7: "supporter",     # 辅助
-    8: "specialist",    # 特种
-    16: "supporter",    # 辅助（某些特殊辅助）
-    32: "caster",       # 术师（某些特殊术师）
-    64: "specialist",   # 特种（新约能天使等）
-    128: "defender",    # 重装（某些特殊重装）
-    256: "guard",       # 近卫（某些特殊近卫）
-    512: "vanguard",    # 先锋（某些特殊先锋）
-    1024: "medic",     # 医疗（某些特殊医疗）
-    2048: "specialist" # 特种（某些特殊特种）
-}
-
-# ===== 职业名称映射（从职业代码到中文名称） =====
-PROFESSION_NAME_MAP = {
-    "vanguard": "先锋",
-    "guard": "近卫",
-    "defender": "重装",
-    "sniper": "狙击",
-    "caster": "术师",
-    "medic": "医疗",
-    "supporter": "辅助",
-    "specialist": "特种"
-}
-
-
 def get_resolution_spec(resolution: str) -> Dict[str, Any]:
     """获取分辨率规格"""
     return RESOLUTION_SPECS.get(resolution, RESOLUTION_SPECS["360x640"])

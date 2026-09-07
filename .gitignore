@@ -48,6 +48,8 @@ test/
 config/user_settings.json
 CLAUDE.md
 .planning
+docs/plans/
+.recovery
 
 # Temporary update directory
 temp_update/
@@ -61,3 +63,4 @@ cache/a2.6.0/rootfs_ubi.img
 bootenv.txt
 tools/innosetup/
 AGENTS.md
+media-tools-v1.0.7z

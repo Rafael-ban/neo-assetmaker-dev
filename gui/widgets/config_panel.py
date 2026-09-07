@@ -53,7 +53,6 @@ from config.constants import (
     RESOLUTION_SPECS,
     TRANSITION_TYPES,
     OVERLAY_TYPES,
-    OPERATOR_CLASS_PRESETS,
     DEFAULT_TRANSITION_DURATION,
     microseconds_to_seconds,
     seconds_to_microseconds,

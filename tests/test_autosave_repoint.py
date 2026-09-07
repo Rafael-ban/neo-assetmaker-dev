@@ -59,7 +59,6 @@ class AutoSaveRepointTests(unittest.TestCase):
             w.transition_preview = types.SimpleNamespace(clear_image=_null)
             w.timeline = types.SimpleNamespace(set_total_frames=_null)
             w.advanced_config_panel = types.SimpleNamespace(set_config=_null)
-            w.basic_config_panel = types.SimpleNamespace(set_config=_null)
             w.json_preview = types.SimpleNamespace(set_config=_null)
             w.status_bar = types.SimpleNamespace(showMessage=_null)
 
@@ -102,7 +101,6 @@ class AutoSaveRepointTests(unittest.TestCase):
             # 由 M6 专属测试覆盖，不能依赖未初始化的真实 MainWindow。
             w._configure_preview_render_contexts = _null
             w.advanced_config_panel = types.SimpleNamespace(set_config=_null)
-            w.basic_config_panel = types.SimpleNamespace(set_config=_null)
             w.json_preview = types.SimpleNamespace(set_config=_null)
             w.status_bar = types.SimpleNamespace(showMessage=_null)
             w.video_preview = types.SimpleNamespace(set_render_context=_null)

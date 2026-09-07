@@ -1,9 +1,25 @@
+import ast
 import json
 import shutil
 import tempfile
 import unittest
+from io import BytesIO
 from pathlib import Path
 from zipfile import ZipFile
+
+try:
+    from tests.helpers.settings_artifact_contract import (
+        validate_settings_artifact_contract,
+    )
+except ModuleNotFoundError:
+    validate_settings_artifact_contract = None
+
+try:
+    from tests.helpers.settings_artifact_contract import (
+        collect_portable_archive_paths,
+    )
+except ImportError:
+    collect_portable_archive_paths = None
 
 
 def _read_inno_files_entries(path):
@@ -56,8 +72,217 @@ def _simulate_inno_files(entries, installer_root, app_dir):
 
 
 class MediaPackagingTests(unittest.TestCase):
+    _RETAINED_SETTINGS_ARTIFACTS = {
+        "ArknightsPassMaker.exe",
+        "lib/gui/widgets/config_panel.pyc",
+        "vs_worker.exe",
+        "resources/class_icons/guard.png",
+        "class_icons/guard.png",
+    }
+
     def setUp(self):
         self.build_source = Path("build.py").read_text(encoding="utf-8")
+
+    def test_settings_artifact_contract_accepts_retained_entrypoints(self):
+        """打包清单保留统一配置页、主程序、worker 与职业图标。"""
+        self.assertIsNotNone(
+            validate_settings_artifact_contract,
+            "M3 打包清单 checker 尚未实现",
+        )
+
+        accepted = validate_settings_artifact_contract(
+            self._RETAINED_SETTINGS_ARTIFACTS
+        )
+
+        self.assertEqual(
+            accepted,
+            frozenset(
+                {
+                    "arknightspassmaker.exe",
+                    "lib/gui/widgets/config_panel.pyc",
+                    "vs_worker.exe",
+                    "resources/class_icons/guard.png",
+                    "class_icons/guard.png",
+                }
+            ),
+        )
+
+    def test_settings_artifact_contract_rejects_retired_module_in_pycache(self):
+        """退休面板不能借 __pycache__ 目录遗留在冻结包中。"""
+        self.assertIsNotNone(
+            validate_settings_artifact_contract,
+            "M3 打包清单 checker 尚未实现",
+        )
+
+        manifest = self._RETAINED_SETTINGS_ARTIFACTS | {
+            "lib/gui/widgets/__pycache__/basic_config_panel.cpython-312.pyc"
+        }
+
+        with self.assertRaisesRegex(ValueError, "basic_config_panel"):
+            validate_settings_artifact_contract(manifest)
+
+    def test_settings_artifact_contract_rejects_operator_db_in_renamed_directory(
+        self,
+    ):
+        """退休干员数据库不能通过更换父目录继续分发。"""
+        self.assertIsNotNone(
+            validate_settings_artifact_contract,
+            "M3 打包清单 checker 尚未实现",
+        )
+
+        manifest = self._RETAINED_SETTINGS_ARTIFACTS | {
+            "lib/compat_payload/operator_db.pyc"
+        }
+
+        with self.assertRaisesRegex(ValueError, "operator_db"):
+            validate_settings_artifact_contract(manifest)
+
+    def test_settings_artifact_contract_rejects_retired_database_in_zip_member(self):
+        """退休数据库不能作为 ZIP 内部成员被目录改名绕过。"""
+        self.assertIsNotNone(
+            validate_settings_artifact_contract,
+            "M3 打包清单 checker 尚未实现",
+        )
+
+        manifest = self._RETAINED_SETTINGS_ARTIFACTS | {
+            "payload.zip!/renamed/data/character_table.json"
+        }
+
+        with self.assertRaisesRegex(ValueError, "character_table.json"):
+            validate_settings_artifact_contract(manifest)
+
+    def test_settings_artifact_contract_requires_config_panel(self):
+        """删除保留 ConfigPanel 会让冻结包失去唯一配置入口。"""
+        self.assertIsNotNone(
+            validate_settings_artifact_contract,
+            "M3 打包清单 checker 尚未实现",
+        )
+
+        manifest = self._RETAINED_SETTINGS_ARTIFACTS - {
+            "lib/gui/widgets/config_panel.pyc"
+        }
+
+        with self.assertRaisesRegex(ValueError, "config_panel"):
+            validate_settings_artifact_contract(manifest)
+
+    def test_settings_artifact_contract_requires_worker(self):
+        """删除 worker 可执行文件会破坏冻结版的 VPY 渲染路径。"""
+        self.assertIsNotNone(
+            validate_settings_artifact_contract,
+            "M3 打包清单 checker 尚未实现",
+        )
+
+        manifest = self._RETAINED_SETTINGS_ARTIFACTS - {"vs_worker.exe"}
+
+        with self.assertRaisesRegex(ValueError, "vs_worker.exe"):
+            validate_settings_artifact_contract(manifest)
+
+    def test_settings_artifact_contract_requires_runtime_class_icon(self):
+        """根目录职业图标缺失会破坏运行时相对路径读取。"""
+        self.assertIsNotNone(
+            validate_settings_artifact_contract,
+            "M3 打包清单 checker 尚未实现",
+        )
+
+        manifest = self._RETAINED_SETTINGS_ARTIFACTS - {
+            "class_icons/guard.png"
+        }
+
+        with self.assertRaisesRegex(ValueError, "class_icons/guard.png"):
+            validate_settings_artifact_contract(manifest)
+
+    def _create_portable_settings_archive(self, root, library_members=()):
+        """用 build.py 的真实便携归档函数生成最小冻结树。"""
+        from build import create_portable_archive
+
+        frozen = root / "ArknightsPassMaker"
+        for relative in self._RETAINED_SETTINGS_ARTIFACTS:
+            artifact = frozen / relative
+            artifact.parent.mkdir(parents=True, exist_ok=True)
+            artifact.write_bytes(b"artifact")
+
+        library_members = tuple(library_members)
+        if library_members:
+            library_path = frozen / "lib" / "library.zip"
+            library_path.parent.mkdir(parents=True, exist_ok=True)
+            with BytesIO() as payload:
+                with ZipFile(payload, mode="w") as library:
+                    for name, content in library_members:
+                        library.writestr(name, content)
+                library_path.write_bytes(payload.getvalue())
+
+        return create_portable_archive(
+            build_dir=frozen,
+            dist_dir=root / "dist",
+            version="9.9.9-settings-contract",
+        )
+
+    def test_portable_archive_adapter_strips_only_the_named_root(self):
+        """真实便携 ZIP 的固定根前缀须转为冻结树相对清单。"""
+        self.assertIsNotNone(
+            collect_portable_archive_paths,
+            "M3 便携 ZIP 清单适配器尚未实现",
+        )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            archive = self._create_portable_settings_archive(Path(temp_dir))
+            with ZipFile(archive) as package:
+                paths = collect_portable_archive_paths(package)
+
+        self.assertEqual(
+            paths,
+            frozenset(path.casefold() for path in self._RETAINED_SETTINGS_ARTIFACTS),
+        )
+
+    def test_portable_archive_adapter_rejects_unexpected_top_level_root(self):
+        """适配器不得把任意首段误当作便携包根目录。"""
+        self.assertIsNotNone(
+            collect_portable_archive_paths,
+            "M3 便携 ZIP 清单适配器尚未实现",
+        )
+
+        with BytesIO() as payload:
+            with ZipFile(payload, mode="w") as package:
+                package.writestr("unexpected-root/vs_worker.exe", b"worker")
+            with ZipFile(BytesIO(payload.getvalue())) as package:
+                with self.assertRaisesRegex(ValueError, "ArknightsPassMaker"):
+                    collect_portable_archive_paths(package)
+
+    def test_portable_archive_adapter_expands_retired_library_member(self):
+        """library.zip 内的退休字节码也必须被退役契约拒绝。"""
+        self.assertIsNotNone(
+            collect_portable_archive_paths,
+            "M3 便携 ZIP 清单适配器尚未实现",
+        )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            archive = self._create_portable_settings_archive(
+                Path(temp_dir),
+                library_members=(("legacy/operator_db.pyc", b"bytecode"),),
+            )
+            with ZipFile(archive) as package:
+                paths = collect_portable_archive_paths(package)
+
+        self.assertIn("lib/library.zip!/legacy/operator_db.pyc", paths)
+        with self.assertRaisesRegex(ValueError, "operator_db"):
+            validate_settings_artifact_contract(paths)
+
+    def test_build_keeps_shared_class_icons_include_mapping(self):
+        """职业图标必须以正确的源目录到目标目录映射进入冻结包。"""
+        tree = ast.parse(self.build_source, filename="build.py")
+        include_mappings = {
+            (node.elts[0].value, node.elts[1].value)
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Tuple)
+            and len(node.elts) == 2
+            and all(
+                isinstance(element, ast.Constant)
+                and isinstance(element.value, str)
+                for element in node.elts
+            )
+        }
+
+        self.assertIn(("resources/class_icons", "class_icons"), include_mappings)
 
     def test_build_script_does_not_package_removed_media_dependencies(self):
         # mpv.exe joined this list when preview moved to in-process VapourSynth:

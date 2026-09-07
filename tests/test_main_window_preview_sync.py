@@ -115,7 +115,6 @@ class MainWindowPreviewSyncTests(unittest.TestCase):
             get_target_resolution=lambda: (360, 640),
         )
         window.advanced_config_panel = inert_panel
-        window.basic_config_panel = inert_panel
         window.json_preview = types.SimpleNamespace(
             set_config=lambda *args, **kwargs: None
         )

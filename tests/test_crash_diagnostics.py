@@ -15,6 +15,7 @@ import threading
 import time
 import types
 import unittest
+from datetime import datetime
 from pathlib import Path
 from unittest import mock
 
@@ -55,6 +56,56 @@ class CrashDiagnosticsTests(unittest.TestCase):
         assert self.diagnostics.path is not None
         self.diagnostics.flush()
         return Path(self.diagnostics.path).read_text(encoding="utf-8")
+
+    def test_frozen_clock_sessions_use_distinct_files_without_cross_writes(self) -> None:
+        """同进程同刻度构造的诊断会话仍各自独占日志文件。"""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            log_dir = Path(temp_dir) / "logs"
+            first = second = None
+            try:
+                with (
+                    mock.patch(
+                        "utils.crash_diagnostics.datetime", wraps=datetime
+                    ) as frozen_datetime,
+                    mock.patch("utils.crash_diagnostics.time.time_ns", return_value=1),
+                ):
+                    frozen_datetime.now.return_value = datetime(2026, 9, 8, 12, 0, 0)
+                    first = CrashDiagnostics(candidate_dirs=[str(log_dir)])
+                    second = CrashDiagnostics(candidate_dirs=[str(log_dir)])
+                    self.assertTrue(first.initialize(app_version="first"))
+                    first.flush()
+                    first_initial_bytes = Path(first.path).read_bytes()
+                    self.assertTrue(second.initialize(app_version="second"))
+                    first.flush()
+                    self.assertEqual(first_initial_bytes, Path(first.path).read_bytes())
+
+                self.assertNotEqual(first.path, second.path)
+                first.record_text("first session marker")
+                first.flush()
+                first_marker_bytes = Path(first.path).read_bytes()
+                second.record_text("second session marker")
+                second.flush()
+                self.assertEqual(first_marker_bytes, Path(first.path).read_bytes())
+                self.assertIn("second session marker", Path(second.path).read_text("utf-8"))
+                self.assertNotIn("second session marker", Path(first.path).read_text("utf-8"))
+            finally:
+                if first is not None:
+                    first.close()
+                if second is not None:
+                    second.close()
+
+    def test_preoccupied_session_path_is_not_overwritten(self) -> None:
+        """O_EXCL 必须保留预占文件，而不能覆盖已有诊断。"""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            log_dir = Path(temp_dir) / "logs"
+            diagnostics = CrashDiagnostics(candidate_dirs=[str(log_dir)])
+            self.addCleanup(diagnostics.close)
+            log_dir.mkdir()
+            occupied = log_dir / f"diagnostic-{diagnostics._session}.log"
+            occupied.write_bytes(b"reserved diagnostics")
+
+            self.assertFalse(diagnostics.initialize())
+            self.assertEqual(b"reserved diagnostics", occupied.read_bytes())
 
     def test_sessions_use_unique_files_and_remain_writable_after_log_rotation(self) -> None:
         other = CrashDiagnostics(candidate_dirs=[str(self.log_dir)])

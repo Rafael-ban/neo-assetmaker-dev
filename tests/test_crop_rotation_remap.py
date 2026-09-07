@@ -92,57 +92,5 @@ class RotationCropRemapTests(unittest.TestCase):
             self.assertEqual(back, (12, 34, 56, 78), f"round trip failed at {angle}°")
 
 
-class BasicPanelClassIconTests(unittest.TestCase):
-    def _panel(self):
-        from gui.widgets.basic_config_panel import BasicConfigPanel
-        from config.epconfig import EPConfig
-
-        panel = BasicConfigPanel()
-        panel._config = EPConfig()
-        panel._updating = False
-        idx = panel.combo_template.findText("明日方舟模板")
-        if idx >= 0:
-            panel.combo_template.setCurrentIndex(idx)
-        # pick a class combo entry that has actual preset data
-        panel._preset_idx = next(
-            (i for i in range(panel.combo_ark_class.count())
-             if panel.combo_ark_class.itemData(i)),
-            0,
-        )
-        return panel
-
-    def test_custom_class_icon_survives_template_apply(self):
-        from config.epconfig import ArknightsOverlayOptions
-
-        panel = self._panel()
-        panel._config.overlay.arknights_options = ArknightsOverlayOptions(
-            operator_class_icon="my_custom_icon.png"
-        )
-        panel.combo_ark_class.setCurrentIndex(panel._preset_idx)  # a preset selected
-        panel.update_config_from_ui()
-        self.assertEqual(
-            panel._config.overlay.arknights_options.operator_class_icon,
-            "my_custom_icon.png",
-            "a custom (advanced-panel) class icon must not be clobbered",
-        )
-
-    def test_preset_class_icon_is_driven_by_combo(self):
-        from config.epconfig import ArknightsOverlayOptions
-
-        panel = self._panel()
-        # existing value is a preset -> combo may drive it
-        panel._config.overlay.arknights_options = ArknightsOverlayOptions(
-            operator_class_icon="class_icons/warrior.png"
-        )
-        panel.combo_ark_class.setCurrentIndex(panel._preset_idx)
-        data = panel.combo_ark_class.currentData()
-        panel.update_config_from_ui()
-        icon = panel._config.overlay.arknights_options.operator_class_icon
-        if data:
-            self.assertEqual(icon, f"class_icons/{data}.png")
-        else:
-            self.assertEqual(icon, "")
-
-
 if __name__ == "__main__":
     unittest.main()

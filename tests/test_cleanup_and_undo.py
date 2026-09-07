@@ -126,7 +126,6 @@ class UndoRedoTests(unittest.TestCase):
             get_target_resolution=lambda: (360, 640),
         )
         w.advanced_config_panel = inert
-        w.basic_config_panel = inert
         w.json_preview = inert
         w.video_preview = types.SimpleNamespace(
             set_epconfig=lambda *a, **k: None,

@@ -14,6 +14,7 @@ import tempfile
 import threading
 import time
 import traceback
+import uuid
 from datetime import datetime
 
 _diagnostics: CrashDiagnostics | None = None
@@ -67,7 +68,10 @@ class CrashDiagnostics:
         self.log_dir: str | None = None
         self.status: dict[str, str] = {}
         self._fd: int | None = None
-        self._session = f"{datetime.now():%Y%m%d-%H%M%S}-{os.getpid()}-{time.time_ns()}"
+        self._session = (
+            f"{datetime.now():%Y%m%d-%H%M%S}-{os.getpid()}-"
+            f"{time.time_ns()}-{uuid.uuid4().hex}"
+        )
         self._qt_local = threading.local()
         self._qt_handler = None
         self._qt_core = None

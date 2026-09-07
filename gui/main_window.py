@@ -376,14 +376,11 @@ class MainWindow(QMainWindow):
 
         self.splitter = QSplitter(Qt.Orientation.Horizontal)
 
-        # === 左侧: 配置面板 ===
-        from gui.widgets.basic_config_panel import BasicConfigPanel
-
+        # === 左侧: 统一配置面板 ===
         self.config_container = QWidget()
         self.config_layout = QVBoxLayout(self.config_container)
 
         from qfluentwidgets import (
-            ComboBox as FluentComboBox,
             DropDownPushButton, RoundMenu, Action
         )
 
@@ -473,29 +470,14 @@ class MainWindow(QMainWindow):
         self.btn_operations.setMenu(operations_menu)
         toolbar_layout.addWidget(self.btn_operations)
 
-        self.settings_mode_combo = FluentComboBox()
-        self.settings_mode_combo.addItem("基础设置", userData="basic")
-        self.settings_mode_combo.addItem("高级设置", userData="advanced")
-        self.settings_mode_combo.setFixedHeight(34)
-        self.settings_mode_combo.currentIndexChanged.connect(
-            self._on_settings_mode_combo_changed)
-        toolbar_layout.addWidget(self.settings_mode_combo)
-
         toolbar_layout.addStretch()
         self.config_layout.addLayout(toolbar_layout)
 
         self.advanced_config_panel = ConfigPanel()
-        self.basic_config_panel = BasicConfigPanel()
-
         self.config_layout.addWidget(self.advanced_config_panel)
-        self.config_layout.addWidget(self.basic_config_panel)
         self.vs_script_panel = VSScriptPanel()
         self.config_layout.addWidget(self.vs_script_panel)
-        self.advanced_config_panel.setVisible(False)
-        self.basic_config_panel.setVisible(True)
-
-        # 基础模式下，只显示循环视频标签页
-        self._show_loop_tab_only()
+        self.advanced_config_panel.setVisible(True)
 
         self.splitter.addWidget(self.config_container)
 
@@ -547,8 +529,6 @@ class MainWindow(QMainWindow):
         self.preview_tabs.addTab(self.transition_preview, "过渡图片")    # Tab 2
         self.preview_tabs.addTab(self.video_preview, "循环视频")         # Tab 3
         preview_layout.addWidget(self.preview_tabs, stretch=1)
-
-        self._show_loop_tab_only()
 
         self.timeline = TimelineWidget()
         preview_layout.addWidget(self.timeline)
@@ -700,13 +680,6 @@ class MainWindow(QMainWindow):
         self.advanced_config_panel.remote_upload_requested.connect(
             self._on_remote_upload)
 
-        self.basic_config_panel.config_changed.connect(self._on_config_changed)
-        self.basic_config_panel.video_file_selected.connect(
-            self._on_video_file_selected)
-        self.basic_config_panel.validate_requested.connect(self._on_validate)
-        self.basic_config_panel.export_requested.connect(self._on_export)
-        self.basic_config_panel.remote_upload_requested.connect(
-            self._on_remote_upload)
         self.btn_save_icon.clicked.connect(self._on_save_captured_icon)
 
         self.transition_preview.transition_crop_changed.connect(
@@ -747,7 +720,9 @@ class MainWindow(QMainWindow):
         self.intro_preview.cropbox_changed.connect(
             lambda *a: self._on_editor_state_changed(self.intro_preview))
 
-        self._connect_timeline_to_preview(self.intro_preview)
+        # qfluentwidgets 1.11.1 的 TabWidget.setCurrentIndex() 只同步 Tab/
+        # stack，不会发射 currentChanged；在全部信号和时间轴就绪后显式同步。
+        self._select_preview_tab(3)
 
         self.timeline.simulator_requested.connect(self._on_simulator)
 
@@ -973,8 +948,7 @@ class MainWindow(QMainWindow):
         <h4>2. 素材制作</h4>
         <p>软件的核心功能，用于创建和编辑通行证素材。</p>
         <ul>
-            <li><strong>基础设置</strong>：简化的界面，适合快速创建素材</li>
-            <li><strong>高级设置</strong>：完整的功能界面，支持详细的参数调整</li>
+            <li><strong>统一配置</strong>：完整的素材与参数配置界面</li>
             <li><strong>视频预览</strong>：实时预览视频效果</li>
             <li><strong>过渡效果</strong>：支持自定义过渡图片</li>
             <li><strong>时间轴编辑</strong>：精确控制视频片段</li>
@@ -1102,7 +1076,6 @@ class MainWindow(QMainWindow):
         self._is_modified = False
 
         self.advanced_config_panel.set_config(self._config, self._base_dir)
-        self.basic_config_panel.set_config(self._config, self._base_dir)
         self.json_preview.set_config(self._config, self._base_dir)
         self.video_preview.set_epconfig(self._config)
         self._configure_preview_render_contexts()
@@ -1205,7 +1178,6 @@ class MainWindow(QMainWindow):
         self._intro_in_out = (0, 0)
 
         self.advanced_config_panel.set_config(self._config, self._base_dir)
-        self.basic_config_panel.set_config(self._config, self._base_dir)
         self.json_preview.set_config(self._config, self._base_dir)
         self.video_preview.set_epconfig(self._config)
         # 重新指向自动保存:服务在 start() 时缓存 config 对象与项目路径
@@ -1260,7 +1232,6 @@ class MainWindow(QMainWindow):
         self._configure_preview_render_contexts()
 
         self.advanced_config_panel.set_config(self._config, self._base_dir)
-        self.basic_config_panel.set_config(self._config, self._base_dir)
         self.json_preview.set_config(self._config, self._base_dir)
         self.video_preview.set_epconfig(self._config)
 
@@ -1397,7 +1368,6 @@ class MainWindow(QMainWindow):
             self._is_modified = False
 
             self.advanced_config_panel.set_config(self._config, self._base_dir)
-            self.basic_config_panel.set_config(self._config, self._base_dir)
             self.json_preview.set_config(self._config, self._base_dir)
             self._configure_preview_render_contexts()
 
@@ -2069,7 +2039,6 @@ class MainWindow(QMainWindow):
             return
 
         self.advanced_config_panel.set_config(self._config, self._base_dir)
-        self.basic_config_panel.set_config(self._config, self._base_dir)
         self.json_preview.set_config(self._config, self._base_dir)
         self.video_preview.set_epconfig(self._config)
 
@@ -2427,96 +2396,6 @@ class MainWindow(QMainWindow):
 
         self.status_bar.showMessage("项目介绍")
 
-    def _on_settings_mode_combo_changed(self, index: int):
-        """下拉框切换设置模式"""
-        mode = self.settings_mode_combo.currentData()
-        self._on_settings_mode_changed(mode)
-
-    def _show_loop_tab_only(self):
-        """基础模式：仅显示循环视频标签页"""
-        if not hasattr(self, 'preview_tabs'):
-            return
-
-        tab_bar = self.preview_tabs.tabBar
-        # 阻塞 tabBar 信号，防止 setTabVisible 内部
-        # 发射虚假 currentChanged 导致 stackedWidget 索引被污染
-        tab_bar.blockSignals(True)
-        try:
-            if 3 < self.preview_tabs.count():
-                self.preview_tabs.setTabVisible(3, True)
-            for i in [0, 1, 2]:
-                if i < self.preview_tabs.count():
-                    self.preview_tabs.setTabVisible(i, False)
-        finally:
-            tab_bar.blockSignals(False)
-
-        # 手动设置正确状态
-        self._fix_tab_selected_state(3)
-        self.preview_tabs.stackedWidget.setCurrentIndex(3)
-        if hasattr(self, 'timeline'):
-            self._on_preview_tab_changed(3)
-
-    def _show_all_tabs(self):
-        """高级模式：显示所有标签页"""
-        if not hasattr(self, 'preview_tabs'):
-            return
-
-        tab_bar = self.preview_tabs.tabBar
-        current = tab_bar._currentIndex
-
-        tab_bar.blockSignals(True)
-        try:
-            for i in range(self.preview_tabs.count()):
-                self.preview_tabs.setTabVisible(i, True)
-        finally:
-            tab_bar.blockSignals(False)
-
-        self._fix_tab_selected_state(current)
-        self.preview_tabs.stackedWidget.setCurrentIndex(current)
-        if hasattr(self, 'timeline'):
-            self._on_preview_tab_changed(current)
-
-    def _fix_tab_selected_state(self, active_index: int):
-        """强制清理 TabBar 所有 item 的 isSelected，仅保留指定索引"""
-        tab_bar = self.preview_tabs.tabBar
-        for idx, item in enumerate(tab_bar.items):
-            item.setSelected(idx == active_index)
-        tab_bar._currentIndex = active_index
-
-    def _on_settings_mode_changed(self, mode):
-        """设置模式切换"""
-        try:
-            if mode == "basic":
-                # 切换前先同步，避免丢失高级面板的修改
-                if self.advanced_config_panel.isVisible():
-                    self.advanced_config_panel.update_config_from_ui()
-
-                self.advanced_config_panel.setVisible(False)
-                self.basic_config_panel.setVisible(True)
-
-                if self._config:
-                    self.basic_config_panel.set_config(
-                        self._config, self._base_dir)
-
-                self.status_bar.showMessage("基础设置模式 - 简化界面")
-                self._show_loop_tab_only()
-            elif mode == "advanced":
-                # 切换前先同步，避免丢失基础面板的修改
-                if self.basic_config_panel.isVisible():
-                    self.basic_config_panel.update_config_from_ui()
-
-                self.advanced_config_panel.setVisible(True)
-                self.basic_config_panel.setVisible(False)
-
-                if self._config:
-                    self.advanced_config_panel.set_config(
-                        self._config, self._base_dir)
-
-                self.status_bar.showMessage("高级设置模式 - 完整界面")
-                self._show_all_tabs()
-        except Exception as e:
-            logger.error(f"设置模式切换错误: {e}")
-
     def _on_sidebar_remote(self):
         """侧边栏：远程管理"""
         self.btn_firmware.setChecked(False)
@@ -2667,42 +2546,6 @@ class MainWindow(QMainWindow):
         except Exception as e:
             logger.error(f"文件菜单错误: {e}")
             show_error(e, "文件菜单", self)
-
-    def _on_nav_basic(self):
-        """顶部导航：基础设置"""
-        try:
-            self._on_sidebar_material()
-
-            if hasattr(
-                    self,
-                    'advanced_config_panel') and hasattr(
-                    self,
-                    'basic_config_panel'):
-                self.advanced_config_panel.setVisible(False)
-                self.basic_config_panel.setVisible(True)
-                self.status_bar.showMessage("基础设置模式 - 简化界面")
-
-            self._show_loop_tab_only()
-        except Exception as e:
-            logger.error(f"基础设置切换错误: {e}")
-
-    def _on_nav_advanced(self):
-        """顶部导航：高级设置"""
-        try:
-            self._on_sidebar_material()
-
-            if hasattr(
-                    self,
-                    'advanced_config_panel') and hasattr(
-                    self,
-                    'basic_config_panel'):
-                self.advanced_config_panel.setVisible(True)
-                self.basic_config_panel.setVisible(False)
-                self.status_bar.showMessage("高级设置模式 - 完整界面")
-
-            self._show_all_tabs()
-        except Exception as e:
-            logger.error(f"高级设置切换错误: {e}")
 
     def _on_nav_help(self):
         """顶部导航：帮助"""
@@ -2909,15 +2752,7 @@ class MainWindow(QMainWindow):
                         # 换了新素材:旧文件的取景状态不再适用。
                         self._config.editor.loop = EditorTrackState()
 
-                logger.info("将时间轴连接到video_preview")
-                self._connect_timeline_to_preview(self.video_preview)
-
-                if hasattr(
-                        self,
-                        'basic_config_panel') and self.basic_config_panel.isVisible():
-                    logger.info("基础模式下，不自动切换标签页")
-                else:
-                    self.preview_tabs.setCurrentIndex(3)
+                self._select_preview_tab(3)
             except Exception as e:
                 logger.error(f"加载文件出错: {e}")
         else:
@@ -2931,7 +2766,7 @@ class MainWindow(QMainWindow):
                 if self._config:
                     # 换了新素材:旧文件的取景状态不再适用。
                     self._config.editor.intro = EditorTrackState()
-                self.preview_tabs.setCurrentIndex(0)
+                self._select_preview_tab(0)
         else:
             logger.warning(f"入场视频文件不存在: {path}")
 
@@ -3089,8 +2924,6 @@ class MainWindow(QMainWindow):
 
         nav_buttons = [
             'btn_nav_file',
-            'btn_nav_basic',
-            'btn_nav_advanced',
             'btn_nav_help']
         for btn_name in nav_buttons:
             if hasattr(self, btn_name):
@@ -3383,10 +3216,9 @@ class MainWindow(QMainWindow):
         self.status_bar.showMessage(reason)
 
     def _set_script_export_enabled(self, enabled: bool) -> None:
-        for panel in (self.advanced_config_panel, self.basic_config_panel):
-            button = getattr(panel, "btn_export", None)
-            if button is not None:
-                button.setEnabled(enabled)
+        button = getattr(self.advanced_config_panel, "btn_export", None)
+        if button is not None:
+            button.setEnabled(enabled)
 
     @staticmethod
     def _preview_supports(preview, capability: str) -> bool:
@@ -3639,6 +3471,11 @@ class MainWindow(QMainWindow):
                 logger.info(
                     f"更新截取帧编辑页面，帧: {source_preview.current_frame_index}")
 
+    def _select_preview_tab(self, index: int) -> None:
+        """选择预览页，并补齐 TabWidget 不发射的业务同步。"""
+        self.preview_tabs.setCurrentIndex(index)
+        self._on_preview_tab_changed(index)
+
     def _on_preview_tab_changed(self, index: int):
         """预览标签页切换"""
         # 保存当前 in/out 到正确的位置（基于当前连接的预览器）
@@ -3759,7 +3596,7 @@ class MainWindow(QMainWindow):
                 f"{self.video_preview.video_width}x"
                 f"{self.video_preview.video_height}"
             )
-            self._connect_timeline_to_preview(self.video_preview)
+            self._select_preview_tab(3)
         else:
             logger.error(f"无法加载图片: {path}")
             self.video_preview.video_label.setText(f"无法加载图片: {path}")
@@ -3779,13 +3616,6 @@ class MainWindow(QMainWindow):
 
         if hasattr(self, '_drop_overlay'):
             self._update_drop_context()
-
-    def _get_active_config_panel(self):
-        """获取当前活动的配置面板（基础或高级）"""
-        if hasattr(self, 'basic_config_panel') and \
-                self.basic_config_panel.isVisible():
-            return self.basic_config_panel
-        return self.advanced_config_panel
 
     # ---- 拖放支持 ----
 
@@ -3846,7 +3676,7 @@ class MainWindow(QMainWindow):
         ext = os.path.splitext(file_path)[1].lower()
         is_image = ext in SUPPORTED_IMAGE_FORMATS
 
-        config_panel = self._get_active_config_panel()
+        config_panel = self.advanced_config_panel
 
         # 自动切换循环模式以匹配拖放文件类型
         if hasattr(config_panel, 'radio_loop_image'):
@@ -3863,7 +3693,6 @@ class MainWindow(QMainWindow):
         if is_image and hasattr(config_panel, 'loop_image_selected'):
             config_panel.loop_image_selected.emit(file_path)
         else:
-            # 基础模式无 loop_image_selected，图片也走 video_file_selected
             config_panel.video_file_selected.emit(file_path)
 
     def _handle_drop_intro(self, file_path: str):
@@ -3887,7 +3716,7 @@ class MainWindow(QMainWindow):
     def _on_transition_image_changed(self, trans_type: str, abs_path: str):
         """过渡图片变更"""
         self.transition_preview.load_image(trans_type, abs_path)
-        self.preview_tabs.setCurrentIndex(2)
+        self._select_preview_tab(2)
 
     def _on_transition_crop_changed(self, trans_type: str):
         """过渡图片 cropbox 变化 → 裁切原始图片并保存"""
@@ -4119,8 +3948,7 @@ class MainWindow(QMainWindow):
         self.frame_capture_preview.load_static_image_from_array(frame)
 
         self._current_video_preview = source_preview
-        self._connect_timeline_to_preview(source_preview)
-        self.preview_tabs.setCurrentIndex(1)
+        self._select_preview_tab(1)
 
         logger.info("截取视频帧完成")
         self.status_bar.showMessage("已截取视频帧，请调整裁切框后点击\"保存为图标\"")
