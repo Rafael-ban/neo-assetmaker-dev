@@ -18,6 +18,8 @@ from assetmaker_vs.job_api import load_job
 
 
 core = vs.core
+# 默认脚本显式设置帧缓存阈值（MB），不依赖进程预设或默认值。
+core.max_cache_size = 16000
 job = load_job(assetmaker_job, for_export=False)
 
 

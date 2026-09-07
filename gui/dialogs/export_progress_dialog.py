@@ -21,6 +21,7 @@ class ExportProgressDialog(QDialog):
         super().__init__(parent)
         self._is_completed = False
         self._was_successful = False
+        self._cancel_requested = False
         self._setup_ui()
 
     def _setup_ui(self):
@@ -67,6 +68,7 @@ class ExportProgressDialog(QDialog):
         self.label_status.setText("导出完成!" if success else "导出失败")
         self.label_detail.setText(message)
         self.btn_action.setText("确定")
+        self.btn_action.setEnabled(True)
 
         if success:
             self.label_status.setStyleSheet("color: green;")
@@ -82,10 +84,25 @@ class ExportProgressDialog(QDialog):
         """按钮点击"""
         if self._is_completed:
             self.accept()
-        else:
-            self.cancel_requested.emit()
-            self.label_status.setText("正在取消...")
-            self.btn_action.setEnabled(False)
+            return
+        self._request_cancel()
+
+    def _request_cancel(self):
+        """请求取消，但在服务报告终态前继续保持模态窗口。"""
+        if self._cancel_requested:
+            return
+        self._cancel_requested = True
+        self.label_status.setText("正在取消...")
+        self.btn_action.setEnabled(False)
+        # DirectConnection 槽可能同步调用 set_completed；emit 后不再覆盖终态。
+        self.cancel_requested.emit()
+
+    def reject(self):
+        """Esc 只能请求取消，不能让仍在收尾的导出脱离生命周期。"""
+        if self._is_completed:
+            super().reject()
+            return
+        self._request_cancel()
 
     def closeEvent(self, event):
         """关闭事件"""

@@ -31,6 +31,14 @@ def setUpModule():
     ensure_app()
 
 
+def _run_service_worker_synchronously(service) -> None:
+    """让同步 start double 保留 QThread 的 finished 生命周期边界。"""
+    worker = service._worker
+    assert worker is not None
+    worker.run()
+    worker.finished.emit()
+
+
 def _toolchain():
     from core.media_tools import MediaToolchain
 
@@ -503,7 +511,7 @@ class C3PackageTransactionTests(unittest.TestCase):
             def run_without_icon():
                 worker = service._worker
                 worker._export_icon = mock.Mock(return_value=None)
-                worker.run()
+                _run_service_worker_synchronously(service)
 
             with mock.patch.object(
                 ExportWorker,
@@ -545,7 +553,7 @@ class C3PackageTransactionTests(unittest.TestCase):
             with mock.patch.object(
                 ExportWorker,
                 "start",
-                side_effect=lambda: service._worker.run(),
+                side_effect=lambda: _run_service_worker_synchronously(service),
             ), mock.patch(
                 "core.export_service.os.rename",
                 side_effect=fail_only_staging_promotion,
@@ -586,7 +594,7 @@ class C3PackageTransactionTests(unittest.TestCase):
 
             def mutate_config_then_run():
                 config.uuid = "mutated-after-start"
-                service._worker.run()
+                _run_service_worker_synchronously(service)
 
             with mock.patch.object(
                 ExportWorker,
@@ -627,7 +635,7 @@ class C3PackageTransactionTests(unittest.TestCase):
                     worker._cancelled = True
 
                 worker._export_icon = export_icon_and_cancel
-                worker.run()
+                _run_service_worker_synchronously(service)
 
             with mock.patch.object(
                 ExportWorker,
@@ -668,7 +676,7 @@ class C3PackageTransactionTests(unittest.TestCase):
             with mock.patch.object(
                 ExportWorker,
                 "start",
-                side_effect=lambda: service._worker.run(),
+                side_effect=lambda: _run_service_worker_synchronously(service),
             ), mock.patch(
                 "core.export_service.os.rename",
                 side_effect=fail_promotion_and_rollback,
@@ -837,7 +845,7 @@ class C3PackageTransactionTests(unittest.TestCase):
             self.assertEqual(start.call_count, 1)
             self.assertEqual(len(second_failed), 1)
             self.assertIsNotNone(first._worker)
-            first._worker.run()
+            _run_service_worker_synchronously(first)
             self.assertEqual(
                 json.loads((final_dir / "epconfig.json").read_text(encoding="utf-8"))["uuid"],
                 "A",
@@ -867,7 +875,7 @@ class C3PackageTransactionTests(unittest.TestCase):
 
             final_dir.joinpath("icon.png").write_bytes(b"external-generation")
             external_bytes = _package_bytes(final_dir)
-            service._worker.run()
+            _run_service_worker_synchronously(service)
 
             self.assertTrue(failed)
             self.assertEqual(_package_bytes(final_dir), external_bytes)
@@ -901,7 +909,7 @@ class C3PackageTransactionTests(unittest.TestCase):
             sentinel = staging_dir / "do-not-delete.txt"
             sentinel.write_text("external directory", encoding="utf-8")
             worker._export_icon = mock.Mock(side_effect=RuntimeError("injected task failure"))
-            worker.run()
+            _run_service_worker_synchronously(service)
 
             self.assertTrue(failed)
             self.assertTrue(sentinel.exists())
@@ -939,7 +947,7 @@ class C3PackageTransactionTests(unittest.TestCase):
             with mock.patch.object(
                 ExportWorker,
                 "start",
-                side_effect=lambda: service._worker.run(),
+                side_effect=lambda: _run_service_worker_synchronously(service),
             ), mock.patch(
                 "core.export_service.os.rename",
                 side_effect=replace_final_before_backup_rename,
@@ -990,7 +998,7 @@ class C3PackageTransactionTests(unittest.TestCase):
             with mock.patch.object(
                 ExportWorker,
                 "start",
-                side_effect=lambda: service._worker.run(),
+                side_effect=lambda: _run_service_worker_synchronously(service),
             ), mock.patch(
                 "core.export_service.os.rename",
                 side_effect=replace_backup_after_final_move,
@@ -1041,7 +1049,7 @@ class C3PackageTransactionTests(unittest.TestCase):
             with mock.patch.object(
                 ExportWorker,
                 "start",
-                side_effect=lambda: service._worker.run(),
+                side_effect=lambda: _run_service_worker_synchronously(service),
             ), mock.patch(
                 "core.export_service.os.rename",
                 side_effect=replace_final_after_staging_promotion,
@@ -1085,7 +1093,7 @@ class C3PackageTransactionTests(unittest.TestCase):
             with mock.patch.object(
                 ExportWorker,
                 "start",
-                side_effect=lambda: service._worker.run(),
+                side_effect=lambda: _run_service_worker_synchronously(service),
             ), mock.patch.object(
                 ExportWorker, "_export_video", side_effect=fake_export_video
             ), mock.patch.object(
@@ -1105,6 +1113,207 @@ class C3PackageTransactionTests(unittest.TestCase):
             self.assertTrue(failed)
             self.assertIn("bundle hash 已变化", failed[0])
             self.assertEqual(rename.call_count, 0)
+            self.assertEqual(_package_bytes(final_dir), old_bytes)
+            self.assertFalse(list(root.glob(".package.staging-*")))
+            self.assertFalse(list(root.glob(".package.lock")))
+
+    def test_frozen_video_job_is_checked_before_private_work_cleanup(self):
+        """未变更冻结 job 必须允许首次发布及替换已存在的旧包。"""
+        from core.export_service import ExportWorker
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            for existing in (False, True):
+                with self.subTest(existing=existing):
+                    root = Path(temp_dir) / str(existing)
+                    root.mkdir()
+                    final_dir = root / "package"
+                    if existing:
+                        _write_old_package(final_dir)
+                    session = _valid_render_session(root)
+                    source_job = Path(session.job_path)
+                    service = self._service()
+                    config = self._config()
+                    config.icon = ""
+                    completed, failed = [], []
+                    service.export_completed.connect(completed.append)
+                    service.export_failed.connect(failed.append)
+
+                    def fake_export_video(output_path, _session, _base_progress):
+                        Path(output_path).write_bytes(b"\x00\x00\x00\x00ftypvideo")
+
+                    with mock.patch.object(
+                        ExportWorker,
+                        "start",
+                        side_effect=lambda: _run_service_worker_synchronously(service),
+                    ), mock.patch.object(
+                        ExportWorker, "_export_video", side_effect=fake_export_video
+                    ), mock.patch.object(
+                        ExportWorker, "_runtime_for_export", return_value=mock.sentinel.runtime
+                    ), mock.patch.object(
+                        ExportWorker,
+                        "_runtime_fingerprint_for_export",
+                        return_value="a" * 64,
+                    ):
+                        service.export_all(
+                            output_dir=str(final_dir),
+                            epconfig=config,
+                            loop_render_session=session,
+                        )
+
+                    self.assertEqual(len(completed), 1)
+                    self.assertFalse(failed)
+                    self.assertEqual(
+                        sorted(path.name for path in final_dir.iterdir()),
+                        ["epconfig.json", "loop.mp4"],
+                    )
+                    self.assertTrue(source_job.is_file())
+                    self.assertFalse((final_dir / ".assetmaker-work").exists())
+                    self.assertFalse(list(root.glob(".package.staging-*")))
+                    self.assertFalse(list(root.glob(".package.lock")))
+
+    def test_final_job_check_rejects_job_mutated_after_video_encode(self):
+        """任务结束至清理私有目录前，job 变更必须阻止替换旧包。"""
+        from core.export_service import ExportWorker
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            final_dir = root / "package"
+            old_bytes = _write_old_package(final_dir)
+            session = _valid_render_session(root)
+            service = self._service()
+            config = self._config()
+            config.icon = ""
+            failed = []
+            service.export_failed.connect(failed.append)
+
+            def fake_export_video(output_path, export_session, _base_progress):
+                Path(output_path).write_bytes(b"\x00\x00\x00\x00ftypvideo")
+                job_path = Path(export_session.job_path)
+                os.chmod(job_path, 0o666)
+                job_path.write_text("{\"mutated\": true}", encoding="utf-8")
+
+            with mock.patch.object(
+                ExportWorker,
+                "start",
+                side_effect=lambda: _run_service_worker_synchronously(service),
+            ), mock.patch.object(
+                ExportWorker, "_export_video", side_effect=fake_export_video
+            ), mock.patch.object(
+                ExportWorker, "_runtime_for_export", return_value=mock.sentinel.runtime
+            ), mock.patch.object(
+                ExportWorker,
+                "_runtime_fingerprint_for_export",
+                return_value="a" * 64,
+            ):
+                service.export_all(
+                    output_dir=str(final_dir),
+                    epconfig=config,
+                    loop_render_session=session,
+                )
+
+            self.assertEqual(len(failed), 1)
+            self.assertIn("冻结 job 内容 hash 已变化", failed[0])
+            self.assertEqual(_package_bytes(final_dir), old_bytes)
+            self.assertFalse(list(root.glob(".package.staging-*")))
+            self.assertFalse(list(root.glob(".package.lock")))
+
+    def test_post_seal_script_change_rejects_package_after_private_cleanup(self):
+        """seal 后脚本变更仍须被检测，且不再读取已删除的 job。"""
+        from core.export_service import ExportWorker
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            final_dir = root / "package"
+            old_bytes = _write_old_package(final_dir)
+            session = _valid_render_session(root)
+            service = self._service()
+            config = self._config()
+            config.icon = ""
+            failed = []
+            service.export_failed.connect(failed.append)
+            real_seal = ExportWorker._seal_package
+
+            def fake_export_video(output_path, _session, _base_progress):
+                Path(output_path).write_bytes(b"\x00\x00\x00\x00ftypvideo")
+
+            def seal_then_mutate(worker, package):
+                real_seal(worker, package)
+                Path(session.selection.script_path).write_text("# changed after seal\n", encoding="utf-8")
+
+            with mock.patch.object(
+                ExportWorker,
+                "start",
+                side_effect=lambda: _run_service_worker_synchronously(service),
+            ), mock.patch.object(
+                ExportWorker, "_export_video", side_effect=fake_export_video
+            ), mock.patch.object(
+                ExportWorker, "_seal_package", autospec=True, side_effect=seal_then_mutate
+            ), mock.patch.object(
+                ExportWorker, "_runtime_for_export", return_value=mock.sentinel.runtime
+            ), mock.patch.object(
+                ExportWorker,
+                "_runtime_fingerprint_for_export",
+                return_value="a" * 64,
+            ):
+                service.export_all(
+                    output_dir=str(final_dir),
+                    epconfig=config,
+                    loop_render_session=session,
+                )
+
+            self.assertEqual(len(failed), 1)
+            self.assertIn("seal 后最终身份检查：用户脚本 bundle hash 已变化", failed[0])
+            self.assertEqual(_package_bytes(final_dir), old_bytes)
+            self.assertFalse(list(root.glob(".package.staging-*")))
+            self.assertFalse(list(root.glob(".package.lock")))
+
+    def test_post_seal_runtime_change_rejects_package_after_private_cleanup(self):
+        """seal 后 runtime 变更必须阻止替换旧包。"""
+        from core.export_service import ExportWorker
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            final_dir = root / "package"
+            old_bytes = _write_old_package(final_dir)
+            session = _valid_render_session(root)
+            service = self._service()
+            config = self._config()
+            config.icon = ""
+            failed = []
+            service.export_failed.connect(failed.append)
+            runtime_hash = {"value": "a" * 64}
+            real_seal = ExportWorker._seal_package
+
+            def fake_export_video(output_path, _session, _base_progress):
+                Path(output_path).write_bytes(b"\x00\x00\x00\x00ftypvideo")
+
+            def seal_then_mutate(worker, package):
+                real_seal(worker, package)
+                runtime_hash["value"] = "b" * 64
+
+            with mock.patch.object(
+                ExportWorker,
+                "start",
+                side_effect=lambda: _run_service_worker_synchronously(service),
+            ), mock.patch.object(
+                ExportWorker, "_export_video", side_effect=fake_export_video
+            ), mock.patch.object(
+                ExportWorker, "_seal_package", autospec=True, side_effect=seal_then_mutate
+            ), mock.patch.object(
+                ExportWorker, "_runtime_for_export", return_value=mock.sentinel.runtime
+            ), mock.patch.object(
+                ExportWorker,
+                "_runtime_fingerprint_for_export",
+                side_effect=lambda *_args: runtime_hash["value"],
+            ):
+                service.export_all(
+                    output_dir=str(final_dir),
+                    epconfig=config,
+                    loop_render_session=session,
+                )
+
+            self.assertEqual(len(failed), 1)
+            self.assertIn("seal 后最终身份检查：VapourSynth runtime fingerprint 已变化", failed[0])
             self.assertEqual(_package_bytes(final_dir), old_bytes)
             self.assertFalse(list(root.glob(".package.staging-*")))
             self.assertFalse(list(root.glob(".package.lock")))
@@ -1160,7 +1369,7 @@ class C3PackageTransactionTests(unittest.TestCase):
             with mock.patch.object(
                 ExportWorker,
                 "start",
-                side_effect=lambda: service._worker.run(),
+                side_effect=lambda: _run_service_worker_synchronously(service),
             ), mock.patch.object(ExportWorker, "_export_icon", side_effect=write_empty_icon), mock.patch(
                 "core.export_service.os.rename", wraps=os.rename
             ) as rename:
@@ -1193,7 +1402,7 @@ class C3PackageTransactionTests(unittest.TestCase):
             with mock.patch.object(
                 ExportWorker,
                 "start",
-                side_effect=lambda: service._worker.run(),
+                side_effect=lambda: _run_service_worker_synchronously(service),
             ), mock.patch("core.export_service.os.rename", wraps=os.rename) as rename:
                 original_export_icon = ExportWorker._export_icon
                 with mock.patch.object(
@@ -1225,7 +1434,7 @@ class C3PackageTransactionTests(unittest.TestCase):
             with mock.patch.object(
                 ExportWorker,
                 "start",
-                side_effect=lambda: service._worker.run(),
+                side_effect=lambda: _run_service_worker_synchronously(service),
             ):
                 service.export_all(
                     output_dir=str(final_dir),
@@ -1252,7 +1461,7 @@ class C3PackageTransactionTests(unittest.TestCase):
             with mock.patch.object(
                 ExportWorker,
                 "start",
-                side_effect=lambda: service._worker.run(),
+                side_effect=lambda: _run_service_worker_synchronously(service),
             ), mock.patch.object(
                 ExportWorker, "_remove_tree", side_effect=OSError("backup cleanup boom")
             ):

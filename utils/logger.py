@@ -4,10 +4,42 @@
 import os
 import logging
 import re
-import tempfile
+import shutil
 from datetime import datetime
 from logging.handlers import RotatingFileHandler
 from typing import List, Optional, Tuple
+
+from utils.crash_diagnostics import get_diagnostics, log_directories
+
+
+_LOG_HEADER = re.compile(
+    rb'(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) \[(\w+)\] (\S+): ([^\r\n]*)'
+)
+
+
+def _iter_records(stream):
+    """按日志头分组，字节与原始换行保持不变；首条头前的文本也保留。"""
+    header = None
+    lines = []
+    for line in stream:
+        match = _LOG_HEADER.match(line)
+        if match:
+            if lines:
+                yield header, b''.join(lines)
+            header = match
+            lines = []
+        lines.append(line)
+    if lines:
+        yield header, b''.join(lines)
+
+
+def _matches(header, level, start_time, end_time):
+    timestamp = header.group(1).decode('ascii')
+    log_level = header.group(2).decode('ascii')
+    # 本协议固定为零填充 ISO 时间，字符串比较与日期排序一致。
+    return (not level or level.upper() == log_level) and (
+        not start_time or timestamp >= start_time
+    ) and (not end_time or timestamp <= end_time)
 
 
 def setup_logger(log_dir: Optional[str] = None) -> logging.Logger:
@@ -20,41 +52,9 @@ def setup_logger(log_dir: Optional[str] = None) -> logging.Logger:
     Returns:
         配置好的根日志记录器
     """
-    if log_dir is None:
-        from utils.file_utils import get_app_dir
-        log_dir = os.path.join(get_app_dir(), 'logs')
-
-    dirs_to_try = [
-        log_dir,
-    ]
-    appdata = os.getenv('LOCALAPPDATA')
-    if appdata:
-        dirs_to_try.append(os.path.join(appdata, 'ArknightsPassMaker', 'logs'))
-    dirs_to_try.append(os.path.join(tempfile.gettempdir(), 'ArknightsPassMaker_logs'))
-
-    actual_log_dir = None
-    for try_dir in dirs_to_try:
-        try:
-            os.makedirs(try_dir, exist_ok=True)
-            actual_log_dir = try_dir
-            break
-        except (PermissionError, OSError):
-            continue
-
-    if actual_log_dir is None:
-        print("[WARNING] 无法创建日志目录，仅使用控制台输出")
-        root_logger = logging.getLogger()
-        root_logger.setLevel(logging.DEBUG)
-        for h in root_logger.handlers[:]:
-            h.close()
-            root_logger.removeHandler(h)
-        console_handler = logging.StreamHandler()
-        console_handler.setLevel(logging.INFO)
-        console_handler.setFormatter(logging.Formatter('[%(levelname)s] %(message)s'))
-        root_logger.addHandler(console_handler)
-        return root_logger
-
-    log_file = os.path.join(actual_log_dir, f'app_{datetime.now():%Y%m%d}.log')
+    diagnostics = get_diagnostics()
+    if log_dir is None and diagnostics is not None:
+        log_dir = diagnostics.log_dir
 
     file_formatter = logging.Formatter(
         '%(asctime)s [%(levelname)s] %(name)s: %(message)s',
@@ -63,17 +63,23 @@ def setup_logger(log_dir: Optional[str] = None) -> logging.Logger:
     console_formatter = logging.Formatter('[%(levelname)s] %(message)s')
 
     file_handler = None
-    try:
-        file_handler = RotatingFileHandler(
-            log_file,
-            maxBytes=5 * 1024 * 1024,  # 5MB
-            backupCount=5,
-            encoding='utf-8'
-        )
+    log_file = None
+    failures = []
+    for directory in log_directories(log_dir):
+        candidate = os.path.join(directory, f'app_{datetime.now():%Y%m%d}.log')
+        try:
+            os.makedirs(directory, exist_ok=True)
+            file_handler = RotatingFileHandler(
+                candidate, maxBytes=5 * 1024 * 1024, backupCount=5,
+                encoding='utf-8',
+            )
+            log_file = file_handler.baseFilename
+            break
+        except OSError as exc:
+            failures.append(f"日志文件不可写: {candidate}: {type(exc).__name__}")
+    if file_handler is not None:
         file_handler.setLevel(logging.DEBUG)
         file_handler.setFormatter(file_formatter)
-    except (PermissionError, OSError) as e:
-        print(f"[WARNING] 无法创建日志文件: {e}")
 
     console_handler = logging.StreamHandler()
     console_handler.setLevel(logging.INFO)
@@ -94,12 +100,21 @@ def setup_logger(log_dir: Optional[str] = None) -> logging.Logger:
     else:
         root_logger.warning("日志系统已初始化（仅控制台输出）")
 
+    for failure in failures:
+        root_logger.warning(failure)
+    if diagnostics is not None:
+        diagnostics.record_text(f"ordinary_log={log_file} "
+                                f"status={'enabled' if file_handler else 'failed'}")
+        root_logger.info("独立诊断文件: %s；故障反馈请一并提供；状态: %s",
+                         diagnostics.path, diagnostics.status)
+
     # 初始化日志管理器（仅用于搜索/导出/统计，不创建 handler）
-    try:
-        get_log_manager(log_file=log_file)
+    global _global_log_manager
+    if log_file is not None:
+        _global_log_manager = LogManager(log_file)
         root_logger.info("日志管理器已初始化")
-    except Exception as e:
-        root_logger.warning(f"日志管理器初始化失败: {e}")
+    else:
+        _global_log_manager = None
 
     return root_logger
 
@@ -172,41 +187,20 @@ class LogManager:
         """
         results = []
 
-        if not os.path.exists(self.log_file):
+        if max_results <= 0 or not os.path.exists(self.log_file):
             return results
 
         try:
-            with open(self.log_file, 'r', encoding='utf-8') as f:
-                for line in f:
-                    match = re.match(
-                        r'(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) \[(\w+)\] (\S+): (.+)',
-                        line.strip()
-                    )
-
-                    if not match:
+            with open(self.log_file, 'rb') as f:
+                for header, raw in _iter_records(f):
+                    if header is None or not _matches(header, level, start_time, end_time):
                         continue
-
-                    timestamp, log_level, name, message = match.groups()
-
+                    timestamp, log_level, name = (
+                        field.decode('utf-8', 'replace') for field in header.groups()[:3]
+                    )
+                    message = raw[header.start(4):].decode('utf-8', 'replace')
                     if keyword and keyword.lower() not in message.lower():
                         continue
-
-                    if level and level.upper() != log_level:
-                        continue
-
-                    if start_time or end_time:
-                        log_time = datetime.strptime(timestamp, '%Y-%m-%d %H:%M:%S')
-
-                        if start_time:
-                            start_dt = datetime.strptime(start_time, '%Y-%m-%d %H:%M:%S')
-                            if log_time < start_dt:
-                                continue
-
-                        if end_time:
-                            end_dt = datetime.strptime(end_time, '%Y-%m-%d %H:%M:%S')
-                            if log_time > end_dt:
-                                continue
-
                     results.append((timestamp, log_level, name, message))
 
                     if len(results) >= max_results:
@@ -234,20 +228,18 @@ class LogManager:
             level: 日志级别过滤
         """
         try:
-            logs = self.search_logs(
-                keyword="",
-                level=level,
-                start_time=start_time,
-                end_time=end_time,
-                max_results=100000  # 导出时允许更多结果
-            )
-
-            with open(output_file, 'w', encoding='utf-8') as f:
-                f.write(f"日志导出 - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
-                f.write("=" * 80 + "\n\n")
-
-                for timestamp, log_level, name, message in logs:
-                    f.write(f"[{timestamp}] [{log_level}] {name}: {message}\n")
+            if (os.path.normcase(os.path.abspath(output_file))
+                    == os.path.normcase(os.path.abspath(self.log_file))
+                    or (os.path.exists(output_file)
+                        and os.path.samefile(self.log_file, output_file))):
+                raise ValueError("导出目标不能是正在读取的日志文件")
+            with open(self.log_file, 'rb') as source, open(output_file, 'wb') as target:
+                if not (level or start_time or end_time):
+                    shutil.copyfileobj(source, target)
+                else:
+                    for header, raw in _iter_records(source):
+                        if header is not None and _matches(header, level, start_time, end_time):
+                            target.write(raw)
 
             self.logger.info(f"日志已导出到: {output_file}")
 

@@ -24,7 +24,7 @@ try:
 except ImportError:
     HAS_CV2 = False
 
-from PyQt6.QtCore import QObject, QThread, pyqtSignal
+from PyQt6.QtCore import QObject, QThread, pyqtSignal, pyqtSlot
 
 from config.epconfig import EPConfig
 from core.file_utils import atomic_write_bytes
@@ -421,9 +421,12 @@ class ExportWorker(QThread):
 
             if self._cancelled:
                 raise InterruptedError("Export cancelled")
+            self._assert_all_video_identities(
+                package, "清理私有工作目录前最终身份检查"
+            )
             self._remove_private_work_dir(package)
             self._seal_package(package)
-            self._assert_all_video_identities(package)
+            self._assert_all_video_nonprivate_identities(package)
             if self._cancelled:
                 raise InterruptedError("Export cancelled")
             warning = self._commit_package(package)
@@ -516,17 +519,24 @@ class ExportWorker(QThread):
 
     def _assert_export_identity(self, session: RenderSession, stage: str):
         """验证 script/job/runtime 仍等于 UI 已冻结 session 的身份。"""
-        if (
-            compute_script_bundle_hash(session.selection.script_path)
-            != session.selection.bundle_hash
-        ):
-            raise RuntimeError(f"{stage}：用户脚本 bundle hash 已变化")
+        self._assert_script_identity(session, stage)
         try:
             actual_job_sha256 = compute_job_sha256(session.job_path)
         except OSError as exc:
             raise RuntimeError(f"{stage}：冻结 job 无法读取") from exc
         if actual_job_sha256 != session.job_sha256:
             raise RuntimeError(f"{stage}：冻结 job 内容 hash 已变化")
+        return self._assert_runtime_identity(session, stage)
+
+    @staticmethod
+    def _assert_script_identity(session: RenderSession, stage: str) -> None:
+        if (
+            compute_script_bundle_hash(session.selection.script_path)
+            != session.selection.bundle_hash
+        ):
+            raise RuntimeError(f"{stage}：用户脚本 bundle hash 已变化")
+
+    def _assert_runtime_identity(self, session: RenderSession, stage: str):
         app_dir = str(Path(get_app_dir()).resolve())
         runtime = self._runtime_for_export()
         if (
@@ -795,11 +805,23 @@ class ExportWorker(QThread):
         if not references.issubset(expected):
             raise RuntimeError("epconfig.json 包内引用未被 manifest 覆盖")
 
-    def _assert_all_video_identities(self, package: _PreparedExportPackage) -> None:
-        """Close the gap after seal where an earlier video script could change."""
+    def _assert_all_video_identities(
+        self, package: _PreparedExportPackage, stage: str
+    ) -> None:
+        """在删除冻结 job 前，完整验证所有视频会话身份。"""
         for task in package.tasks:
             if task.export_type in (ExportType.LOOP_VIDEO, ExportType.INTRO_VIDEO):
-                self._assert_export_identity(task.session, "seal 后最终身份检查")
+                self._assert_export_identity(task.session, stage)
+
+    def _assert_all_video_nonprivate_identities(
+        self, package: _PreparedExportPackage
+    ) -> None:
+        """seal 后只验证仍应存在的 script/runtime 身份。"""
+        for task in package.tasks:
+            if task.export_type in (ExportType.LOOP_VIDEO, ExportType.INTRO_VIDEO):
+                stage = "seal 后最终身份检查"
+                self._assert_script_identity(task.session, stage)
+                self._assert_runtime_identity(task.session, stage)
 
     @staticmethod
     def _rename_dir_no_replace(source: Path, destination: Path) -> None:
@@ -936,6 +958,7 @@ class ExportService(QObject):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._worker: Optional[ExportWorker] = None
+        self._worker_terminal: Optional[Tuple[bool, str]] = None
         self._media_toolchain = MediaToolchain.discover()
 
     @property
@@ -991,9 +1014,10 @@ class ExportService(QObject):
             media_toolchain=self._media_toolchain,
             resolution=epconfig.screen.value,
         )
-        worker.progress_updated.connect(self.progress_updated.emit)
-        worker.export_completed.connect(self._on_completed)
-        worker.export_failed.connect(self._on_failed)
+        worker.progress_updated.connect(self._on_worker_progress)
+        worker.export_completed.connect(self._on_worker_completed)
+        worker.export_failed.connect(self._on_worker_failed)
+        worker.finished.connect(self._on_worker_finished)
         try:
             worker.start()
         except Exception as exc:
@@ -1004,6 +1028,7 @@ class ExportService(QObject):
             finally:
                 worker._release_package_lock(prepared)
             self._worker = None
+            self._worker_terminal = None
             worker.deleteLater()
             message = f"Export failed to start: {exc}"
             if cleanup_warning:
@@ -1248,15 +1273,45 @@ class ExportService(QObject):
         if self._worker and self._worker.isRunning():
             self._worker.cancel()
 
-    def _on_completed(self, message: str) -> None:
-        self.export_completed.emit(message)
-        self._cleanup()
+    @pyqtSlot(int, str)
+    def _on_worker_progress(self, progress: int, message: str) -> None:
+        if self.sender() is self._worker:
+            self.progress_updated.emit(progress, message)
 
-    def _on_failed(self, message: str) -> None:
-        self.export_failed.emit(message)
-        self._cleanup()
+    @pyqtSlot(str)
+    def _on_worker_completed(self, message: str) -> None:
+        self._store_worker_terminal(True, message)
 
-    def _cleanup(self) -> None:
-        if self._worker:
-            self._worker.deleteLater()
-            self._worker = None
+    @pyqtSlot(str)
+    def _on_worker_failed(self, message: str) -> None:
+        self._store_worker_terminal(False, message)
+
+    def _store_worker_terminal(self, succeeded: bool, message: str) -> None:
+        worker = self.sender()
+        if worker is not self._worker:
+            logger.debug("Ignoring terminal result from a stale export worker")
+            return
+        if self._worker_terminal is not None:
+            logger.warning("Ignoring duplicate terminal result from export worker")
+            return
+        self._worker_terminal = (succeeded, message)
+
+    @pyqtSlot()
+    def _on_worker_finished(self) -> None:
+        worker = self.sender()
+        if worker is not self._worker:
+            logger.debug("Ignoring finished signal from a stale export worker")
+            return
+
+        terminal = self._worker_terminal
+        self._worker_terminal = None
+        self._worker = None
+        worker.deleteLater()
+        if terminal is None:
+            self.export_failed.emit("Export worker exited without a terminal result")
+            return
+        succeeded, message = terminal
+        if succeeded:
+            self.export_completed.emit(message)
+        else:
+            self.export_failed.emit(message)

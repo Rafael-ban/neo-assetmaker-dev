@@ -13,32 +13,15 @@ if getattr(sys, 'frozen', False):
     if os.path.exists(plugin_path):
         os.environ['QT_PLUGIN_PATH'] = plugin_path
 
-    # 修复 GUI 模式下 stdout/stderr 为 None（base="gui" 隐藏控制台）
-    # cx_Freeze FAQ 推荐重定向到文件而非 StringIO，否则异常诊断信息会丢失
-    # https://cx-freeze.readthedocs.io/en/stable/faq.html
-    import io
-    if sys.stdout is None:
-        try:
-            sys.stdout = open(os.path.join(APP_DIR, 'stdout.log'), 'w', encoding='utf-8')
-        except Exception:
-            sys.stdout = io.StringIO()
-    if sys.stderr is None:
-        try:
-            sys.stderr = open(os.path.join(APP_DIR, 'stderr.log'), 'w', encoding='utf-8')
-        except Exception:
-            sys.stderr = io.StringIO()
-
-    import faulthandler
-    try:
-        _crash_log_path = os.path.join(APP_DIR, 'crash.log')
-        _crash_log_file = open(_crash_log_path, 'w')
-        faulthandler.enable(file=_crash_log_file)
-    except Exception:
-        faulthandler.enable()
 else:
     APP_DIR = os.path.dirname(os.path.abspath(__file__))
 
 sys.path.insert(0, APP_DIR)
+
+from utils.crash_diagnostics import initialize
+
+# 标准库 bootstrap，早于 Qt 导入；源码与 frozen 共用会话文件和 Python hooks。
+_diagnostics = initialize(APP_DIR)
 
 def check_dependencies():
     """检查必要的依赖是否已安装"""
@@ -110,14 +93,19 @@ def _main_inner():
             pass
 
     sys.excepthook = _excepthook
+    # 先留独立诊断，再链到上述既有业务 hook；其它两个 Python hooks 不重装。
+    _diagnostics.install_python_hooks()
 
     logger.info("=" * 50)
     logger.info("明日方舟通行证素材制作器 启动")
     logger.info("=" * 50)
 
+    from PyQt6.QtCore import Qt
+    _diagnostics.install_qt_message_handler()
     from PyQt6.QtWidgets import QApplication
     from PyQt6.QtGui import QFont, QIcon
-    from PyQt6.QtCore import Qt
+    from config.constants import APP_VERSION
+    _diagnostics.record_text(f"app_version={APP_VERSION}")
 
     # 多个 QOpenGLWidget 共享 GL 上下文时需要此设置
     # https://doc.qt.io/qt-6/qopenglwidget.html
@@ -130,7 +118,6 @@ def _main_inner():
     from qfluentwidgets import setTheme, setThemeColor, Theme
 
     from gui.main_window import MainWindow
-    from config.constants import APP_VERSION
     app.setApplicationName("明日方舟通行证素材制作器")
     app.setApplicationVersion(APP_VERSION)
     app.setOrganizationName("ArknightsPassMaker")
@@ -163,17 +150,12 @@ def main():
     try:
         _main_inner()
     except Exception:
+        _diagnostics.record_exception("main", *sys.exc_info())
         import traceback
         error_text = traceback.format_exc()
         try:
-            log_path = os.path.join(
-                os.environ.get('TEMP', '.'),
-                'ArknightsPassMaker_crash.log')
-            with open(log_path, 'w', encoding='utf-8') as f:
-                f.write(error_text)
-        except Exception:
-            pass
-        try:
+            # 即使主流程在 Qt 导入前失败，也先安装消息桥再显示原有错误框。
+            _diagnostics.install_qt_message_handler()
             from PyQt6.QtWidgets import QApplication, QMessageBox
             app = QApplication.instance() or QApplication(sys.argv)
             QMessageBox.critical(None, "致命错误", error_text[:1000])

@@ -129,6 +129,12 @@ class MainWindow(QMainWindow):
         # 页面切换时记录正在播放的视频预览器，以便返回素材页时恢复
         self._videos_were_playing: list = []
 
+        # 导出运行期间独占预览暂停状态。它不能与页面切换共用
+        # _videos_were_playing：导出完成前服务及其 worker 必须继续存活。
+        self._export_in_progress = False
+        self._export_call_active = False
+        self._export_paused_previews: list = []
+
         # 异步加载失败聚合(短窗口内多个预览失败只弹一个警告框)
         self._pending_load_failures: list = []
         self._load_failure_flush_scheduled = False
@@ -1435,6 +1441,9 @@ class MainWindow(QMainWindow):
 
     def _on_export(self):
         """导出素材"""
+        if self._export_in_progress:
+            QMessageBox.information(self, "导出进行中", "当前导出尚未完成")
+            return
         if not self._config:
             QMessageBox.information(self, "提示", "请先创建或打开项目")
             return
@@ -1472,60 +1481,62 @@ class MainWindow(QMainWindow):
         if not dir_path:
             return
 
+        # 暂停信号、准备阶段的错误弹窗也可能重入，须先建立本次导出的边界。
+        self._export_in_progress = True
+        self._export_call_active = True
+        self._export_service = None
+        self._export_dialog = None
+        self._export_paused_previews = []
         try:
-            export_data = self._collect_export_data()
-        except Exception as e:
-            logger.error(f"收集导出数据失败: {e}")
-            show_error(e, "收集导出数据", self)
-            return
+            self._export_paused_previews = self._pause_export_previews()
+            try:
+                export_data = self._collect_export_data()
+            except Exception as e:
+                logger.error(f"收集导出数据失败: {e}")
+                show_error(e, "收集导出数据", self)
+                return
 
-        # Side-car assets (class_icon.png / ark_logo.png / overlay.png) that the
-        # exported epconfig.json references. Collect+resize them here (so a
-        # decode/resize failure aborts BEFORE the run and stays visible), but
-        # hand the actual PNG writes to export_all as AUX_IMAGE tasks — they
-        # then share the staging-dir + atomic-promote path instead of being
-        # written straight into output_dir where a later encode failure would
-        # orphan them in a half package.
-        aux_images: list = []
-        try:
-            aux_images.extend(self._collect_arknights_custom_images())
-            aux_images.extend(self._collect_image_overlay())
-        except Exception as e:
-            logger.error(f"处理自定义图片失败: {e}")
-            show_error(e, "处理自定义图片", self)
-            return
+            # 辅助图片在 GUI 线程收集；写盘仍由 export_all 的事务任务完成。
+            aux_images: list = []
+            try:
+                aux_images.extend(self._collect_arknights_custom_images())
+                aux_images.extend(self._collect_image_overlay())
+            except Exception as e:
+                logger.error(f"处理自定义图片失败: {e}")
+                show_error(e, "处理自定义图片", self)
+                return
 
-        from core.export_service import ExportService
-        from gui.dialogs.export_progress_dialog import ExportProgressDialog
+            from core.export_service import ExportService
+            from gui.dialogs.export_progress_dialog import ExportProgressDialog
 
-        self._export_service = ExportService(self)
-        self._export_dialog = ExportProgressDialog(self)
+            service = self._export_service = ExportService(self)
+            dialog = self._export_dialog = ExportProgressDialog(self)
+            service.progress_updated.connect(dialog.update_progress)
+            service.export_completed.connect(
+                lambda msg: self._on_export_completed(True, msg, service=service)
+            )
+            service.export_failed.connect(
+                lambda msg: self._on_export_completed(False, msg, service=service)
+            )
+            dialog.cancel_requested.connect(service.cancel)
 
-        self._export_service.progress_updated.connect(
-            self._export_dialog.update_progress
-        )
-        self._export_service.export_completed.connect(
-            lambda msg: self._on_export_completed(True, msg)
-        )
-        self._export_service.export_failed.connect(
-            lambda msg: self._on_export_completed(False, msg)
-        )
-        self._export_dialog.cancel_requested.connect(
-            self._export_service.cancel
-        )
+            service.export_all(
+                output_dir=dir_path,
+                epconfig=self._config,
+                logo_mat=export_data.get('logo_mat'),
+                overlay_mat=export_data.get('overlay_mat'),
+                loop_render_session=export_data.get('loop_render_session'),
+                intro_render_session=export_data.get('intro_render_session'),
+                aux_images=aux_images,
+            )
 
-        self._export_service.export_all(
-            output_dir=dir_path,
-            epconfig=self._config,
-            logo_mat=export_data.get('logo_mat'),
-            overlay_mat=export_data.get('overlay_mat'),
-            loop_render_session=export_data.get('loop_render_session'),
-            intro_render_session=export_data.get('intro_render_session'),
-            aux_images=aux_images,
-        )
-
-        self._export_dialog.exec()
-        return self._export_dialog, dir_path
+            dialog.exec()
+            return dialog, dir_path
+        finally:
+            # 覆盖收集、构造、连接、启动及 exec 的所有退出路径；持有 worker
+            # 时继续保留暂停和 guard，最终由服务清空引用后的回调收尾。
+            self._export_call_active = False
+            self._finish_export_preview_lifecycle()
 
     def _on_simulator(self):
         """打开模拟器预览"""
@@ -2079,6 +2090,75 @@ class MainWindow(QMainWindow):
             if p.is_playing:
                 self._videos_were_playing.append(p)
                 p.pause()
+
+    @staticmethod
+    def _preview_media_identity(preview):
+        """返回恢复播放前必须保持一致的预览媒体身份。"""
+        try:
+            path = getattr(preview, "video_path", "")
+        except RuntimeError:
+            return None
+        if not path:
+            return ""
+        return str(Path(path).resolve())
+
+    def _pause_export_previews(self):
+        """在冻结导出 job 前暂停并记录原本播放中的同一批预览。"""
+        page_paused_previews = self._videos_were_playing
+        # pause 会同步发 playback_state_changed；身份必须在这些槽运行前冻结。
+        paused_previews = [
+            (preview, self._preview_media_identity(preview))
+            for preview in (
+                self.video_preview,
+                self.intro_preview,
+                self.frame_capture_preview,
+                self.transition_preview.preview_in,
+                self.transition_preview.preview_loop,
+            )
+            if preview.is_playing
+        ]
+        try:
+            self._pause_all_videos()
+        except Exception:
+            self._restore_export_previews(paused_previews)
+            raise
+        finally:
+            self._videos_were_playing = page_paused_previews
+        return paused_previews
+
+    def _restore_export_previews(self, paused_previews):
+        """仅恢复导出开始前播放且媒体没有更换的预览。"""
+        for preview, media_identity in paused_previews:
+            try:
+                if (
+                    not preview.is_playing
+                    and self._preview_media_identity(preview) == media_identity
+                ):
+                    preview.play()
+            except RuntimeError:
+                logger.debug("export preview was deleted before playback restore")
+
+    def _export_service_has_pending_worker(self):
+        """返回导出服务是否仍持有待处理 terminal 的 worker。"""
+        service = getattr(self, "_export_service", None)
+        worker = getattr(service, "_worker", None)
+        # QThread.run() 返回到 queued terminal 回调清掉 service._worker 之间，
+        # isRunning() 已是 False，但旧回调仍可能投递到当前窗口。该窗口必须
+        # 继续保留导出 guard、dialog 和暂停状态，直到 ExportService 清空引用。
+        return worker is not None
+
+    def _finish_export_preview_lifecycle(self):
+        """入口已退出且服务没有待收尾 worker 时，恢复本次暂停的预览。"""
+        if self._export_call_active:
+            return False
+        if self._export_service_has_pending_worker():
+            logger.debug("导出服务仍持有 worker，等待 finished 收尾后恢复预览")
+            return False
+        paused_previews = self._export_paused_previews
+        self._export_paused_previews = []
+        self._export_in_progress = False
+        self._restore_export_previews(paused_previews)
+        return True
 
     def _resume_videos(self):
         """恢复之前暂停的视频播放"""
@@ -4273,10 +4353,16 @@ class MainWindow(QMainWindow):
             result.append(("overlay.png", img))
         return result
 
-    def _on_export_completed(self, success: bool, message: str):
+    def _on_export_completed(self, success: bool, message: str, *, service=None):
         """导出完成回调"""
+        if service is not None and service is not self._export_service:
+            return
+        if self._export_service_has_pending_worker():
+            return
         if hasattr(self, '_export_dialog') and self._export_dialog:
             self._export_dialog.set_completed(success, message)
+
+        self._finish_export_preview_lifecycle()
 
         if success:
             self.status_bar.showMessage(message)
@@ -4542,7 +4628,8 @@ class MainWindow(QMainWindow):
                         new_height)
         else:
             cursor, _ = self.cursorAtPosition(event.pos())
-            self.setCursor(cursor)
+            if self.cursor().shape() != cursor:
+                self.setCursor(cursor)
 
     def mouseReleaseEvent(self, event):
         """鼠标释放事件，结束窗口大小调整"""
