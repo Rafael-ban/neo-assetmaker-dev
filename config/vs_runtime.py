@@ -1,8 +1,9 @@
 """VapourSynth 运行时策略配置。
 
 该模块只保存 worker、core、插件目录和全局脚本位置。滤镜语义属于渲染
-作业或脚本，不能回流到运行配置。R73 的 ``max_cache_size_mb`` 目前仅作为
-软建议保留，worker 是否应用该值由后续里程碑决定。
+作业或脚本，不能回流到运行配置。worker 与 VSPipe 会在每个用户脚本前恢复
+冻结的 core 请求值；``0`` 表示首次捕获的 VapourSynth 原生值，非零值仍可由
+脚本覆盖。``max_cache_size_mb`` 只控制 VS cache，不是进程 RSS 的硬上限。
 """
 
 from __future__ import annotations

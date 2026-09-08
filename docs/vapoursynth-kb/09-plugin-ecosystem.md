@@ -1,84 +1,74 @@
-# 09 · 插件生态：本项目依赖的两个插件，及可选替代
+# 09 · 插件生态：生产调用、namespace 与替代评估
 
-**结论：本项目只依赖 `lsmas`（视频源）+ `imwri`（图片源），二者都是单 DLL、可直接放进 `vs-plugins/`，与便携部署模型兼容。叠加/合成继续用核心内置 `std.Merge`/`MaskedMerge`/`Expr` 是正确的——没有值得引入的专用插件。**
+**结论：当前内置脚本的外部 native requirement 只有
+`lsmas.LWLibavSource` 与 `imwri.Read`；`std` 和 `resize` 是 VapourSynth 自带
+namespace。可安装、可枚举、存在同名 namespace 和脚本实际声明可调用，是四个
+不同问题。**
 
-## 数据源可信度前提 ⚠️ 必读
+## 当前生产调用表
 
-`https://vsdb.top/` 抓取到的条目**日期最大值只到 2022-03-19**，之后无任何记录 —— 该数据库已停更约 4 年。因此：
+事实源是 `resources/vapoursynth/default_pipeline.vpy` 的脚本头与函数调用：
 
-- 它对 2022 年之后成型的项目（`BestSource`、`fpng`/`vsfpng`）**完全没有收录**，查不到 ≠ 不存在。
-- 它的字段里**没有** "是否单 DLL"、"是否兼容 api 4.x"、"维护状态"、"推荐替代" 这些列 —— 这些问题 vsdb 结构上就答不了，必须去各插件自己的 GitHub 核实。
-- 页面正文全内嵌在 HTML（去标签后约 912 KB），**不可整体读入**，只能 grep 片段。见 [10-research-method.md](10-research-method.md)。
+| namespace | 当前调用 | 类型 | 用途 |
+|---|---|---|---|
+| `lsmas` | `LWLibavSource` | 外部 native plugin | 视频解码与 `.lwi` 索引 |
+| `imwri` | `Read` | 外部 native plugin | 静态图片读取 |
+| `std` | `AssumeFPS`、`Transpose`、`FlipHorizontal`、`FlipVertical`、`Turn180`、`Loop`、`CropAbs`、`SetFrameProps`、`AddBorders` | core/标准 plugin | 时间、几何、属性 |
+| `resize` | `Bicubic` | core resize plugin | RGB/YUV、内容尺寸与 range 转换 |
 
-**不要把 vsdb 的沉默当成任何结论的证据。**
+脚本头明确写：
 
-## 本项目实际依赖的两个插件
+```text
+# assetmaker-requires: lsmas.LWLibavSource,imwri.Read
+```
 
-`config/vsconfig.json` 的 `required_plugins` 即事实源，`core/vs_engine.py` `missing_plugins()` 在预热时校验。
+即便一次素材只走视频或图片分支，默认 compatible 脚本仍声明完整 requirement；
+worker/runner 在执行前验证 namespace、属性可调用性与 `plugin_path` 来源。
 
-### `lsmas` — 视频源
+## 内置 namespace 与外部 DLL 分开看
 
-| 项 | 值 |
-|---|---|
-| vsdb 显示名 | `L-SMASH-Works`，描述逐字 `LSMASHSource for VapourSynth` |
-| namespace | `lsmas` |
-| Identifier | `systems.innocent.lsmas` |
-| vsdb 最新记录 | `vA.3h`，2021-11-29（fork：`AkarinVS/L-SMASH-Works`） |
-| 本项目用到的函数 | `LWLibavSource`（vsdb 另列 `LibavSMASHSource`，项目未用） |
-| 便携部署 | ✅ `tools/media/vs-plugins/LSMASHSource.dll` 单 DLL |
+`core.plugins()` 是当前 core 已注册 plugin 的枚举入口。对外部 requirement，项目
+不仅检查 `hasattr(core, namespace)`，还检查：
 
-vsdb 上**没有**维护状态、已知问题、api 兼容性的记载。项目侧的实证：R73 / api 4.1 上 `LWLibavSource` 正常工作，且 `.lwi` 索引策略见 [05-plugin-autoload-portable.md](05-plugin-autoload-portable.md)。
+1. `core.<namespace>.<function>` 确实 callable；
+2. plugin 的 `plugin_path` 位于便携内置 `vs-plugins`、可选 `vs-coreplugins` 或
+   runtime 明确配置的 native 根；
+3. 多目录加载期间没有可证明的 identity/namespace 冲突或候选加载失败。
 
-### `imwri` — 图片源
+真正的内置 plugin 可能没有文件路径，此时允许 `plugin_path=None`。不要用“没有
+plugin_path”推导插件缺失，也不要把 Python module 目录当成 native 来源根。
 
-| 项 | 值 |
-|---|---|
-| vsdb 显示名 | `ImageMagick`，描述逐字 `VapourSynth ImageMagick 7 HDRI Writer/Reader` |
-| namespace | `imwri` |
-| Identifier | `com.vapoursynth.imwri` |
-| vsdb 最新记录 | `R1`，2021-09-25（`vapoursynth/vs-imwri`） |
-| 本项目用到的函数 | `Read`（`core/vs_engine.py:245`、`core/vs_script.py:58`） |
-| 便携部署 | ✅ `tools/media/vs-plugins/libimwri.dll` 单 DLL |
+## 用户脚本如何声明额外插件
 
-⚠️ **上游仓库已归档（archived）这件事，vsdb 上没有任何记载** —— vsdb 只是停在 R1 一条孤立记录，没有 archived/deprecated 标记，这是它停更导致的信息缺失，不是"未归档"的证据。
+用户 `.vpy` 若调用额外 native 函数，必须把完整 `namespace.function` 写入
+`assetmaker-requires`，并把 DLL 所在目录加入 `plugins.native_plugin_dirs`。若调用
+相邻 Python 模块，则其根加入 `plugins.python_module_dirs`；两类目录加载机制不同。
 
-**这是本项目的真实风险，不是理论风险**：`imwri` 是 `required_plugins` 的成员，图片素材（过渡图、静态图循环）完全依赖它。当前 R73 上工作正常，但上游不会再有修复。**替代路径必须在升级 VapourSynth 之前先确认**，见下。
+例如以下只是概念示例，不是内置生产依赖：
 
-## `BestSource` — 潜在的统一替代（vsdb 查不到）
+```text
+# assetmaker-requires: fmtc.resample
+```
 
-vsdb 上**完全没有** `BestSource` 条目（停更所致）。能查到的邻居是 `BestAudioSource`（`com.vapoursynth.bestaudiosource`，R1，`vapoursynth/bestaudiosource`），印证 `vapoursynth` 官方组织确实在做 `Best*Source` 系列。
+是否采用 `fmtc`、BestSource、ffms2、PNG writer、ML 插件或脚本包，必须逐项验证
+目标 VS API、CPU/GPU 依赖、DLL 的相邻依赖、namespace、输出格式、许可证、冻结
+打包和 worker/VSPipe parity。第三方数据库未收录或多年未更新，都不能证明“不存在”
+或“兼容”。
 
-社区共识是 `BestSource` 意在统一 `lsmas` + `imwri` + `ffms2`（**这是推断，vsdb 无可交叉核实的信息**）。若要评估，**必须自行核实三件事**，缺一即判为不可用：
+## 不要从“可替代”跳到“应替代”
 
-1. 是否单 DLL（能否直接放 `vs-plugins/`，不走 pip/vsrepo）—— 本项目部署模型的硬约束，见 [05-plugin-autoload-portable.md](05-plugin-autoload-portable.md)。
-2. 是否兼容 **api 4.1**（R73）；若只支持 4.2+，则与升级 VapourSynth 绑定成一件事。
-3. 图片读取能力是否覆盖 `imwri.Read` 当前用法（`core/vs_script.py:58` 的 `.vpy` 生成路径也要跟着改，会动 golden）。
-
-**注意**：官方入门文档 `gettingstarted.html` 的示例已改用 `core.bs.VideoSource`（BestSource），而 `lsmas` 在官方核心文档六个页面里**一次都没出现**——官方推荐重心已经转移。这不影响 R73 上的现状，但是升级时的方向信号。
-
-## 叠加/合成：继续用核心内置，不引插件
-
-vsdb 上检索"叠加/合成"的结果全部是**脚本层封装**（PyScript），且都依赖 `std.Merge` 等核心函数：
-
-| 脚本包 | 相关函数 | 逐字描述 |
-|---|---|---|
-| `havsfunc` | `Overlay` | "Simplified Overlay(), does not perform any checking or fitting. Users need to take care of inputs themselves." |
-| `xvs` | `Overlaymod` | "modified overlay by xyx98. Based on havsfunc.Overlay()" |
-| `havsfunc` | `InsertSign` | "This overlays a clip onto another. Default matrix for RGB -> YUV conversion is 601 to match AviSynth's Overlay()" |
-
-**没有任何独立编译的 VSPlugin 专做叠加合成**。vsdb 分类为 `Effects and Transitions` 的条目全是转场/噪声（`colorfade`、`AddGrain`、`vctrans`、`NoiseGen` 等），不是叠加。
-
-唯一的独立转场插件 `vctrans`（`in.trans.vcm`）最后更新 **2015-09-10**、无 vsrepo 支持、所有函数的位深/色彩空间标注均为 `unknown`、**无任何 api 4.x 兼容性说明** —— 判为不可用。
-
-**结论：引入 `havsfunc` 只会新增一个 Python 脚本依赖而不减少任何插件依赖（它底层还是 `std.Merge`）。继续直接调核心函数是正确选择。**
-
-## `fpng` / `vsfpng`
-
-vsdb 上查不到（停更所致）。本项目当前没有 PNG 编码需求（导出走 `VSPipe → x264-7mod`），无需评估。
+- `lsmas` 当前真实视频、索引和编码链在 R73 验收通过；替换 source plugin 会改变
+  解码帧、时间轴、色彩 props 和缓存行为，必须有具体产品收益。
+- `imwri` 当前负责图片首帧；候选必须覆盖当前格式、色彩、异常语义和
+  `virtual_frame_count` 流程。视频 source 的候选不能自动视为图片 source 替代。
+- `std.Merge`、`MaskedMerge`、`Expr` 等虽然可用于合成，但默认脚本当前没有调用。
+  它们只能作为明确标注的可选示例，不能写成生产依赖或已采用方案。
+- AVFS 是把脚本暴露给外部应用的独立组件，不是 source plugin，也不替代这里的
+  `lsmas`/`imwri` requirement。
 
 ## 相关
 
-- [05-plugin-autoload-portable.md](05-plugin-autoload-portable.md) — 单 DLL 便携加载与 `portable.vs` 锚点
-- [05-plugin-autoload-portable.md](05-plugin-autoload-portable.md) — `LWLibavSource` 与 `.lwi` 索引
-- [08-version-upgrade-notes.md](08-version-upgrade-notes.md) — 升级前的检查清单
-- [10-research-method.md](10-research-method.md) — 这些结论是怎么抓到的、哪些未核实
+- [05 便携插件](05-plugin-autoload-portable.md) — 多目录 native policy
+- [08 版本升级](08-version-upgrade-notes.md) — R79 插件/分发门禁
+- [10 研究方法](10-research-method.md) — 第三方候选的证据等级
+- [13 用户 VPY ABI](13-user-vpy-abi.md) — `assetmaker-requires`

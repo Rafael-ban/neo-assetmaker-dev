@@ -1,52 +1,83 @@
-# 08 · 版本与升级注意事项
+# 08 · R73 基线与 R79 升级门禁
 
-**结论：本项目锁定 R73（api R4.1），Python 下限 3.12 是被 wheel 的 ABI 强制的，不是偏好。升级 VapourSynth 的主要风险不在滤镜 API，而在分发形态与色彩帧属性语义。**
+**结论：当前已验收的是 R73 源码工作树，不是 R79，也不是已安装应用或冻结包。
+R79 升级必须被当作 runtime、binding、插件、分发、色彩合同和双执行路径的迁移，
+不能只替换 `vapoursynth.dll` 或 `VSPipe.exe`。**
 
-## 为什么锁 3.12 🔬 本机实测
+## 当前 R73 身份
 
-捆绑的 wheel 只有两个：
+- `tools/media/vapoursynth-73.dist-info/METADATA`：`Version: 73`。
+- `tools/media/VSPipe.exe --version`：Core R73、API R4.1，并保留 API R3.6。
+- binding wheel 为 `cp312-abi3`，所以项目的 Python 下限是 3.12；`abi3` 表示从
+  cp312 起向前兼容，不表示能在 Python 3.11 向后运行。
+- 默认入口是 `resources/vapoursynth/default_pipeline.vpy`；worker 与 VSPipe 各自
+  建 core，但共享 executor/header/job API/output contract。
+- runtime 配置中的 core 值 `0` 表示保留进程首次捕获的 VapourSynth 原生值；
+  内置脚本随后显式设置 `core.max_cache_size=16000` MB。cache 阈值不是进程 RSS
+  硬上限，也不是所有用户脚本都必然采用 16000。
 
-- `vapoursynth-73-cp312-abi3-win_amd64.whl` — Tag `cp312-abi3`，载荷 `vapoursynth.pyd`
-- `vapoursynth-73-cp38-cp38-win_amd64.whl` — Tag `cp38-cp38`，载荷硬链 `python38.dll`，无用
+## 当前验收边界（2026-09-09）
 
-**没有 3.11 可用的 wheel。** 在 3.11 上 `import vapoursynth` 报：
+产品 BASE `351025b3223ca8a55270b79ca2245e5a5b54d123` 的 R73 证据为：
 
-```
-ImportError: DLL load failed while importing vapoursynth: 找不到指定的程序
-```
-（ERROR_PROC_NOT_FOUND）
+- compileall exit 0；完整测试 719 项，0 failure / 0 error / 0 skipped，OK；
+- 真实 worker 生命周期、worker/VSPipe output 0 plane parity、多目录 native 插件、
+  图片循环、旋转/crop、实际编码与色彩 VUI 均有非 skip 证据；
+- F4 性能样本只测“鼠标输入到 QLabel Paint 开始分派”，不代表绘制完成、物理
+  显示或 VapourSynth 解码 FPS。新侧连续拖动 n=24/场景，P95 为播放
+  0.294075 ms、暂停 0.320925 ms；完整分布与限制见 F4 session3 报告。
 
-根因：`.pyd` 引用 5 个 3.11 的 `python3.dll` **不导出**、3.12 才加入 limited API 的符号 —— `PyObject_Vectorcall`、`PyObject_VectorcallMethod`、`PyType_FromMetaclass`、`PyVectorcall_Call`、`PyVectorcall_NARGS`。
+这些结果证明当前源树的 R73 验收，不证明 cx_Freeze 产物已构建，也不更新用户正在
+运行的 `ArknightsPassMaker`。R79 候选验证尚未开始。
 
-即 `cp312-abi3` = 稳定 ABI **下限 3.12**，向前兼容 3.13+，**永不**向后兼容 3.11。这就是 Stage 0 迁移 Python 3.12 是硬前提的原因。
+## 为什么 R79 不是 DLL 单换
 
-## 本机运行时事实 🔬
+固定 tag 静态入口：
 
-core **R73** / api **4**（4.1）；插件自动加载 `['avs','imwri','lsmas','resize','std','text']`；`num_threads=32`；`max_cache_size=4096MB`；`AudioNode` 存在。
+- `https://github.com/vapoursynth/vapoursynth/blob/R79/include/VSConstants4.h`
+- `https://github.com/vapoursynth/vapoursynth/blob/R79/src/cython/vsconstants.pxd`
+- `https://github.com/vapoursynth/vapoursynth/blob/R79/src/cython/vapoursynth.pyx`
+- `https://github.com/vapoursynth/vapoursynth/blob/R79/src/core/vsapi.cpp`
 
-官方文档站当前是 **R76** —— 读文档时注意版本差。
+静态源码已经提示 API 4.2 `_Range`、Python `Range(IntEnum)`、旧键 remap、autoload
+与分发布局等迁移面，但真实候选行为仍需运行时证据。AVFS 从 R74 起是独立组件；
+R79 不会把它重新变成核心内置功能。AVFS 面向把 `.vpy` 暴露给外部应用，不替代
+本项目的按帧 worker→mmap→Qt 预览链。
 
-## 升级风险清单（按影响排序）
+## U 阶段最低验收门
 
-1. ⚠️ **色彩帧属性语义**：api 4.2+ 若源滤镜改发 `_Range` 而非 `_ColorRange`，数值定义反转。见 [01](01-colour-range-props.md)。**升级后必须重跑 `test_export_color_roundtrip.py` 并核对读到的是哪个键。**
-2. ⚠️ **分发形态转向 pip**：较新版本官方主推 pip 安装（`<site-packages>/vapoursynth/plugins`）。本项目依赖的 `portable.vs` + `vs-plugins/` 便携布局是 DLL 层机制，文档里已经不提了。升级时**必须重新验证** `portable.vs` 是否仍被识别，否则插件静默消失。见 [05](05-plugin-autoload-portable.md)。
-3. **resize 默认值漂移**：Bicubic 的 b/c 或 dither 默认若变动，所有输出像素改变 → `tests/test_vpy_golden.py` 与 parity 测试全线漂移。此时 golden 漂移是**真实的行为变更**，不能当噪声重抓。
-4. **几何滤镜稳定**：`Transpose`/`Turn180`/`CropAbs`/`AddBorders`/`Trim`/`Loop` 语义多年未变，风险最低。
-5. ❌ **未核实**：R74/R78 的完整变更日志本次未拿到逐字原文（`vapoursynth.com/2026/08/` 页面无对应条目）。升级前应直接读官方 changelog，不要依赖本条。
+1. **候选身份**：记录 binding/core/API/VSPipe 版本、Python tag、全部 DLL/插件
+   SHA-256；证明 worker 与 VSPipe 使用同一候选根。
+2. **分发与插件**：实测 `portable.vs`、`vs-plugins`、可选 `vs-coreplugins`、CPU
+   变体/manifest、多个配置 native 目录的加载顺序、冲突诊断和 plugin source。
+3. **Range**：分别探测 `_Range`/`_ColorRange` 的普通整数或枚举类型、数值语义、
+   旧键读写映射、双键冲突、lsmas/imwri/resize 实际行为；再决定是否修改合同。
+4. **图与像素**：默认脚本顺序、output 0/1、Bicubic、AddBorders、viewport、
+   frame props 与真实编码回读逐项对照 R73，不把 golden 漂移当作可直接重抓的噪声。
+5. **资源与生命周期**：验证 core 默认基线、0 语义、脚本覆盖、Future/frame close、
+   cancel ACK、worker restart/退休以及 VSPipe stderr/stdout。
+6. **构建**：完成 source tests 后再运行 cx_Freeze，核对 frozen worker、VSPipe、
+   helper、marker/plugin 文件和真实便携包 smoke；源码绿色不能代替冻结产物。
 
-## 升级检查清单
+若候选没有解决明确产品需求，或任一门禁无法稳定通过，应保留 R73，而不是因版本号
+更新降低现有合同。
 
-```bash
-# 1. 语法/导入
-uv run python -m compileall main.py config core gui utils _mext build.py tests
-# 2. 全量测试（含 golden 与 parity）
+## 当前可运行的 R73 基线命令
+
+```powershell
+uv run python -m compileall main.py config core gui utils _mext build.py tests `
+  resources/vapoursynth/python
 uv run python -m unittest discover -s tests -p "test_*.py"
-# 3. 便携加载与插件表（关键：确认 lsmas/imwri 仍在）
-uv run python -c "from core import vs_engine; vs_engine.prewarm(); import sys; print(vs_engine.get_core().version_number if hasattr(vs_engine.get_core(),'version_number') else '', sorted(p.namespace for p in vs_engine.get_core().plugins())); print('tools/media in sys.path?', any('tools' in p and 'media' in p for p in sys.path))"
-# 4. 冻结产物打包契约
-uv run python build.py --no-installer --skip-flasher
+tools\media\VSPipe.exe --version
 ```
+
+完整测试可能包含真实媒体；必须同时记录 skip 计数与工具身份。打包只在明确进入
+冻结验收时运行 `uv run python build.py ...`，不要把它混入 K1 文档冻结。
 
 ## 相关
 
-- [01](01-colour-range-props.md)、[05](05-plugin-autoload-portable.md)、[09](09-plugin-ecosystem.md)
+- [01 色彩范围](01-colour-range-props.md)
+- [05 便携插件](05-plugin-autoload-portable.md)
+- [10 研究方法](10-research-method.md)
+- [14 worker 协议](14-worker-protocol.md)
+- [15 输出契约](15-output-contract.md)

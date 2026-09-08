@@ -1,44 +1,76 @@
-# 05 · 插件自动加载：静默失败 + `portable.vs` 机制
+# 05 · 便携运行时与 native/Python 插件目录
 
-**结论：自动加载插件时的任何错误都被官方明确定义为"静默忽略"。缺 `portable.vs` 不会报错，只会让 `lsmas`/`imwri` 不存在——症状是"能启动，加载媒体就失败"。所以 CI 必须硬校验打包产物。**
+**结论：R73 自带插件仍由 `portable.vs` 锚定的便携布局提供；用户配置的多个
+native 目录则在 worker/runner 导入 binding 后按顺序逐目录调用
+`LoadAllPlugins`。Python module 目录只参与用户脚本 import，绝不能与 native DLL
+目录混用。**
 
-## 官方原文 ✅ 已核实
+## R73 `portable.vs` 的版本化事实
 
-`http://www.vapoursynth.com/doc/installation.html`（R76）：
+当前 `tools/media` 是 R73 便携包：`vapoursynth.dll` 在自身目录识别零字节
+`portable.vs` 标记，并从相邻 `vs-plugins/` 自动加载 `lsmas`、`imwri` 等插件。
+这是当前二进制与实际探针证实的 R73 行为，不应泛化成所有 VapourSynth 版本的
+永久合同；R79 必须重新验证分发目录、CPU 变体 manifest 与 autoload 行为。
 
-> **Plugin Autoloading**
-> VapourSynth automatically recursively loads all the native plugins located in `<site-packages>/vapoursynth/plugins`. Autoloading works just like manual loading, with the exception that **any errors encountered while loading a plugin are silently ignored**.
-> An additional plugin path can be loaded by setting the `VAPOURSYNTH_EXTRA_PLUGIN_PATH` environment variable. It is loaded after the normal plugin path.
+R73 固定 tag 的 `std.LoadAllPlugins` 文档：
+`https://github.com/vapoursynth/vapoursynth/blob/R73/doc/functions/general/loadallplugins.rst`。
+它会尝试加载目录中的插件，但失败项可被静默跳过，因此“调用没有抛异常”不能证明
+每个 DLL 已注册。
 
-⚠️ **官方文档只描述 pip 安装形态的路径**（`<site-packages>/vapoursynth/plugins`），**完全没有提到 `portable.vs`**。便携模式的权威依据是 DLL 二进制本身，不是文档。
+当前 CI 与冻结产物必须包含：
 
-## `portable.vs` 机制 🔬 本机实证
+```text
+tools/media/vapoursynth.pyd
+tools/media/vapoursynth.dll
+tools/media/portable.vs
+tools/media/vs-plugins/LSMASHSource.dll
+tools/media/vs-plugins/libimwri.dll
+```
 
-对 `tools/media/vapoursynth.dll` 做字符串提取，能看到 UTF-16 常量：`portable.vs`、`vs-plugins`、`vs-coreplugins`。`tools/media/portable.vs` 是一个 **0 字节标记文件**。
+缺少 marker 或插件不能靠启动成功来放行；`.github/workflows/build-app.yml` 对源工具
+和冻结树分别做硬校验。
 
-机制：被加载的 `VapourSynth.dll` 在**自身所在目录**查找 `portable.vs`；存在则切换到便携布局，从同目录的 `vs-plugins/` 加载插件。
+## binding 只在 worker/VSPipe 进程加载
 
-由此推出两条硬性禁令（均本机实测确证）：
+`core.vs_runtime.vs_loader` 的 worker 路径：
 
-❌ **禁止 `sys.path.insert(0, tools/media)`**
-实测报 `AttributeError: class must define a '_type_' attribute`。原因：`tools/media` 是一个**扁平的嵌入式 CPython 3.12.10 发行版**（含 `_ctypes.pyd`、`_socket.pyd`、`python312.dll`），插到 `sys.path` 头部会**遮蔽宿主解释器的扩展模块**。
+1. 要求 Python 3.12+ 与 `tools/media/vapoursynth.pyd`；
+2. 清空 `VAPOURSYNTH_EXTRA_PLUGIN_PATH`，避免未冻结的隐式 native autoload；
+3. 用 `os.add_dll_directory(media_dir)` 与 `spec_from_file_location()` 显式加载 binding；
+4. 记录 R73 便携目录已加载的 plugin source，并处理配置的额外 native 目录；
+5. 捕获首次 core 资源基线，供每次脚本执行前恢复。
 
-❌ **禁止把 wheel 装进 venv**
-wheel 的 `RECORD` 把 DLL 落到 `Lib/site-packages/vapoursynth.dll`。由于自动加载锚定"被加载的 DLL 自身所在目录"，装进 venv 后那里没有 `portable.vs` 也没有 `vs-plugins/` → `lsmas`/`imwri` **静默缺失**。
+GUI 父进程不导入 VapourSynth，也不存在父进程 prewarm。不要把 `tools/media` 插入
+`sys.path`：该目录同时携带嵌入式 Python 扩展，可能遮蔽宿主模块。也不要把 R73
+wheel 随意装入 venv 后仍期待相邻的 `portable.vs`/`vs-plugins` 自动生效。
 
-✅ **正解**（`core/vs_engine.py` 采用）：
-`os.add_dll_directory(tools/media)` + `importlib.util.spec_from_file_location` 显式加载 `.pyd`。实测：import 成功、`lsmas`+`imwri` 自动加载、`sys.path` 未污染、`ctypes` 正常。
+## 多目录 native 策略
 
-## 对本项目意味着什么
+`assetmaker_vs.native_plugins` 对 `plugins.native_plugin_dirs`：
 
-**CI 必须硬失败**。因为"缺 `portable.vs`"的表现是静默退化而非异常，`.github/workflows/build-app.yml` 断言冻结产物里存在：`vapoursynth.pyd`、`vapoursynth.dll`、`portable.vs`、`vs-plugins/LSMASHSource.dll`、`vs-plugins/libimwri.dll`。缺任一项立即失败——否则会打出一个"能装、能开、不能用"的包。
+- 每个目录先解析为存在的绝对目录，按 Windows 路径语义保序去重；
+- 按配置顺序逐目录 `core.std.LoadAllPlugins(path=...)`；
+- 临时安装 R73 log handler，识别候选 DLL 加载失败、API 不兼容、plugin identity
+  或 namespace 冲突，并给出候选/既有来源；
+- 用 `core.plugins()`、callable 和 `plugin_path` 核对脚本头的每项
+  `assetmaker-requires` 是否真实可用且来自内置或已配置根。
 
-**cx_Freeze 无需新增 `includes`**：`build.py` 的 `_collect_media_tool_include_files` 按目录遍历整个 `tools/media`，VS 运行时随之打包。
+空目录或只含依赖 DLL 的目录可以合法存在；最终 requirement 校验才决定脚本能否
+运行。内置 `vs-coreplugins/` 在旧包里可以不存在；若存在，会成为许可 source root
+并纳入 runtime fingerprint。
 
-**另一条约束**（见 07）：VS core 必须在 **PyQt6 加载之前** prewarm，否则本捆绑包段错误（exit 139）。
+## Python module 目录是另一条链
+
+`plugins.python_module_dirs` 通过专用 JSON 环境传输给 executor，只在受控的脚本
+import 搜索上下文中使用。它不会传给 `LoadAllPlugins`。native 与 Python 目录都会
+进入 runtime fingerprint，但加载方式、错误类别和信任边界不同。
+
+worker 与固定 VSPipe runner 共享上述 native policy；VSPipe 环境同样要求
+`VAPOURSYNTH_EXTRA_PLUGIN_PATH=""`，额外 native 目录由 runner 显式加载。
 
 ## 相关
 
-- [07-frame-lifetime-threading.md](07-frame-lifetime-threading.md) — prewarm 顺序与线程规则
-- [08-version-upgrade-notes.md](08-version-upgrade-notes.md) — R74 起官方转向 pip 分发，对便携部署的间接风险
-- `core/vs_engine.py`、`build.py`、`.github/workflows/build-app.yml`
+- [08 版本升级](08-version-upgrade-notes.md) — R79 分发/插件候选门禁
+- [09 插件生态](09-plugin-ecosystem.md) — 生产 requirement 与 namespace
+- [13 用户 VPY ABI](13-user-vpy-abi.md) — 脚本头和两类插件目录
+- [16 脚本信任](16-script-trust.md) — `portable.vs` 不是完整信任证明

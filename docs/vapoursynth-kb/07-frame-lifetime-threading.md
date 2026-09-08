@@ -1,40 +1,67 @@
-# 07 · 帧生命周期与线程规则
+# 07 · 帧生命周期、mmap 与线程边界
 
-**结论：`frame[plane]` 是 VS 自有内存的 memoryview，`frame.close()` 之后失效——必须先 copy。异步回调跑在 VS worker 线程，回调里绝不能碰 Qt widget。**
+**结论：VapourSynth `VideoFrame` 只活在 `vs_worker.exe` 内。Future 完成后，worker
+按 stride 把 RGB24 有效像素复制并重排为连续 BGR24，再写入具名 mmap；宿主核对
+request/epoch/slot generation 后复制成 numpy，最后由 Qt queued signal 交给 GUI。**
 
-## 依据
+## R73 API 边界
 
-**帧内存**（binding 源 `vapoursynth.pyx`）：`VideoFrame` 支持缓冲协议，`frame[plane]` 暴露的是**底层帧缓冲的视图**，不是副本。`close()`（或退出 `with`）释放帧后视图悬空。
+固定 tag：
 
-**平面有 stride 填充** 🔬：本机实测 `width=360` 的 RGB24 帧，plane stride 为 **384**。所以不能按 `width` 直接 reshape，必须按 stride 逐行取或用 `np.asarray(frame[p])` 让 buffer 协议给出正确形状再 copy。
+- `https://github.com/vapoursynth/vapoursynth/blob/R73/doc/pythonreference.rst`
+- `https://github.com/vapoursynth/vapoursynth/blob/R73/src/cython/vapoursynth.pyx`
 
-**RGB24 是平面格式且 plane 顺序为 R/G/B** 🔬：用 `BlankClip(format=vs.RGB24, color=[255,0,0])` 验证——plane0 是 R。本仓 `current_frame` 全程是 **BGR**（`cv2` 系），所以必须按 `[2,1,0]` 堆叠。
+`clip.get_frame_async(n)` 返回 Future；`future.result()` 才取得 `VideoFrame`。
+`frame[plane]` 暴露 VS 所有的缓冲视图，`frame.close()` 后 frame 与 props 不再可用。
+plane 可能带 stride padding，不能假设 `stride == width`，也不能把未复制的 view
+跨线程或跨进程保存。
 
-**异步回调线程**（binding 源 `vapoursynth.pyx`）：完成回调声明为 `noexcept nogil`，紧接着 `with gil:` 重获 GIL。**回调运行在 VS worker 线程**，不是 GUI 线程。
+## 当前帧链
 
-**顺序迭代器不适合跳帧**：`clip.frames()` 是顺序迭代器；随机跳帧要用 `get_frame` / `get_frame_async`。
+```text
+Qt 请求 frame
+  → WorkerProcess 创建 (name, slot generation, capacity) 具名 mmap
+  → worker 对 editor/final surface 建 RGB24 display clip
+  → get_frame_async(index) 返回 Future
+  → Future callback 在 worker 内按 stride 复制 R/G/B 有效行
+  → 重排为 packed BGR24 并写 mmap
+  → 发送 frame_ready 身份与尺寸
+  → host 校验 worker generation + request + epoch + slot name/generation
+  → 从 mmap 复制 numpy frame，关闭 slot
+  → Qt signal 排队到 VideoPreviewWidget
+```
 
-## 本项目的做法为何正确
+`core.vs_runtime.shared_frame.FrameSlot.write_vs_rgb()` 明确读取 planar RGB24，按
+`(2, 1, 0)` 写成 BGR，并只复制每行 `:width` 的有效区域。worker 发送 terminal 后
+在 `finally` 中关闭 `VideoFrame` 和自己打开的 slot；host 的 `read_bgr()` 返回副本，
+不会把 mmap 生命周期泄漏给 QLabel。
 
-`core/vs_frame.py` + `core/vs_player.py`：
+## 过时帧与所有权
 
-1. 回调内只做 `VideoFrame` → numpy（含 copy）并 `close()` —— **不触碰任何 Qt 对象**。
-2. 然后 `emit pyqtSignal(int, int, object)`（epoch, index, array）。PyQt6 的 `AutoConnection` 在跨线程时自动走**队列投递**，接收端在 GUI 线程执行。
-3. 播放用 `QTimer` 作时钟 + 单帧请求，不用 `clip.frames()`。
+- 每个 frame request 必须得到且只得到一个 terminal：`frame_ready`、
+  `frame_discarded` 或 `request_error`。
+- host 最多允许 3 个 in-flight frame；可合并请求只保留最新 sequence，避免拖动或
+  播放时无限排队。
+- epoch 标识图/job 代际；worker generation 标识子进程代际；slot generation
+  防止复用的映射名称/描述符被迟到消息冒充。
+- `cancel_epoch` 的 ACK 是线性化点。worker 的 mmap commit、frame terminal 与 ACK
+  共用条件锁，因此 ACK 后尚未终态的旧请求不能再发送 `frame_ready`。
+- GUI 仍会核对当前 request owner、epoch、surface 和 index；迟到或已替换的画面
+  不进入当前 QLabel。
 
-**性能余量** 🔬：真实 mp4 经 `lsmas` + 完整编辑链（Transpose+FlipHorizontal+CropAbs+resize→360x640）：首帧 **2.2ms**、随机跳帧 **0.9ms**、顺序 **0.3ms/帧**。30fps 预算 33ms → 两个数量级余量。重复随机跳帧降到 **0.03ms**（core 内部缓存生效，`max_cache_size` 默认 4096MB）。
+## Qt 与 VS 的线程分工
 
-## prewarm 顺序（本项目特有的硬约束）🔬
+VapourSynth Future callback 不操作 Qt 对象；它只复制 frame、写 mmap、发送协议
+消息。宿主协议 reader 也不直接绘制，`VSWorkerClient` 把事件转成 Qt signal，由
+queued connection 在 GUI 线程执行。播放时钟仍是 `VideoPreviewWidget` 的 QTimer，
+seek 是单帧请求，不使用 `clip.frames()` 顺序迭代器。
 
-**VS core 必须在 PyQt6 加载之前初始化**。`main.py` 与 `tests/qt_harness.py` 在 import 期调 `vs_engine.prewarm()`。Qt 已加载后再建 core 会**段错误（exit 139）**；反序无事。
-
-因此 `_use_vs_preview()` 永不惰性建 core —— `vs_engine._core is None` 时直接返回 False。prewarm 失败则媒体根本无法加载（在加载时**响亮失败**，而不是"预览正常、导出才炸"）。
-
-## 曾经踩过的坑
-
-帧请求在途时关窗，会向已删除的 QObject 发信号 → 偶发段错误。修法是 epoch 令牌 + 关窗时清理在途请求（提交 `14bbcca`）。**`_load_epoch` 仍然吃重**：`lsmas` 建索引慢且异步，被取代的加载必须丢弃迟到帧。
+GUI 父进程不加载 VS binding、不创建 core，也不存在“必须在 PyQt6 前 prewarm”这条
+当前架构约束。VS import、core、用户脚本和 native 插件都隔离在 worker 或 VSPipe
+子进程；这解决进程/线程所有权问题，但不把用户脚本变成安全沙箱。
 
 ## 相关
 
-- [05-plugin-autoload-portable.md](05-plugin-autoload-portable.md) — 加载策略
-- `core/vs_player.py`（`FrameRequester`，含在途预算 `MAX_INFLIGHT` 合并拖动）
+- [11 预览缩放](11-preview-zoom.md) — worker 内 RGB24 display clip
+- [14 worker 协议](14-worker-protocol.md) — epoch、取消、退休与恢复
+- [16 脚本信任](16-script-trust.md) — 进程隔离不等于安全执行

@@ -7,9 +7,11 @@
 脚本和同一份冻结 job。因此滤镜、插件调用与处理顺序只写一次。
 
 这解决了旧的“双份图”问题：预览与导出曾各自实现裁剪、旋转、颜色和补边，
-即使两边语法都正确，也无法证明像素结果一致。现在两条路径都经过
-`resources/vapoursynth/assetmaker_runner.vpy` 的脚本头、调用能力和输出契约
-校验；`tests/test_preview_export_parity.py` 与真实编解码测试验证这个约束。
+即使两边语法都正确，也无法证明像素结果一致。现在两条路径共用
+`assetmaker_vs.executor`、脚本头、`job_api` 和输出 `contract`：worker 直接执行
+所选 `.vpy`，只有导出路径由 VSPipe 执行固定的
+`resources/vapoursynth/assetmaker_runner.vpy`。runner 不是 worker 的入口。
+`tests/test_preview_export_parity.py` 与真实编解码测试验证共享合同下的结果。
 
 ## 运行边界
 
@@ -31,9 +33,13 @@
 
 ## 配置与脚本的职责
 
-`config/vs_runtime.json` 只描述运行环境：worker 超时、VS core 的可选资源上限、
+`config/vs_runtime.json` 只描述运行环境：worker 超时、VS core 的资源请求初值、
 插件目录和本机全局脚本位置。它不再包含重采样核、像素格式、颜色矩阵或滤镜
-顺序。
+顺序。每个 worker/VSPipe context 在启动边界冻结该配置和 runtime fingerprint；
+执行每个用户脚本前恢复 core 资源。`num_threads` / `max_cache_size_mb` 的 `0`
+表示首次捕获的 VapourSynth 原生值，非零值是脚本执行前的请求初值；脚本仍可
+显式覆盖（内置脚本固定设置 `core.max_cache_size = 16000`）。cache 不是整个进程
+RSS 的硬上限。
 
 这些图像语义属于 `.vpy`：脚本作者可显式选择滤镜和参数；编码输出仍必须满足
 固定 output 0 契约。这样新增滤镜或插件不会要求在宿主 Python 代码中增加

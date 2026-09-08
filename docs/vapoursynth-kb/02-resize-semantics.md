@@ -1,53 +1,74 @@
-# 02 · `resize` 语义：兜底参数、帧属性优先、Bicubic 系数
+# 02 · `resize` 语义：输入解释、输出转换与帧属性
 
-**结论：`matrix_in`/`transfer_in`/`primaries_in`/`range_in` 都是"帧属性缺失时的兜底"，帧属性一旦有值就覆盖参数。所以要强制色彩解释，必须写帧属性，不能只传参数。**
+**结论：`*_in` 参数解释输入，`matrix_s`/`range_s` 等参数决定输出转换；输出
+frame props 是对结果的元数据描述。写属性不等于转换像素，做了像素转换也不保证
+编码器会自动写出相同标签。**
 
-## 官方原文 ✅ 已核实
+## R73 官方语义
 
-`http://www.vapoursynth.com/doc/functions/video/resize.html`：
+固定 tag：
+`https://github.com/vapoursynth/vapoursynth/blob/R73/doc/functions/video/resize.rst`。
 
-> **When converting to YUV colorspaces, the `matrix` … must be specified.** … The `_in` versions of the arguments are **only used as a fallback when the corresponding frame property is not set**.
+- 转到 YUV 时必须指定输出 matrix；项目通过 `matrix_s` 明确给出。
+- `matrix_in`、`transfer_in`、`primaries_in`、`range_in` 的 `_in` 形式只在对应
+  输入 frame prop 未设置时作为兜底；已有输入属性优先。
+- Bicubic 的 `filter_param_a`/`filter_param_b` 分别是 b/c；项目未覆盖默认值。
+- `dither_type="error_diffusion"` 不保证确定性；当前脚本不显式选择它。
 
-> Note that `dither_type="error_diffusion"` is not deterministic …
+R73 探针用 `Y=16` 的 YUV420P8 单帧验证了输入优先级：
 
-> `filter_param_a`, `filter_param_b` … For `bicubic`, `filter_param_a`/`filter_param_b` correspond to **"b" and "c"** … For `lanczos`, `filter_param_a` is the number of taps.
-
-## "帧属性覆盖参数"已运行时坐实 🔬
-
-用 `Y=16`（limited 黑点）的 YUV420P8 单帧转 RGB24，让**帧属性与参数互相矛盾**，看谁赢：
-
+```text
+_ColorRange=0 + range_in_s=limited -> RGB R=16
+_ColorRange=1 + range_in_s=full    -> RGB R=0
 ```
-_ColorRange=0 (full)    + range_in_s=limited -> R= 16   # 帧属性赢
-_ColorRange=1 (limited) + range_in_s=full    -> R=  0   # 帧属性赢
-```
 
-两次都是帧属性说了算，参数被忽略。**所以要强制色彩解释只能写帧属性**——传 `range_in_s`/`matrix_in_s` 在源已带标记时是无效操作。复现见 [01-colour-range-props.md](01-colour-range-props.md)。
+冲突时 frame prop 获胜。因此 `*_in` 不是“强制覆盖源标签”的开关；若源标签错误，
+必须先有意识地修正属性或删除错误属性，再转换，而不是假设传参必然覆盖。
 
-## 本项目的做法为何正确
+## 当前默认脚本的真实顺序
 
-`core/vs_graph.py` 的色彩段（`core/vs_script.py` 生成等价 `.vpy`）：
+`resources/vapoursynth/default_pipeline.vpy` 在 trim/crop 后执行：
 
 ```python
-if clip.get_frame(0).props.get("_Matrix", 2) == 2:
-    clip = core.std.SetFrameProps(clip, _Matrix=...)   # 先写属性
-clip = resizer(clip, width=..., height=..., format=out_fmt, matrix_s=cfg.matrix_s)
+if source["kind"] == "video":
+    source_matrix = first_frame.props.get("_Matrix", 2)
+    if source_matrix == 2:
+        clip = core.std.SetFrameProps(clip, _Matrix=heuristic)
+
+clip = core.resize.Bicubic(
+    clip,
+    width=output["display_width"],
+    height=output["display_height"],
+    format=vs.YUV420P8,
+    matrix_s=output["matrix"],
+    range_s=output["range"],
+)
 ```
 
-- 先检查 `_Matrix == 2`（unspecified），**只有缺失时**才 `SetFrameProps` 补标 —— 与"`_in` 仅作兜底"的语义一致：不覆盖源已有的正确标记。
-- 输出侧用 `matrix_s`（**非** `matrix_in_s`）指定目标矩阵，因为这是 RGB→YUV 方向，官方明确要求"converting to YUV … must be specified"。
+- 视频仅在 `_Matrix` 缺失/unspecified（代码 2）时按源高补 709 或 170m；已有
+  matrix 不覆盖。图片由 `imwri.Read` 以 RGB 输入。
+- Bicubic 把实际裁剪结果转换到内容画布和 YUV420P8，输出 matrix/range 来自
+  profile；当前 360×640 profile 为 `170m`、`limited`。
+- 补边与可选最终 180° 完成后，脚本再写 `_Matrix`、`_Transfer`、
+  `_Primaries`、`_ColorRange`。这是输出标签，不会再次改变像素。
+- VSPipe 的 Y4M 接 x264；编码器参数还需与这些输出标签一致。当前 x264 使用
+  `smpte170m` 与 `--range tv`。
 
-**旧写法为何无效**（这是项目历史上真实修过的 bug，见 `tests/test_export_color_roundtrip.py` 顶部注释）：用 `matrix_s='709'` 转换、而 H.264 流不带色彩标签。未打标的 sub-HD 内容按惯例（H.273）被解码为 BT.601，于是导出颜色与预览可见偏移。**新写法**：以 `'170m'` 转换 + x264 `--colormatrix/--colorprim/--transfer smpte170m --range tv` 打标，两端一致。
+## 受保护的输出合同
 
-## 不要碰的项
+profile 由 `assetmaker_vs.job_api` 固定，而不是可随意拼接的旧全局配置：
 
-`config/vsconfig.json` 固定：`matrix_s='170m'`、`output_format='YUV420P8'`、`resampler_kernel='Bicubic'`、`image_source_format='RGB24'`、`MatrixHeuristic(720/1/6)`。`tests/test_export_color_roundtrip.py` 就是为钉死它而存在。
+| profile | 内容画布 | 编码画布 | format | matrix/range |
+|---|---:|---:|---|---|
+| `360x640` | 360×640 | 384×640 | YUV420P8 | 170m / limited |
+| `720x1080` | 720×1080 | 720×1080 | YUV420P8 | 170m / limited |
 
-## 可选深化（未采用，记录理由）
-
-- `dither_type`：项目未显式设置。文档警告 `error_diffusion` 不确定性 —— 这会破坏 `tests/test_vs_graph_player.py::GraphParityTests` 的**逐字节**比对。**若将来要设，只能设确定性算法**（如 `ordered`/`none`），且必须同步改 `.vpy` 生成器并重抓 golden。
-- `filter_param_a/b`：Bicubic 的 b/c 未显式设置，用 VS 默认。改动会改变所有输出像素 → golden 全部漂移。
+修改 kernel、Bicubic b/c、dither、输出格式或色彩参数会改变实际像素或编码合同，
+必须同时验证默认脚本、output contract、worker/VSPipe parity 和真实导出回读；不能
+只改文档或一端参数。
 
 ## 相关
 
-- [01-colour-range-props.md](01-colour-range-props.md) — `range_in` 对应的帧属性及其反转陷阱
-- [03-geometry-filters.md](03-geometry-filters.md) — resize 前后的裁剪/补边约束
+- [01 色彩范围](01-colour-range-props.md) — R73 两个 range 键的相反编码
+- [03 几何](03-geometry-filters.md) — crop、resize、AddBorders 的实际顺序
+- [15 输出契约](15-output-contract.md) — output 0 的几何/色彩验收

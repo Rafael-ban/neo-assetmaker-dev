@@ -1,45 +1,66 @@
-# 03 · 几何滤镜：Transpose 不是旋转，Crop/AddBorders 受子采样约束
+# 03 · 几何滤镜：旋转、裁剪、resize 与补边
 
-**结论：`Transpose` 是矩阵转置（一次反射），单独用会得到镜像。旋转必须 Transpose+Flip 组合。裁剪与补边都必须满足子采样约束，违反即报错（不是静默取整）。**
+**结论：当前默认图只有一份脚本真相。生产顺序是 source → 图片首帧/FPS →
+rotation → 图片 Loop → output 1 → timeline trim → crop → matrix 补标 →
+resize/YUV420P8 → AddBorders → 可选最终 180° → frame props → output 0。**
 
-## 官方原文 ✅ 已核实
+## R73 官方边界
 
-`http://www.vapoursynth.com/doc/functions/video/transpose.html`：
+固定 tag 文档：
 
-> Flips the contents of the frames in the same way as a **matrix transpose** would do. **Combine it with FlipVertical or FlipHorizontal to synthesize a left or right rotation.** Calling Transpose twice in a row is the same as doing nothing (but slower).
+- `https://github.com/vapoursynth/vapoursynth/blob/R73/doc/functions/video/transpose.rst`
+- `https://github.com/vapoursynth/vapoursynth/blob/R73/doc/functions/video/crop_cropabs.rst`
+- `https://github.com/vapoursynth/vapoursynth/blob/R73/doc/functions/video/addborders.rst`
 
-`http://www.vapoursynth.com/doc/functions/video/crop_cropabs.html`：
+`Transpose` 是矩阵转置，不是独立的 90° 旋转；左右旋要与
+`FlipHorizontal`/`FlipVertical` 组合。Crop/CropAbs 和 AddBorders 都要求尺寸与
+边界满足当前格式的子采样约束，越界、裁掉整幅或违反约束会报错。
 
-> `CropAbs`, on the other hand, is special, because it can accept clips with variable frame sizes and crop out a fixed size area, thus making it a fixed size clip.
-> Both functions return an error if the whole picture is cropped away, if the cropped area extends beyond the input **or if the subsampling restrictions aren't met**.
+R73 的 `AddBorders` 默认 `color=<black>`。默认黑是滤镜按当前格式生成的黑色，
+不能误写成“未显式传 color 就会得到全零绿边”。项目当前不传 `color`，这是合法的
+默认黑；若未来显式传数组，才需要按格式、位深和各 plane 中性值验证。
 
-`http://www.vapoursynth.com/doc/functions/video/addborders.html`：
+## 当前默认脚本
 
-> Adds borders to frames. The arguments specify the number of pixels to add on each side. **They must obey the subsampling restrictions.** The newly added borders will be set to `color`.
-
-## 本项目的做法为何正确
-
-**旋转**（`core/vs_graph.py` / `core/vs_script.py`，两处必须一致）：
+`resources/vapoursynth/default_pipeline.vpy` 的旋转定义为：
 
 ```python
-# 90°  = 右旋
-clip = core.std.FlipHorizontal(core.std.Transpose(clip))
-# 180°
-clip = core.std.Turn180(clip)
-# 270° = 左旋
-clip = core.std.FlipVertical(core.std.Transpose(clip))
+if degrees == 90:
+    clip = core.std.FlipHorizontal(core.std.Transpose(clip))
+elif degrees == 180:
+    clip = core.std.Turn180(clip)
+elif degrees == 270:
+    clip = core.std.FlipVertical(core.std.Transpose(clip))
 ```
 
-旧写法只调 `Transpose` → 画面**镜像**而非旋转（项目历史 bug M1a）。官方原文的 "Combine it with FlipVertical or FlipHorizontal to synthesize a … rotation" 是直接依据。与 cv2 的 `ROTATE_90_CLOCKWISE` 行为对齐，所以预览（曾用 cv2）与导出（VS）方向一致。
+`crop_safely()` 使用实际 `clip.format.subsampling_w/h` 推导 x/y 步长：
 
-**裁剪偶数对齐**（M1b）：`YUV420P8` 水平垂直都 2:1 子采样，裁剪原点与尺寸都必须偶数。项目用 `& ~1` 对齐，并用共享 `scale = min(cw/crop_w, ch/crop_h)` 按目标比例**等比收缩**——而不是单轴夹取（单轴夹取会让 resize 变成各向异性拉伸）。仅当 `cw >= 2 and ch >= 2` 才调 `CropAbs`。
+```python
+x_step = 1 << clip.format.subsampling_w
+y_step = 1 << clip.format.subsampling_h
+```
 
-**补边黑色**（M1c）：`AddBorders` 的 `color` 默认是 `<black>`，但在 YUV 里"全 0"不是黑（chroma 中点是 128），所以必须显式给出对应格式的黑色，否则得到绿边。
+它先把 left/top 向下对齐，再在画面边界与目标比例内等比收缩 width/height，最后
+按各自步长对齐；不足一个采样步长时保留原 clip，不向 CropAbs 发送非法尺寸。
+这比无条件“取偶数”准确：YUV420P8 通常两个步长都是 2，但 RGB 或 4:4:4 可为 1，
+其他格式也必须服从自己的 subsampling。
 
-**用 `CropAbs` 而非 `Crop`**：本项目裁剪框是绝对坐标（x, y, w, h），`CropAbs` 直接接受"固定区域"语义；`Crop` 要换算成四边裁掉多少，多一层易错换算。
+`CropAbs` 后，Bicubic 先生成 profile 的内容画布。例如 `360x640` profile 先得到
+360×640 YUV420P8，再由 `AddBorders(right=24)` 得到 384×640 编码画布。补边发生
+在颜色转换之后，因此其约束按 YUV420P8 计算。
+
+## 编辑框与 RGB 视口不是同一个裁剪层
+
+- 正式 crop 坐标属于 `post_rotation_source_pixels`，写入 job 后由默认脚本处理；
+  它必须满足源 clip 的实际子采样约束。
+- 高倍率预览由 `assetmaker_vs.display` 把 surface 转为 RGB24 后取视口。RGB24 无
+  chroma 子采样，因此视口的 x/y/width/height 不应被统一强制为偶数。
+- `output 1` 在正式 timeline trim/crop 之前建立，供编辑器查看完整旋转后画面；
+  `output 0` 才是设备输出。不要把 RGB 视口几何反向当作编码 crop 合同。
 
 ## 相关
 
-- [02-resize-semantics.md](02-resize-semantics.md) — 顺序：裁剪在 resize 前，补边在 resize 后
-- [04-trim-loop-zero-length.md](04-trim-loop-zero-length.md) — 裁剪到 0 会报错，与 0 帧 clip 同类约束
-- `core/vs_graph.py` 与 `core/vs_script.py` 的**步序是载重的**：source → trim → rotation → crop → loop-if-image → colour → padding → final 180°
+- [02 Resize 语义](02-resize-semantics.md) — 像素转换与 frame props 的边界
+- [04 Trim/Loop](04-trim-loop-zero-length.md) — output 1 和半开时间轴
+- [11 预览缩放](11-preview-zoom.md) — RGB24 视口链
+- [15 输出契约](15-output-contract.md) — 内容画布与编码画布

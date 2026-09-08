@@ -25,7 +25,7 @@ Arknights Pass Material Toolbox 是一个面向明日方舟电子通行证 2.1 �
             └── 导出：VSPipe → x264-7mod → MP4Box / lsmash-muxer
 ```
 
-预览 worker 和 VSPipe 运行的是同一份主 `.vpy`、同一份 job、同一份输出契约。主 GUI 进程不直接加载 VapourSynth DLL，避免 Qt/DLL 生命周期冲突；worker 隔离的是渲染运行时，并不是运行不可信 Python 的安全沙箱。
+预览 worker 和 VSPipe 运行的是同一份主 `.vpy`、同一份 job、同一份输出契约，并共用脚本头、executor、job API 和 contract。worker 直接执行所选脚本；只有导出路径由 VSPipe 执行固定的 `assetmaker_runner.vpy` 后再进入所选脚本。主 GUI 进程不直接加载 VapourSynth DLL，避免 Qt/DLL 生命周期冲突；worker 隔离的是渲染运行时，并不是运行不可信 Python 的安全沙箱。
 
 ## 环境要求
 
@@ -119,7 +119,7 @@ neo-assetmaker/
 │   └── widgets/vs_script_panel.py   # `.vpy` 来源选择界面
 ├── resources/vapoursynth/
 │   ├── default_pipeline.vpy          # 内置 compatible 脚本模板
-│   ├── assetmaker_runner.vpy         # worker/VSPipe 的脚本启动器
+│   ├── assetmaker_runner.vpy         # 仅供 VSPipe 导出的固定启动器
 │   └── python/assetmaker_vs/         # 用户脚本 ABI 与输出校验辅助模块
 ├── simulator/                        # Rust/egui 设备模拟器
 ├── _mext/                            # 素材论坛、下载、认证和 USB/MTP 扩展
@@ -127,7 +127,7 @@ neo-assetmaker/
 └── .github/workflows/                # CI、构建与发布工作流
 ```
 
-`config/vs_runtime.json` 仅控制 worker 超时、VS core 资源上限、插件目录和全局脚本位置；滤镜顺序、裁剪、颜色与输出由内置或用户 `.vpy` 明确编写，不能把这两类职责混在一起。
+`config/vs_runtime.json` 仅控制 worker 超时、VS core 资源请求初值、插件目录和全局脚本位置；滤镜顺序、裁剪、颜色与输出由内置或用户 `.vpy` 明确编写，不能把这两类职责混在一起。`num_threads` / `max_cache_size_mb` 的 `0` 表示每个进程首次捕获的 VapourSynth 原生值；非零值在 worker 或 VSPipe 执行每个脚本前恢复，脚本仍可显式覆盖（内置脚本固定把 cache 设为 `16000` MB）。cache 大小不是整个进程 RSS 的硬上限。
 
 ## 测试
 

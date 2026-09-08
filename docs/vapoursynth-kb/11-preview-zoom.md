@@ -1,61 +1,83 @@
-# 11 · 预览缩放：视口放大镜，不是整帧放大
+# 11 · 预览缩放：worker 内的 RGB24 视口
 
-**结论：缩放必须"先 `CropAbs` 出视口能显示的源窗口，再 resize 到视口尺寸"。成本恒定在视口大小，与倍率无关。整帧放大到 100 倍在本捆绑包上实测是 7.37 GB/帧、9.3 秒取一帧——不可用。**
+**结论：缩放是每次 frame request 的显示支路，不写入 RenderJob，也不改变 output
+0/1。worker 先把选定 surface 转为 RGB24；放大时先裁一个源窗口，再用 Point 放到
+fit 尺寸，避免创建随倍率平方增长的巨帧。**
 
-## 旧写法为何无效 🔬
+## 当前入口与参数合同
 
-直觉写法是"把整帧放大 N 倍，再让 UI 去显示其中一块"：
+实现位于
+`resources/vapoursynth/python/assetmaker_vs/display.py::to_display_clip()`，由 worker
+在处理 `request_frame` 时调用。参数必须满足：
+
+```text
+viewport.width/height > 0
+0.01 <= zoom_factor <= 100.0     # UI 为 1% 到 10000%
+0.0 <= pan.x/pan.y <= 1.0
+```
+
+无论请求 `editor` 还是 `final` surface，先执行：
 
 ```python
-# 反面写法：整帧放大
-zoomed = core.resize.Point(clip, width=clip.width * 100, height=clip.height * 100)
+rgb = core.resize.Bicubic(clip, format=vs.RGB24)
+fit = min(viewport_width / rgb.width, viewport_height / rgb.height)
 ```
 
-本机实测（`core/vs_graph.py:153-157` 的注释即此结论的出处）：360×640 的显示帧放大 100 倍 → **38400×64000**，RGB24 单帧 **7.37 GB**，拉第 0 帧耗时 **9.3 秒**。而视口最多只能显示其中约 1000×1800 —— 算出来的像素 99.9% 当场丢弃。
+因此 mmap 始终接收 RGB24→BGR24 的显示帧，而不是把 YUV plane 或 VS frame 暴露给
+Qt。
 
-这不是"慢一点"，是**量级错误**：帧内存随倍率平方增长，而可见区域恒定。`max_cache_size` 默认 4096 MB，单帧就已超出，缓存直接失效。
+## 1%–100%：完整画面缩放
 
-## 新写法为何有效 🔬
-
-`core/vs_graph.py:158` `apply_preview_zoom(clip, *, zoom_factor, viewport, pan, kernel="Point", config=None)`：
+当 `zoom_factor <= 1.0`，实现按 fit 尺寸乘倍率，再用 Bicubic 输出：
 
 ```python
-win_w = ceil(viewport_w / zoom_factor)      # 视口在这个倍率下能覆盖的源窗口
-win_h = ceil(viewport_h / zoom_factor)
-clip = core.std.CropAbs(clip, width=win_w, height=win_h, left=..., top=...)
-return _resizer(core, kernel)(clip, width=viewport_w, height=viewport_h)
+output_width = round(fit_width * zoom_factor)
+output_height = round(fit_height * zoom_factor)
 ```
 
-倍率越高，`win_*` 越小，`CropAbs` 切出的窗口越小 —— **进 resize 的像素量随倍率下降，出来的恒等于视口尺寸**。
+100% 指“完整画面 fit 到 viewport”，不是保证输出像素等于源尺寸，也不是返回原始
+clip 对象。1% 至少保留 1×1。pan 在这一段不参与裁剪。
 
-本机实测（源 360×640，视口 1000×1800）：
+## 100% 以上：先裁 RGB 窗口再 Point
 
+放大时：
+
+```python
+window_width = ceil(rgb.width / zoom_factor)
+window_height = ceil(rgb.height / zoom_factor)
+window = core.std.CropAbs(rgb, width=..., height=..., left=..., top=...)
+display = core.resize.Point(window, width=fit_width, height=fit_height)
 ```
-   1.0x ->   360x640    原样返回:True    取帧 0.78 ms
-   2.0x ->  1000x1800   原样返回:False   取帧 2.58 ms
-  10.0x ->  1000x1800   原样返回:False   取帧 1.60 ms
- 100.0x ->  1000x1800   原样返回:False   取帧 1.53 ms
+
+倍率越高，进入 Point 的源窗口越小；输出始终不超过 fit/viewport。Point 保持像素
+边缘，适合检查 crop 边界。整帧先放大 100 倍再由 Qt 截去绝大多数像素是历史反例，
+不是当前实现，也不应复用历史机器上的毫秒数字作为当前性能结论。
+
+`pan` 是归一化窗口中心，left/top 会夹在有效范围。由于 CropAbs 发生在 RGB24，
+宽高和偏移不做无条件偶数对齐；奇数 RGB 中心与一像素窗口已有真实 R73 子进程
+用例，不能为“将来或许改回 YUV”而人为偏移当前视口。
+
+## 与 crop 和导出的边界
+
+- zoom/pan 只存在于 frame request 的 `display` 字段，不进入冻结 job、bundle hash
+  或 VSPipe 命令。
+- 放大后显示坐标不再与源 crop 坐标一一对应，所以 GUI 在
+  `zoom_factor > 1.0` 时锁定裁剪框绘制、鼠标和键盘编辑。
+- `editor` surface 来自 output 1，`final` surface 来自通过合同的 output 0；两者
+  各自在 worker 内加显示支路。Point 只影响观察结果，不改变编码像素。
+
+## 定向验证
+
+```powershell
+uv run python -m unittest -v tests.test_vs_display tests.test_preview_zoom
 ```
 
-倍率从 2x 涨到 100x，耗时**反而下降**（2.58 → 1.53 ms），因为切出的源窗口更小。对比整帧放大的 9.3 秒，差距约 **6000 倍**。
-
-**返回值契约**（已验证）：`zoom_factor <= 1.0` 时**原样返回同一个 `clip` 对象**（不插入任何节点）；否则返回的 clip 宽高均 ≤ 视口。`pan` 取 `(0,0)`/`(1,1)`/`(0.5,0.5)` 在 100x 下均不越界。
-
-## 三个设计细节及其理由
-
-**核用 `Point`，不用 Bicubic**。10000% 缩放的用途就是**逐像素核对裁剪边界**，`Point`（最近邻）保持像素边缘硬朗，单个源像素放大后仍是可数的方块；平滑核会把要数的像素糊成渐变，直接毁掉这个功能的目的。这与导出链固定用 `Bicubic`（`cfg.resampler_kernel`）**不矛盾**——缩放是纯预览观察工具，不在导出图内。
-
-**偶数对齐 `& ~1`**。`win_w`/`win_h` 与 `left`/`top` 都对齐到偶数。当前显示 clip 是 RGB24（不子采样），严格说不需要；但 `CropAbs` 对子采样格式有偶数约束（见 [03-geometry-filters.md](03-geometry-filters.md)），保持偶数使这段在将来改成在 YUV 上缩放时仍然合法。
-
-**`pan` 是归一化中心**，`(0..1, 0..1)` 源坐标，默认 `(0.5, 0.5)` 居中。`left`/`top` 会被夹到 `[0, clip.width - win_w]`，所以平移到边缘不会越界。
-
-## 与"预览=导出"的关系
-
-缩放**不进导出图**。导出尺寸由 `get_resolution_spec()` 决定（360x640 等设备规格），缩放只作用在 `build_display_graph(...)` / `build_source_graph(...)` 产出的 RGB24 显示 clip **之后**。因此它对 `tests/test_vpy_golden.py` 和 `tests/test_preview_export_parity.py` 零影响 —— 这也是它可以自由选 `Point` 核的前提。
+`test_vs_display` 覆盖 1%、fit、2×、100×、超大 viewport 上限、奇数 RGB 中心和
+一像素窗口；`test_preview_zoom` 覆盖真实 widget 请求、内容、范围与编辑锁定。若真实
+媒体工具缺失，必须报告 skip，而不是只引用纯参数测试。
 
 ## 相关
 
-- `core/vs_graph.py:153-202`（实现 + 实测数字的原始注释）
-- [02-resize-semantics.md](02-resize-semantics.md) — resize 核与参数语义
-- [03-geometry-filters.md](03-geometry-filters.md) — `CropAbs` 的偶数/子采样约束
-- [07-frame-lifetime-threading.md](07-frame-lifetime-threading.md) — 帧取回与缓存行为
+- [03 几何](03-geometry-filters.md) — 正式 source crop 与 RGB 视口的区别
+- [07 帧生命周期](07-frame-lifetime-threading.md) — display frame 的 mmap 所有权
+- [14 worker 协议](14-worker-protocol.md) — request/epoch/slot 身份

@@ -1,81 +1,80 @@
 # 01 · 色彩范围帧属性：`_Range` 与 `_ColorRange`
 
-**结论（最要紧的一句）：两者语义相同，但数值定义互为反转。本捆绑包（api R4.1，`lsmas` 源）只发 `_ColorRange`，值 `1` = limited/tv。**
+**当前结论：R73 下两个键表达同一业务概念，但编码方向相反。项目输出写
+`_ColorRange=1` 表示 limited；兼容读取 `_Range=0` 也表示 limited。不要凭键名
+猜数值，更不要用宽泛 `int()` 把类型变化悄悄吞掉。**
 
-## 官方原文 ✅ 已核实
+## 先分清三层合同
 
-`http://www.vapoursynth.com/doc/apireference.html`（R76 文档）：
+| 层次 | 当前已证实的含义 | 证据 |
+|---|---|---|
+| 项目 R73 输出 | `_ColorRange`: `0=full`、`1=limited` | `default_pipeline.vpy`、真实导出回读 |
+| 项目 R73 兼容输入 | `_Range`: `0=limited`、`1=full` | R73 固定 tag 常量与 `contract.py` |
+| R79 候选 | 静态源码出现 API 4.2 `_Range`、`Range(IntEnum)` 和旧键重映射 | 只作为 U 阶段待验证边界 |
 
-> `_Range` … 0 = full range, 1 = limited range … **Deprecated since API 4.1, use `_ColorRange` instead**
+当前输出合同由
+`resources/vapoursynth/python/assetmaker_vs/contract.py::_range_value()` 严格实现：
 
-> `_ColorRange` … **0 = limited range, 1 = full range**
-
-两个键都存在，含义相同，**数值恰好相反**。这不是笔误——`_Range` 沿用早期约定，`_ColorRange` 与 H.273 `video_full_range_flag` 对齐（1 = full）。
-
-## 本捆绑包实测 🔬
-
-本机 R73 / api **R4.1**。对一个真实导出的 mp4（经 `lsmas` 读回）取第 0 帧属性：
-
+```python
+if "_Range" in props:
+    code = props["_Range"]
+    if type(code) is not int:
+        reject()
+    value = {0: "limited", 1: "full"}[code]
+if "_ColorRange" in props:
+    code = props["_ColorRange"]
+    if type(code) is not int:
+        reject()
+    value = {1: "limited", 0: "full"}[code]
 ```
-_ChromaLocation = 0
+
+若两个键同时存在，必须映射为同一语义，否则合同拒绝输出。这里刻意要求普通
+`int`：K1 冻结的是当前 R73 合同，不提前把 R79 可能返回的枚举当作已兼容。
+
+## R73 固定版本依据与运行时证据
+
+固定 tag 入口：
+
+- `https://github.com/vapoursynth/vapoursynth/blob/R73/include/VSConstants4.h`
+- `https://github.com/vapoursynth/vapoursynth/blob/R73/doc/apireference.rst`
+- `https://github.com/vapoursynth/vapoursynth/blob/R73/doc/pythonreference.rst`
+
+本项目 R73 / API R4.1 对真实导出 MP4 经 `lsmas` 读回，第 0 帧包含：
+
+```text
 _ColorRange = 1
 _Matrix = 6
 _Primaries = 6
 _Transfer = 6
-...
-_Range present?  False
-_ColorRange present? True
+_Range present? False
 ```
 
-复现：见 `10-research-method.md`。
+`default_pipeline.vpy` 先用 `resize.Bicubic(..., range_s="limited")` 完成像素转换，
+再用 `SetFrameProps(..., _ColorRange=1)` 写输出标签；x264 同时使用 `--range tv`。
+设置 frame props 只是写元数据，不会重新计算像素。
 
-另一项实测：`std.SetFrameProps` **不做键映射**。写 `_Range=0` 不会让 `_ColorRange` 变成 `1`，两个键各自独立存在。所以"写一个读另一个"的写法必然读到 `None`。
+R73 的消费探针还证明：同一 YUV420P8 单帧取 `Y=16`，用 `resize.Point` 转
+RGB24 时，`_ColorRange=1` 得到黑 `R=0`，`_ColorRange=0` 得到暗灰 `R=16`。
+这与项目 limited 输出一致。单独写 `_Range` 不会在 R73 中自动生成
+`_ColorRange`；`SetFrameProps` 不替调用者做键迁移。
 
-## 对本项目意味着什么
+## R79 只记录待验证边界
 
-`tests/test_export_color_roundtrip.py` 断言：
+R79 固定 tag 的 C 常量、Cython binding 与 core 映射静态显示：API 4.2 使用
+`_Range`，Python 暴露 `Range(IntEnum)`，并存在旧 `_ColorRange` 键的兼容映射。
+但 K1 尚未运行真实 R79 候选，以下问题必须留给 U 阶段：
 
-```python
-self.assertEqual(props.get("_ColorRange"), 1, "expected limited (tv) range")
-```
+- `props["_Range"]` 的实际 Python 类型，以及严格普通整数合同是否需有界扩展；
+- 新旧键的读、写、枚举别名和双键冲突行为；
+- `lsmas`、`imwri` 与内置 resize 在候选包中实际发出、消费哪个键；
+- 编码后回读是否仍与 `--range tv` 和像素探针一致。
 
-**当前是对的**：`lsmas` 在 api 4.1 下发 `_ColorRange`，limited 编码为 `1`。x264 侧用 `--range tv` 打标，读回一致。
-
-## 语义已用 `resize` 定论 🔬（不要再按"文档可能不符"处理）
-
-只回读 `SetFrameProps` 写进去的值证明不了语义——要看**真正消费 range 的滤镜**怎么解释它。做法：同一份 YUV 数据（`Y=16`，即 limited range 的黑点）只改 range 标记，用 `resize.Point` 转 RGB24 看 R 值。若被当成 limited，16 会被展开成纯黑 `0`；若被当成 full，16 原样留在 `16`（暗灰）。
-
-本机 R73 / api **R4.1** 实测：
-
-```
-Y=16 (limited black) 转 RGB 后的 R 值:
-  _ColorRange =0 -> R= 16      # 按 full 解释
-  _ColorRange =1 -> R=  0      # 按 limited 解释
-  _Range      =0 -> R=  0      # 未被承认，落回默认
-  _Range      =1 -> R=  0      # 未被承认，落回默认
-  (无标记)          -> R=  0      # 默认 limited
-
-对照 resize 参数（无帧属性）:
-  range_in_s=limited -> R=  0
-  range_in_s=full    -> R= 16
-```
-
-**结论:api 4.1 下 `_ColorRange` 是 `0 = full, 1 = limited`,与官方文档一致。`_Range` 在本捆绑包里 `resize` 完全不认**（写得进属性，但对色彩转换无效——落回默认 limited）。
-
-所以 `tests/test_export_color_roundtrip.py:146` 断言 `_ColorRange == 1` **本来就是对的**：`1` = limited，与 x264 的 `--range tv` 完全吻合，四色块往返验证颜色正确也是同一个事实的另一面。**此处不存在"lsmas 与官方文档不一致"的问题**（本条目早前版本曾如此记载，已被上述探针推翻）。
-
-⚠️ **仍然存在的前向兼容陷阱**：升级到 api 4.2+ 后若源滤镜改发 `_Range`，语义**数值互为反转**（`_Range=1` 是 limited，`_ColorRange=1` 也是 limited，此处同号；但 `_Range=0` 是 full 而 `_ColorRange=0` 也是 full——两键在 R73 文档下恰好同向，真正的差异见官方 R76 文档对 `_Range` 的旧约定描述）。**判据只有一条：升级后重跑上面这段探针**，不要凭文档推断。
-
-**防御写法**（只在确实要兼容双键时才引入；现在固定 4.1，多余抽象更容易错）：
-
-```python
-if "_ColorRange" in props:
-    is_limited = props["_ColorRange"] == 1
-elif "_Range" in props:
-    is_limited = props["_Range"] == 1    # 升级后必须先用探针确认方向
-```
+在这些探针完成前，不做全局 `_ColorRange`→`_Range` 重命名，也不以
+`int(value)` 掩盖未知枚举或错误类型。
 
 ## 相关
 
-- [02-resize-semantics.md](02-resize-semantics.md) — `range_in` 参数与帧属性的优先级
-- `config/vsconfig.json` — 色彩契约单一事实源（`matrix_s='170m'` 等，禁改）
+- [02 Resize 语义](02-resize-semantics.md) — 像素转换参数和输出标签的边界
+- [08 版本升级](08-version-upgrade-notes.md) — R73→R79 的验收门
+- [10 研究方法](10-research-method.md) — 固定 tag 与真实媒体探针
+- [15 输出契约](15-output-contract.md) — output 0 的严格 range 校验
