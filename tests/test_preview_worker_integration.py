@@ -12,7 +12,9 @@ from unittest import mock
 import numpy as np
 from PyQt6.QtCore import QObject, QCoreApplication, pyqtSignal
 
+from config.vs_runtime import VSRuntimeConfig
 from core.vs_runtime.job import RationalFPS, load_render_job
+from core.vs_runtime.snapshot import RuntimeSnapshot
 from core.vs_runtime.script_header import parse_script_header
 from core.vs_runtime.session import (
     NodeMetadata,
@@ -126,14 +128,9 @@ class PreviewWorkerContractTests(unittest.TestCase):
             script, header, compute_script_bundle_hash(script)
         )
         self.client = FakeWorkerClient()
-        self.fingerprint = mock.patch.object(
-            vp,
-            "_runtime_fingerprint_for_app",
-            return_value="a" * 64,
-            create=True,
+        self.snapshot = RuntimeSnapshot(
+            str(Path(__file__).resolve().parents[1]), VSRuntimeConfig(), "a" * 64
         )
-        self.fingerprint.start()
-        self.addCleanup(self.fingerprint.stop)
         self.widget = vp.VideoPreviewWidget(
             worker_client_factory=lambda _parent: self.client
         )
@@ -144,6 +141,7 @@ class PreviewWorkerContractTests(unittest.TestCase):
                 track="loop",
                 selection=self.selection,
                 cache_dir=str(self.cache),
+                runtime_snapshot=self.snapshot,
             )
         )
 

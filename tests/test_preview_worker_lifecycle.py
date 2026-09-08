@@ -13,6 +13,8 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 import numpy as np
 from PyQt6.QtCore import QCoreApplication, pyqtSignal
 
+from config.vs_runtime import VSRuntimeConfig
+from core.vs_runtime.snapshot import RuntimeSnapshot
 from core.vs_runtime.script_header import parse_script_header
 from core.vs_runtime.session import (
     NodeMetadata,
@@ -177,13 +179,9 @@ class PreviewWorkerRetirementTests(unittest.TestCase):
             compute_script_bundle_hash(script),
         )
         self.client = _TerminalAwareFakeWorkerClient()
-        self.fingerprint = mock.patch.object(
-            vp,
-            "_runtime_fingerprint_for_app",
-            return_value="a" * 64,
+        self.snapshot = RuntimeSnapshot(
+            str(Path(__file__).resolve().parents[1]), VSRuntimeConfig(), "a" * 64
         )
-        self.fingerprint.start()
-        self.addCleanup(self.fingerprint.stop)
         self.widget = vp.VideoPreviewWidget(
             worker_client_factory=lambda _parent: self.client
         )
@@ -194,6 +192,7 @@ class PreviewWorkerRetirementTests(unittest.TestCase):
                 track="loop",
                 selection=selection,
                 cache_dir=str(self.root / "cache"),
+                runtime_snapshot=self.snapshot,
             )
         )
 

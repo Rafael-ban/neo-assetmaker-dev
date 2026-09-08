@@ -14,13 +14,31 @@ import threading
 import types
 from pathlib import Path
 
+ROOT = Path(__file__).resolve().parents[2]
+# A shared virtual environment can already expose ROOT after a competing
+# project.  File-entry imports must always resolve this helper's own checkout.
+sys.path.insert(0, str(ROOT))
+
 from core.vs_runtime.job import RationalFPS
 
 
-ROOT = Path(__file__).resolve().parents[2]
 HELPER_ROOT = ROOT / "resources" / "vapoursynth" / "python"
 DEFAULT_PIPELINE = ROOT / "resources" / "vapoursynth" / "default_pipeline.vpy"
 RUNNER = ROOT / "resources" / "vapoursynth" / "assetmaker_runner.vpy"
+
+
+def _import_origin_case() -> dict[str, str]:
+    """Expose imports chosen by this file-entry process for a parent test."""
+    from config import vs_runtime
+    from core.vs_runtime import vs_loader
+    from resources.vapoursynth.python.assetmaker_vs import runtime_fingerprint
+
+    return {
+        "root": str(ROOT.resolve()),
+        "config": str(Path(vs_runtime.__file__).resolve()),
+        "loader": str(Path(vs_loader.__file__).resolve()),
+        "portable": str(Path(runtime_fingerprint.__file__).resolve()),
+    }
 
 
 def _emit(payload: dict[str, object], *, exit_code: int = 0) -> None:
@@ -1873,6 +1891,7 @@ CASES = {
     "executor_retirement_unbind_failure": (
         _executor_retirement_unbind_failure_case
     ),
+    "import_origin": _import_origin_case,
     "range_probe": _range_probe_case,
 }
 

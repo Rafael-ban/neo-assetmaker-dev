@@ -11,10 +11,26 @@ import json
 import sys
 from pathlib import Path
 
+ROOT = Path(__file__).resolve().parents[2]
+# A shared virtual environment can already expose ROOT after a competing
+# project.  File-entry imports must always resolve this helper's own checkout.
+sys.path.insert(0, str(ROOT))
+
 import numpy as np
 
 
-ROOT = Path(__file__).resolve().parents[2]
+def _import_origin() -> dict[str, str]:
+    """Expose file-entry imports so the parent can reject foreign roots."""
+    from config import vs_runtime
+    from core.vs_runtime import vs_loader
+    from resources.vapoursynth.python.assetmaker_vs import runtime_fingerprint
+
+    return {
+        "root": str(ROOT.resolve()),
+        "config": str(Path(vs_runtime.__file__).resolve()),
+        "loader": str(Path(vs_loader.__file__).resolve()),
+        "portable": str(Path(runtime_fingerprint.__file__).resolve()),
+    }
 
 
 def _load_vs():
@@ -159,6 +175,8 @@ def _main() -> dict[str, object]:
     case = sys.argv[1]
     if case == "frame_contract":
         return _frame_contract()
+    if case == "import_origin":
+        return _import_origin()
     if case == "real_frame":
         return _real_frame(Path(sys.argv[2]).resolve())
     raise ValueError(f"unknown probe case: {case}")

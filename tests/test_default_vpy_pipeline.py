@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 import unittest
 from pathlib import Path
+from tempfile import TemporaryDirectory
 
 from core.vs_runtime.script_header import parse_script_header
 
@@ -66,6 +68,87 @@ class DefaultPipelineSemanticTests(unittest.TestCase):
 
 
 class DefaultPipelineRealSubprocessTests(unittest.TestCase):
+    def test_contract_file_entry_forces_its_root_ahead_of_discoverable_competitor(self):
+        """A real helper entry must override a foreign project in both path layouts."""
+        with TemporaryDirectory() as temporary:
+            competitor = Path(temporary) / "discoverable-competitor"
+            module_sources = {
+                "config/__init__.py": "",
+                "config/vs_runtime.py": "ORIGIN = 'competitor'\n",
+                "core/__init__.py": "",
+                "core/vs_runtime/__init__.py": "",
+                "core/vs_runtime/job.py": "class RationalFPS: pass\n",
+                "core/vs_runtime/vs_loader.py": "ORIGIN = 'competitor'\n",
+                # Keep the resource parents as namespace packages, like ROOT.
+                # A foreign regular parent masks ROOT despite path precedence.
+                "resources/vapoursynth/python/assetmaker_vs/__init__.py": "",
+                "resources/vapoursynth/python/assetmaker_vs/runtime_fingerprint.py": (
+                    "ORIGIN = 'competitor'\n"
+                ),
+            }
+            for relative, source in module_sources.items():
+                target = competitor / relative
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_text(source, encoding="utf-8")
+
+            preanchor = subprocess.run(
+                [
+                    sys.executable,
+                    "-B",
+                    "-c",
+                    (
+                        "from config import vs_runtime; "
+                        "from core.vs_runtime import vs_loader; "
+                        "from resources.vapoursynth.python.assetmaker_vs "
+                        "import runtime_fingerprint; "
+                        "assert (vs_runtime.ORIGIN, vs_loader.ORIGIN, "
+                        "runtime_fingerprint.ORIGIN) == ('competitor',) * 3"
+                    ),
+                ],
+                cwd=competitor,
+                env=dict(os.environ, PYTHONDONTWRITEBYTECODE="1"),
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=90,
+                check=False,
+            )
+            self.assertEqual(
+                preanchor.returncode, 0, preanchor.stderr or preanchor.stdout
+            )
+
+            for name, pythonpath in (
+                ("root_absent", (str(competitor),)),
+                ("root_after_foreign", (str(competitor), str(ROOT))),
+            ):
+                result = subprocess.run(
+                    [sys.executable, str(CHILD), "import_origin"],
+                    cwd=competitor,
+                    env=dict(
+                        os.environ,
+                        PYTHONPATH=os.pathsep.join(pythonpath),
+                        PYTHONDONTWRITEBYTECODE="1",
+                    ),
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                    timeout=90,
+                    check=False,
+                )
+                self.assertEqual(
+                    result.returncode,
+                    0,
+                    f"{name}: {result.stderr or result.stdout}",
+                )
+                origins = json.loads(result.stdout)
+                for key in ("config", "loader", "portable"):
+                    self.assertTrue(
+                        Path(origins[key]).is_relative_to(ROOT),
+                        f"{name}: {key} came from a foreign root: {origins[key]}",
+                    )
+
     def test_image_loops_full_editor_timeline_before_nonzero_trim(self):
         result = _run_child("default_image")
 

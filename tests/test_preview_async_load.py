@@ -18,7 +18,9 @@ except ImportError:
 from tests.qt_harness import ensure_app
 from PyQt6.QtCore import QCoreApplication
 
+from config.vs_runtime import VSRuntimeConfig
 from core.media_tools import MediaToolchain
+from core.vs_runtime.snapshot import RuntimeSnapshot
 from core.vs_runtime.script_header import parse_script_header
 from core.vs_runtime.session import (
     ScriptSelection,
@@ -57,11 +59,7 @@ class AsyncLoadTests(unittest.TestCase):
         selection = ScriptSelection.from_header(
             script, header, compute_script_bundle_hash(script)
         )
-        self.patch = mock.patch.object(
-            vp, "_runtime_fingerprint_for_app", return_value="b" * 64
-        )
-        self.patch.start()
-        self.addCleanup(self.patch.stop)
+        self.snapshot = RuntimeSnapshot(str(REPO), VSRuntimeConfig(), "b" * 64)
         self.w = vp.VideoPreviewWidget(
             worker_client_factory=lambda _parent: self.client
         )
@@ -72,6 +70,7 @@ class AsyncLoadTests(unittest.TestCase):
                 track="loop",
                 selection=selection,
                 cache_dir=os.path.join(self.tmp, "cache"),
+                runtime_snapshot=self.snapshot,
             )
         )
 
@@ -99,6 +98,9 @@ class AsyncLoadTests(unittest.TestCase):
         loaded = {}
         self.w.video_loaded.connect(lambda n, fps: loaded.update(n=n, fps=fps))
         self.assertTrue(self.w.load_video(self.file_a))
+        self.assertEqual(
+            self.client.loads[-1].runtime_fingerprint, self.snapshot.fingerprint
+        )
         # Async acceptance is a causal contract, not a benchmark tied to one
         # runner's filesystem/antivirus latency.  FakeWorkerClient.load() only
         # records the request and deliberately emits no metadata here: if
