@@ -52,6 +52,10 @@ def _widget(src, target):
     w.video_width, w.video_height = src
     w.set_target_resolution(*target)
     w._init_cropbox()
+    # F2 命中以 QLabel 逻辑像素而非源像素计算。让标签与旋转后素材同大，
+    # 下面的真实 QMouseEvent 坐标才恰好等于源坐标（scale=1, offset=0）。
+    rotated_w, rotated_h = w._get_rotated_video_size()
+    w.video_label.setFixedSize(rotated_w, rotated_h)
     return w
 
 
@@ -90,8 +94,7 @@ class DragTests(unittest.TestCase):
     """Every resize handle, dragged well past the frame edge, stays locked."""
 
     def _drag(self, w, mode, dx, dy):
-        # feed rotated-space deltas directly (bypass display mapping)
-        w._display_to_rotated_coords = lambda widget, pos: (pos.x(), pos.y())
+        # 标签尺寸已与旋转后素材一致，因此下面走实际控件坐标映射而非替换它。
         x, y, width, height = w.cropbox
         points = {
             w.DRAG_MOVE: QPoint(x + width // 2, y + height // 2),

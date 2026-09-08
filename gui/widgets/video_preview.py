@@ -22,7 +22,7 @@ try:
 except ImportError:
     HAS_CV2 = False
 
-from PyQt6.QtCore import QEvent, QPoint, QSize, QTimer, Qt, pyqtSignal
+from PyQt6.QtCore import QEvent, QPoint, QRectF, QSize, QTimer, Qt, pyqtSignal
 from PyQt6.QtGui import (
     QImage,
     QKeyEvent,
@@ -1324,31 +1324,35 @@ class VideoPreviewWidget(QWidget):
         self.display_offset_y = (area.height() - shown_h) // 2
 
     def _paint_cropbox(self, widget: QWidget):
-        if (
-            self._preview_mode
-            or not self.supports_editor_capability("crop")
-            or self.video_width <= 0
-            or self.video_height <= 0
-        ):
+        if not self._crop_interaction_enabled():
             return
         # Zoomed frames are a magnified VIEWPORT WINDOW of the source, not the
         # whole (scaled) source, so display_scale/offset no longer map source
-        # coordinates onto the label — the rectangle would be drawn in the wrong
-        # place. Zoom is an inspection mode; the box is hidden and locked.
-        if self._zoom_factor > 1.0:
-            return
-        rotated_w, rotated_h = self._get_rotated_video_size()
-        self._update_display_geometry(widget, rotated_w, rotated_h)
-        x, y, w, h = self._display_cropbox()
+        # coordinates onto the label. `_crop_interaction_enabled` therefore
+        # keeps the box hidden and locked while zoomed, just like mouse/keyboard.
+        left, top, right, bottom = self._cropbox_control_rect(widget)
         painter = QPainter(widget)
         pen = QPen(Qt.GlobalColor.cyan, 2)
         painter.setPen(pen)
-        painter.drawRect(
-            int(self.display_offset_x + x * self.display_scale),
-            int(self.display_offset_y + y * self.display_scale),
-            int(w * self.display_scale),
-            int(h * self.display_scale),
-        )
+        painter.drawRect(QRectF(left, top, right - left, bottom - top))
+        # 手柄与鼠标命中都使用 QLabel 的逻辑像素；若按源像素缩放，25%
+        # 显示下 15px 手柄会退化成不足 4px，HiDPI 下也会与绘制不同步。
+        half = self.handle_size / 2.0
+        painter.setBrush(Qt.GlobalColor.cyan)
+        for corner_x, corner_y in (
+            (left, top),
+            (right, top),
+            (left, bottom),
+            (right, bottom),
+        ):
+            painter.drawRect(
+                QRectF(
+                    corner_x - half,
+                    corner_y - half,
+                    self.handle_size,
+                    self.handle_size,
+                )
+            )
 
     def _on_timer_tick(self):
         if not self.is_playing:
@@ -1705,32 +1709,57 @@ class VideoPreviewWidget(QWidget):
         y = int((pos.y() - self.display_offset_y) / max(self.display_scale, 1e-6))
         return max(0, x), max(0, y)
 
-    def _get_drag_mode(self, vx: int, vy: int) -> int:
-        x, y, w, h = self._display_cropbox()
-        hs = self.handle_size
-        if abs(vx - x) < hs and abs(vy - y) < hs:
+    def _crop_interaction_enabled(self) -> bool:
+        """裁剪框绘制、鼠标和键盘共用同一编辑门控。"""
+        return (
+            not self._preview_mode
+            and self.supports_editor_capability("crop")
+            and self._zoom_factor <= 1.0
+            and self.video_width > 0
+            and self.video_height > 0
+        )
+
+    def _cropbox_control_rect(
+        self, widget: QWidget
+    ) -> tuple[float, float, float, float]:
+        """返回当前草稿框在控件逻辑坐标中的四条边。"""
+        rotated_w, rotated_h = self._get_rotated_video_size()
+        self._update_display_geometry(widget, rotated_w, rotated_h)
+        x, y, width, height = self._display_cropbox()
+        left = self.display_offset_x + x * self.display_scale
+        top = self.display_offset_y + y * self.display_scale
+        return (
+            left,
+            top,
+            left + width * self.display_scale,
+            top + height * self.display_scale,
+        )
+
+    def _get_drag_mode(self, widget: QWidget, pos: QPoint) -> int:
+        """只以控件逻辑像素判断手柄，保持与绘制半径完全一致。"""
+        left, top, right, bottom = self._cropbox_control_rect(widget)
+        half = self.handle_size / 2.0
+        if abs(pos.x() - left) <= half and abs(pos.y() - top) <= half:
             return self.DRAG_RESIZE_TL
-        if abs(vx - (x + w)) < hs and abs(vy - y) < hs:
+        if abs(pos.x() - right) <= half and abs(pos.y() - top) <= half:
             return self.DRAG_RESIZE_TR
-        if abs(vx - x) < hs and abs(vy - (y + h)) < hs:
+        if abs(pos.x() - left) <= half and abs(pos.y() - bottom) <= half:
             return self.DRAG_RESIZE_BL
-        if abs(vx - (x + w)) < hs and abs(vy - (y + h)) < hs:
+        if abs(pos.x() - right) <= half and abs(pos.y() - bottom) <= half:
             return self.DRAG_RESIZE_BR
-        if x <= vx <= x + w and y <= vy <= y + h:
+        if left <= pos.x() <= right and top <= pos.y() <= bottom:
             return self.DRAG_MOVE
         return self.DRAG_NONE
 
     def _handle_mouse_press(self, widget: QWidget, event: QMouseEvent):
-        if (event.button() != Qt.MouseButton.LeftButton or self._preview_mode
-                or not self.supports_editor_capability("crop")
-                or self._zoom_factor > 1.0):
+        if (event.button() != Qt.MouseButton.LeftButton
+                or not self._crop_interaction_enabled()):
             # 预览模式下画面是导出结果(已裁剪/缩放/补边),裁剪框不绘制,
             # 此时的拖拽会按导出几何去改框——无反馈且坐标系不对。
             # 放大后画面是源的一个视口窗口,display_scale 不再对应源坐标,
             # 同理拖拽会错位——放大是查看模式,裁剪框锁定(见 _paint_cropbox)。
             return
-        vx, vy = self._display_to_rotated_coords(widget, event.pos())
-        self.drag_mode = self._get_drag_mode(vx, vy)
+        self.drag_mode = self._get_drag_mode(widget, event.pos())
         if self.drag_mode != self.DRAG_NONE:
             if not self.begin_crop_edit():
                 self._reset_crop_drag_state()
@@ -1740,12 +1769,11 @@ class VideoPreviewWidget(QWidget):
             self.setFocus()
 
     def _handle_mouse_move(self, widget: QWidget, event: QMouseEvent):
-        if self._preview_mode or not self.supports_editor_capability("crop"):
+        if not self._crop_interaction_enabled():
             widget.setCursor(Qt.CursorShape.ArrowCursor)
             return
         if self.drag_mode == self.DRAG_NONE or self.drag_start_pos is None:
-            vx, vy = self._display_to_rotated_coords(widget, event.pos())
-            mode = self._get_drag_mode(vx, vy)
+            mode = self._get_drag_mode(widget, event.pos())
             cursors = {
                 self.DRAG_RESIZE_TL: Qt.CursorShape.SizeFDiagCursor,
                 self.DRAG_RESIZE_BR: Qt.CursorShape.SizeFDiagCursor,
@@ -1756,32 +1784,72 @@ class VideoPreviewWidget(QWidget):
             widget.setCursor(cursors.get(mode, Qt.CursorShape.ArrowCursor))
             return
 
-        crx, cry = self._display_to_rotated_coords(widget, event.pos())
-        srx, sry = self._display_to_rotated_coords(widget, self.drag_start_pos)
-        dx, dy = crx - srx, cry - sry
         sx, sy, sw, sh = self.drag_start_cropbox
         if self.drag_mode == self.DRAG_MOVE:
+            # 保留既有移动语义：移动框本身仍使用受画面边界截断的坐标。
+            crx, cry = self._display_to_rotated_coords(widget, event.pos())
+            srx, sry = self._display_to_rotated_coords(widget, self.drag_start_pos)
+            dx, dy = crx - srx, cry - sry
             cropbox = [sx + dx, sy + dy, sw, sh]
-        elif self.drag_mode == self.DRAG_RESIZE_BR:
-            new_w = max(1, sw + dx)
-            cropbox = [sx, sy, new_w, int(new_w / self.target_aspect_ratio)]
-        elif self.drag_mode == self.DRAG_RESIZE_TL:
-            new_w = max(1, sw - dx)
-            new_h = int(new_w / self.target_aspect_ratio)
-            cropbox = [sx + sw - new_w, sy + sh - new_h, new_w, new_h]
-        elif self.drag_mode == self.DRAG_RESIZE_TR:
-            new_w = max(1, sw + dx)
-            new_h = int(new_w / self.target_aspect_ratio)
-            cropbox = [sx, sy + sh - new_h, new_w, new_h]
-        elif self.drag_mode == self.DRAG_RESIZE_BL:
-            new_w = max(1, sw - dx)
-            new_h = int(new_w / self.target_aspect_ratio)
-            cropbox = [sx + sw - new_w, sy, new_w, new_h]
+        elif self.drag_mode in (
+            self.DRAG_RESIZE_TL,
+            self.DRAG_RESIZE_TR,
+            self.DRAG_RESIZE_BL,
+            self.DRAG_RESIZE_BR,
+        ):
+            # 缩放的二维投影必须看见完整鼠标位移；不能复用会把负源坐标
+            # 截成 0 的 _display_to_rotated_coords，否则越过左/上边界时会
+            # 提前饱和，并把本应为零的投影变成缩放。
+            rotated_w, rotated_h = self._get_rotated_video_size()
+            self._update_display_geometry(widget, rotated_w, rotated_h)
+            scale = max(self.display_scale, 1e-6)
+            dx = (event.pos().x() - self.drag_start_pos.x()) / scale
+            dy = (event.pos().y() - self.drag_start_pos.y()) / scale
+            cropbox = self._resize_cropbox_from_drag(dx, dy)
         else:
             return
         if self._crop_edit_start is None:
             return
         self._set_draft_cropbox(cropbox)
+
+    def _resize_cropbox_from_drag(self, dx: float, dy: float) -> list[int]:
+        """按固定比例投影鼠标位移，并固定拖拽角的对角锚点。"""
+        sx, sy, sw, sh = self.drag_start_cropbox
+        directions = {
+            self.DRAG_RESIZE_TL: (-1, -1, sx + sw, sy + sh),
+            self.DRAG_RESIZE_TR: (1, -1, sx, sy + sh),
+            self.DRAG_RESIZE_BL: (-1, 1, sx + sw, sy),
+            self.DRAG_RESIZE_BR: (1, 1, sx, sy),
+        }
+        direction_x, direction_y, anchor_x, anchor_y = directions[self.drag_mode]
+        outward_x = dx * direction_x
+        outward_y = dy * direction_y
+        ratio = self.target_aspect_ratio
+        height_delta = (
+            ratio * outward_x + outward_y
+        ) / (ratio * ratio + 1.0)
+
+        rotated_w, rotated_h = self._get_rotated_video_size()
+        available_w = anchor_x if direction_x < 0 else rotated_w - anchor_x
+        available_h = anchor_y if direction_y < 0 else rotated_h - anchor_y
+        max_height = min(float(available_h), float(available_w) / ratio)
+
+        # 与 _fit_cropbox_to_ratio 的最小表示精度一致：360:640 时为约 36x64。
+        min_width = max(2.0, _MIN_CROP_SIDE * ratio)
+        min_width = min(min_width, float(available_w), max_height * ratio)
+        min_height = min(max_height, min_width / ratio)
+        wanted_height = min(max_height, max(min_height, sh + height_delta))
+
+        new_width = max(2, int(round(wanted_height * ratio)))
+        new_height = max(2, int(round(new_width / ratio)))
+        # 整数化可能将候选推过边界；只共同缩小尺寸，绝不能移动锚点补偿。
+        while new_width > available_w or new_height > available_h:
+            new_width -= 1
+            new_height = max(2, int(round(new_width / ratio)))
+
+        new_x = anchor_x - new_width if direction_x < 0 else anchor_x
+        new_y = anchor_y - new_height if direction_y < 0 else anchor_y
+        return [new_x, new_y, new_width, new_height]
 
     def _handle_mouse_release(self, event: QMouseEvent):
         if event.button() == Qt.MouseButton.LeftButton:
@@ -1811,23 +1879,19 @@ class VideoPreviewWidget(QWidget):
         elif key == Qt.Key.Key_Right and not has_modifier and self._has_video:
             self.next_frame()
         elif (key == Qt.Key.Key_W and not has_modifier
-              and self.supports_editor_capability("crop")
-              and not self._preview_mode and self._zoom_factor <= 1.0):
+              and self._crop_interaction_enabled()):
             self.cropbox[1] -= 10
             crop_changed = True
         elif (key == Qt.Key.Key_S and not has_modifier
-              and self.supports_editor_capability("crop")
-              and not self._preview_mode and self._zoom_factor <= 1.0):
+              and self._crop_interaction_enabled()):
             self.cropbox[1] += 10
             crop_changed = True
         elif (key == Qt.Key.Key_A and not has_modifier
-              and self.supports_editor_capability("crop")
-              and not self._preview_mode and self._zoom_factor <= 1.0):
+              and self._crop_interaction_enabled()):
             self.cropbox[0] -= 10
             crop_changed = True
         elif (key == Qt.Key.Key_D and not has_modifier
-              and self.supports_editor_capability("crop")
-              and not self._preview_mode and self._zoom_factor <= 1.0):
+              and self._crop_interaction_enabled()):
             self.cropbox[0] += 10
             crop_changed = True
         elif key == Qt.Key.Key_Equal and event.modifiers() == Qt.KeyboardModifier.ControlModifier:

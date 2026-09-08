@@ -187,8 +187,10 @@ class CropTransactionTests(unittest.TestCase):
         QTest.qWait(20)
         after = _cyan_bounds(self.widget.video_label.grab().toImage())
 
-        self.assertEqual(before, (239, 420))
-        self.assertEqual(after, (299, 480))
+        # F2 的四角实心手柄各向外延伸 7.5 个 QLabel 逻辑像素；这里仍
+        # 断言草稿框随拖动平移，但不能再把手柄当成不存在的旧矩形边线。
+        self.assertEqual(before, (232, 428))
+        self.assertEqual(after, (292, 488))
         self.assertEqual(self.widget.cropbox, [480, 180, 360, 640])
         self.assertEqual(self.widget.get_draft_cropbox(), (600, 180, 360, 640))
         self.assertEqual(formal, [])
