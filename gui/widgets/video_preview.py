@@ -7,7 +7,7 @@ import os
 import shutil
 import tempfile
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from fractions import Fraction
 from functools import lru_cache
 from pathlib import Path
@@ -42,7 +42,6 @@ from PyQt6.QtWidgets import (
 )
 from qfluentwidgets import CaptionLabel, PushButton, Slider, setCustomStyleSheet
 
-from config.vs_runtime import load_vs_runtime
 from core.vs_runtime.job import (
     CropSpec,
     OutputSpec,
@@ -62,7 +61,7 @@ from core.vs_runtime.session import (
     compute_job_sha256,
     compute_script_bundle_hash,
 )
-from core.vs_runtime.vs_loader import compute_runtime_fingerprint
+from core.vs_runtime.snapshot import RuntimeSnapshot
 from gui.workers.vs_worker_client import VSWorkerClient
 from utils.file_utils import get_app_dir
 
@@ -90,10 +89,15 @@ class PreviewRenderContext:
     selection: ScriptSelection
     cache_dir: str
     header: ScriptHeader | None = None
+    runtime_snapshot: RuntimeSnapshot | None = None
 
     def __post_init__(self) -> None:
         if self.track not in ("loop", "intro"):
             raise ValueError("track 必须是 loop/intro")
+        if self.runtime_snapshot is not None and not isinstance(
+            self.runtime_snapshot, RuntimeSnapshot
+        ):
+            raise TypeError("runtime_snapshot 必须是 RuntimeSnapshot")
         if not isinstance(self.selection, ScriptSelection):
             raise TypeError("selection 必须是 ScriptSelection")
         for name in ("project_root", "cache_dir"):
@@ -134,13 +138,6 @@ class _RequestOwner:
     kind: Literal["load", "frame", "capture"]
     surface: str | None = None
     index: int | None = None
-
-
-@lru_cache(maxsize=4)
-def _runtime_fingerprint_for_app(app_dir: str) -> str:
-    """只哈希 runtime 文件；不得在 Qt 进程导入 VapourSynth。"""
-
-    return compute_runtime_fingerprint(app_dir, load_vs_runtime())
 
 
 @lru_cache(maxsize=4)
@@ -221,6 +218,8 @@ class VideoPreviewWidget(QWidget):
             lambda parent: VSWorkerClient(parent)
         )
         self._worker_client: VSWorkerClient | None = None
+        self._worker_runtime_snapshot: RuntimeSnapshot | None = None
+        self._default_runtime_snapshot: RuntimeSnapshot | None = None
         self._worker_started = False
         self._worker_ready_for_frames = False
         self._restart_pending = False
@@ -390,16 +389,74 @@ class VideoPreviewWidget(QWidget):
     def set_render_context(self, context: PreviewRenderContext | None) -> None:
         if context is not None and not isinstance(context, PreviewRenderContext):
             raise TypeError("context 必须是 PreviewRenderContext 或 None")
+        if context is not None and context.runtime_snapshot is None:
+            context = replace(
+                context,
+                runtime_snapshot=RuntimeSnapshot.resolve(
+                    Path(get_app_dir()).resolve()
+                ),
+            )
+        next_snapshot = None if context is None else context.runtime_snapshot
+        if self._worker_client is not None and (
+            next_snapshot is None or next_snapshot != self._worker_runtime_snapshot
+        ):
+            self._retire_worker_for_runtime_reload()
+        if context is None:
+            self._default_runtime_snapshot = None
         self._render_context = context
         if context is not None:
             self._execution_blocked_reason = ""
+
+    def _retire_worker_for_runtime_reload(self) -> None:
+        """显式运行配置重载必须切断旧 transport 的全部回调。"""
+        self._job_debounce.stop()
+        self._resolve_all_pending_captures()
+        self._dismiss_timeout_dialogs()
+        self._request_epochs.clear()
+        self._latest_display_request_id = None
+        self._worker_ready_for_frames = False
+        self._restart_pending = False
+        old_session = self._render_session
+        self._render_session = None
+        client = self._worker_client
+        self._worker_client = None
+        self._worker_runtime_snapshot = None
+        self._worker_started = False
+        if client is not None:
+            self._disconnect_worker_client(client)
+            client.close()
+        if old_session is not None:
+            self._retire_job_paths({Path(old_session.job_path)})
+
+    def _disconnect_worker_client(self, client: VSWorkerClient) -> None:
+        """旧 client 在 close 后仍可能有 queued Qt 信号，必须不再指向本 widget。"""
+        handlers = (
+            ("ready", self._on_worker_ready),
+            ("metadata_ready", self._on_worker_metadata),
+            ("frame_ready", self._on_worker_frame),
+            ("frame_discarded", self._on_worker_frame_discarded),
+            ("frame_submitted", self._on_worker_frame_submitted),
+            ("request_failed", self._on_worker_request_failed),
+            ("request_timed_out", self._on_worker_timeout),
+            ("operation_completed", self._on_worker_operation_completed),
+            ("worker_crashed", self._on_worker_crashed),
+            ("worker_stopped", self._on_worker_stopped),
+            ("log_received", self._on_worker_log),
+        )
+        for name, handler in handlers:
+            signal = getattr(client, name, None)
+            if signal is not None:
+                try:
+                    signal.disconnect(handler)
+                except (RuntimeError, TypeError):
+                    pass
 
     def set_execution_blocked(self, reason: str) -> None:
         """在 trust 或脚本解析失败时阻止任何新的 worker load。"""
         if not isinstance(reason, str) or not reason:
             raise ValueError("执行阻断原因不能为空")
         self._execution_blocked_reason = reason
-        self._render_context = None
+        self.set_render_context(None)
         self._teardown_media()
         self.video_label.setText(reason)
 
@@ -426,17 +483,26 @@ class VideoPreviewWidget(QWidget):
                 tempfile.mkdtemp(prefix="assetmaker-vs-preview-")
             ).resolve()
         app_dir = str(Path(get_app_dir()).resolve())
+        if self._default_runtime_snapshot is None:
+            self._default_runtime_snapshot = RuntimeSnapshot.resolve(app_dir)
         return PreviewRenderContext(
             project_root=str(root),
             track="loop",
             selection=_default_selection_for_app(app_dir),
             cache_dir=str(self._owned_cache_dir),
+            runtime_snapshot=self._default_runtime_snapshot,
         )
 
     def _ensure_worker(self) -> VSWorkerClient:
         if self._worker_client is None:
             client = self._worker_client_factory(self)
+            snapshot = self._effective_context().runtime_snapshot
+            assert snapshot is not None
+            configure_runtime = getattr(client, "configure_runtime", None)
+            if configure_runtime is not None:
+                configure_runtime(snapshot)
             self._worker_client = client
+            self._worker_runtime_snapshot = snapshot
             client.ready.connect(self._on_worker_ready)
             client.metadata_ready.connect(self._on_worker_metadata)
             client.frame_ready.connect(self._on_worker_frame)
@@ -537,9 +603,7 @@ class VideoPreviewWidget(QWidget):
             selection=context.selection,
             job_path=str(job_path),
             job_sha256=compute_job_sha256(job_path),
-            runtime_fingerprint=_runtime_fingerprint_for_app(
-                str(Path(get_app_dir()).resolve())
-            ),
+            runtime_fingerprint=context.runtime_snapshot.fingerprint,
         )
         self._selection = context.selection
         self._render_session = session

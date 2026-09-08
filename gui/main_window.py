@@ -28,6 +28,7 @@ from config.vs_runtime import (
     save_vs_runtime_override,
 )
 from core.vs_runtime.script_header import parse_script_header
+from core.vs_runtime.snapshot import RuntimeSnapshot
 from core.vs_runtime.session import (
     ScriptSelection,
     compute_script_bundle_hash,
@@ -3187,7 +3188,8 @@ class MainWindow(QMainWindow):
         cache_root = os.path.join(project_root, ".assetmaker-vs", "preview")
         reference = self._script_reference()
         try:
-            runtime = load_vs_runtime()
+            snapshot = RuntimeSnapshot.resolve(self._app_dir)
+            runtime = snapshot.runtime
             script = resolve_script_reference(
                 reference,
                 project_root=project_root,
@@ -3232,6 +3234,7 @@ class MainWindow(QMainWindow):
                 selection=selection,
                 cache_dir=os.path.join(cache_root, "loop"),
                 header=header,
+                runtime_snapshot=snapshot,
             )
         )
         self.intro_preview.set_render_context(
@@ -3241,6 +3244,7 @@ class MainWindow(QMainWindow):
                 selection=selection,
                 cache_dir=os.path.join(cache_root, "intro"),
                 header=header,
+                runtime_snapshot=snapshot,
             )
         )
         self.vs_script_panel.set_script_info(

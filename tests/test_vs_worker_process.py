@@ -16,6 +16,7 @@ from types import SimpleNamespace
 from unittest import mock
 
 from config.vs_runtime import (
+    CoreConfig,
     PluginConfig,
     VSRuntimeConfig,
     WorkerConfig,
@@ -3190,6 +3191,273 @@ class RealVSWorkerLifecycleTests(unittest.TestCase):
         self.assertEqual(raised.exception.response["type"], "request_error")
         self.assertFalse(marker.exists())
         self.assertTrue(self.client.transport.alive)
+
+    def test_runtime_snapshot_a_survives_restart_then_explicit_b_reload(self):
+        """真实 child 仅在显式重载边界切换 A/B runtime。"""
+        from core.vs_runtime.snapshot import RuntimeSnapshot
+
+        runtime_a = VSRuntimeConfig(core=CoreConfig(num_threads=1))
+        runtime_b = VSRuntimeConfig(core=CoreConfig(num_threads=2))
+        snapshot_a = RuntimeSnapshot(
+            str(ROOT), runtime_a, compute_runtime_fingerprint(ROOT, runtime_a)
+        )
+        snapshot_b = RuntimeSnapshot(
+            str(ROOT), runtime_b, compute_runtime_fingerprint(ROOT, runtime_b)
+        )
+        script_a = self._write_script(
+            "快照A",
+            _valid_script(
+                compatible=False,
+                extra="assert core.num_threads == 1, core.num_threads\n",
+            ),
+        )
+        crash = self._write_script(
+            "快照A异常",
+            "# assetmaker-api: 1\n# assetmaker-mode: raw\n"
+            "# assetmaker-capabilities: source\n# assetmaker-requires:\n"
+            "# assetmaker-editor-output: 0\n\nimport os\nos._exit(23)\n",
+        )
+        script_b = self._write_script(
+            "快照B",
+            _valid_script(
+                compatible=False,
+                extra="assert core.num_threads == 2, core.num_threads\n",
+            ),
+        )
+        environment_a = snapshot_a.worker_environment(
+            {**os.environ, "APPDATA": str(self.appdata)}
+        )
+        client_a = SyncVSWorkerProcess(app_dir=ROOT, env=environment_a)
+        self.addCleanup(client_a.close)
+        client_a.start(timeout_ms=15_000)
+        client_a.load(_session(script_a, self.job, runtime=runtime_a), timeout_ms=20_000)
+        with self.assertRaises(WorkerCrashedError):
+            client_a.load(
+                _session(crash, self.job, runtime=runtime_a),
+                timeout_ms=15_000,
+            )
+        client_a.terminate_and_restart(timeout_ms=15_000)
+        metadata_a = client_a.load(
+            _session(script_a, self.job, runtime=runtime_a),
+            timeout_ms=20_000,
+        )
+        self.assertEqual(metadata_a.epoch, 3)
+        self.assertEqual(client_a.transport.env["ASSETMAKER_VS_RUNTIME_FINGERPRINT"], snapshot_a.fingerprint)
+        client_a.close()
+
+        client_b = SyncVSWorkerProcess(
+            app_dir=ROOT,
+            env=snapshot_b.worker_environment({**os.environ, "APPDATA": str(self.appdata)}),
+        )
+        self.addCleanup(client_b.close)
+        client_b.start(timeout_ms=15_000)
+        metadata_b = client_b.load(
+            _session(script_b, self.job, runtime=runtime_b), timeout_ms=20_000
+        )
+        self.assertEqual(metadata_b.epoch, 3)
+        self.assertEqual(client_b.transport.env["ASSETMAKER_VS_RUNTIME_FINGERPRINT"], snapshot_b.fingerprint)
+
+    def test_runtime_snapshot_tampered_asset_is_rejected_before_hello(self):
+        """child 自行复核快照后的受指纹资产，不能只信父进程 JSON。"""
+        from core.vs_runtime.snapshot import RuntimeSnapshot
+
+        with tempfile.TemporaryDirectory() as temporary:
+            module_dir = Path(temporary) / "runtime-module"
+            module_dir.mkdir()
+            module = module_dir / "guarded.py"
+            module.write_text("VALUE = 'A'\n", encoding="utf-8")
+            runtime = VSRuntimeConfig(
+                plugins=PluginConfig(python_module_dirs=(str(module_dir),))
+            )
+            snapshot = RuntimeSnapshot(
+                str(ROOT), runtime, compute_runtime_fingerprint(ROOT, runtime)
+            )
+            module.write_text("VALUE = 'B'\n", encoding="utf-8")
+            client = SyncVSWorkerProcess(
+                app_dir=ROOT,
+                env=snapshot.worker_environment({**os.environ, "APPDATA": str(self.appdata)}),
+            )
+            self.addCleanup(client.close)
+            with self.assertRaises(WorkerCrashedError) as raised:
+                client.start(timeout_ms=15_000)
+
+        self.assertIn("runtime", str(raised.exception))
+
+    def test_disk_runtime_reload_keeps_a_on_restart_then_switches_widget_to_b(self):
+        """磁盘 A→B 必须在 widget/client/session/真实 child 同步生效。"""
+        from config.vs_runtime import default_vs_runtime_user_path
+        from core.vs_runtime.snapshot import RuntimeSnapshot
+        from gui.widgets.video_preview import PreviewRenderContext, VideoPreviewWidget
+        from tests.qt_harness import ensure_app
+
+        ensure_app()
+        appdata_patch = mock.patch.dict(
+            os.environ, {"APPDATA": str(self.appdata)}
+        )
+        appdata_patch.start()
+        self.addCleanup(appdata_patch.stop)
+        override = default_vs_runtime_user_path()
+        self.assertEqual(
+            override,
+            self.appdata
+            / "ArknightsPassMaker"
+            / "vapoursynth"
+            / "vs_runtime.user.json",
+        )
+        override.parent.mkdir(parents=True)
+
+        def write_runtime(*, threads: int, cache: int, frame_timeout: int) -> None:
+            override.write_text(
+                json.dumps(
+                    {
+                        "core": {
+                            "num_threads": threads,
+                            "max_cache_size_mb": cache,
+                        },
+                        "worker": {
+                            "startup_timeout_ms": 15_000,
+                            "frame_timeout_ms": frame_timeout,
+                            "shutdown_timeout_ms": 3_000,
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+        def selection_for(script: Path) -> ScriptSelection:
+            header = parse_script_header(script)
+            return ScriptSelection.from_header(
+                script, header, compute_script_bundle_hash(script)
+            )
+
+        def wait_for(predicate, message: str) -> None:
+            from PyQt6.QtCore import QCoreApplication
+
+            deadline = time.monotonic() + 20
+            while time.monotonic() < deadline:
+                QCoreApplication.processEvents()
+                if predicate():
+                    return
+                time.sleep(0.01)
+            self.fail(message)
+
+        write_runtime(threads=1, cache=101, frame_timeout=10_001)
+        snapshot_a = RuntimeSnapshot.resolve(ROOT)
+        script_a = self._write_script(
+            "磁盘快照A",
+            _valid_script(
+                compatible=False,
+                extra=(
+                    "assert core.num_threads == 1, core.num_threads\n"
+                    "assert core.max_cache_size == 101, core.max_cache_size\n"
+                ),
+            ),
+        )
+        crash = self._write_script(
+            "磁盘快照A崩溃",
+            "# assetmaker-api: 1\n# assetmaker-mode: raw\n"
+            "# assetmaker-capabilities: source\n# assetmaker-requires:\n"
+            "# assetmaker-editor-output: 0\n\nimport os\nos._exit(23)\n",
+        )
+        script_b = self._write_script(
+            "磁盘快照B",
+            _valid_script(
+                compatible=False,
+                extra=(
+                    "assert core.num_threads == 2, core.num_threads\n"
+                    "assert core.max_cache_size == 202, core.max_cache_size\n"
+                ),
+            ),
+        )
+        media = self.root / "source.mp4"
+        media.touch()
+        widget = VideoPreviewWidget()
+        self.addCleanup(lambda: widget.clear(sync_shutdown=True))
+        loaded = []
+        failures = []
+        widget.video_loaded.connect(lambda *_: loaded.append(True))
+        widget.load_failed.connect(failures.append)
+        widget.set_render_context(
+            PreviewRenderContext(
+                project_root=str(self.root),
+                track="loop",
+                selection=selection_for(script_a),
+                cache_dir=str(self.root / "widget-cache-a"),
+                runtime_snapshot=snapshot_a,
+            )
+        )
+        self.assertTrue(widget.load_video(str(media)))
+        wait_for(lambda: bool(loaded) or bool(failures), "A worker 未返回 metadata")
+        self.assertEqual(failures, [])
+        client_a = widget._worker_client
+        self.assertIsNotNone(client_a)
+        self.assertEqual(client_a.worker_config.frame_timeout_ms, 10_001)
+        deadline = time.monotonic() + 0.2
+        while time.monotonic() < deadline:
+            from PyQt6.QtCore import QCoreApplication
+
+            QCoreApplication.processEvents()
+            time.sleep(0.01)
+        widget._job_debounce.stop()
+        session_a = widget.current_render_session()
+        self.assertIsNotNone(session_a)
+        self.assertGreater(session_a.epoch, 1)
+        self.assertEqual(session_a.runtime_fingerprint, snapshot_a.fingerprint)
+
+        # B 已在真实默认用户覆盖路径落盘；此后 restart 绝不可重新 resolve。
+        write_runtime(threads=2, cache=202, frame_timeout=20_002)
+
+        crash_job = self.root / "crash-job.json"
+        _write_job(crash_job, epoch=99)
+        crash_session = _session(
+            crash, crash_job, epoch=99, runtime=snapshot_a.runtime
+        )
+        crashed = []
+        client_a.worker_crashed.connect(crashed.append)
+        client_a.load(crash_session)
+        wait_for(lambda: bool(crashed), "A child 崩溃未到达 production client")
+        wait_for(
+            lambda: (
+                not client_a.transport.alive
+                and not client_a.transport.settling
+            ),
+            "A child 崩溃后 transport 未完成退休",
+        )
+        widget.restart_rendering()
+        wait_for(
+            lambda: (
+                widget._worker_ready_for_frames
+                and widget.current_render_session() is not None
+                and widget.current_render_session().runtime_fingerprint
+                == snapshot_a.fingerprint
+            ),
+            "A child 重启后未重放原 session",
+        )
+        self.assertEqual(
+            widget.current_render_session(), session_a
+        )
+        self.assertEqual(client_a.worker_config.frame_timeout_ms, 10_001)
+
+        snapshot_b = RuntimeSnapshot.resolve(ROOT)
+        self.assertNotEqual(snapshot_a.fingerprint, snapshot_b.fingerprint)
+        loaded.clear()
+        widget.set_render_context(
+            PreviewRenderContext(
+                project_root=str(self.root),
+                track="loop",
+                selection=selection_for(script_b),
+                cache_dir=str(self.root / "widget-cache-b"),
+                runtime_snapshot=snapshot_b,
+            )
+        )
+        self.assertTrue(widget.load_video(str(media)))
+        wait_for(lambda: bool(loaded) or bool(failures), "B worker 未返回 metadata")
+        self.assertEqual(failures, [])
+        session_b = widget.current_render_session()
+        client_b = widget._worker_client
+        self.assertIsNot(client_a, client_b)
+        self.assertEqual(session_b.runtime_fingerprint, snapshot_b.fingerprint)
+        self.assertEqual(client_b.worker_config.frame_timeout_ms, 20_002)
 
     def test_os_exit_23_only_kills_child_and_same_transport_restarts(self):
         root_record = self.root / "crash-generation-root.txt"

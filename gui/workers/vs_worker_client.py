@@ -10,6 +10,7 @@ from PyQt6.QtCore import QObject, QTimer, Qt, pyqtSignal, pyqtSlot
 
 from config.vs_runtime import WorkerConfig, load_vs_runtime
 from core.vs_runtime.session import RenderSession, SessionMetadata
+from core.vs_runtime.snapshot import RuntimeSnapshot
 from core.vs_runtime.worker_process import (
     STAGING_CLEANUP_ERROR_CODE,
     WorkerProcess,
@@ -55,11 +56,20 @@ class VSWorkerClient(QObject):
         app_dir: str | Path | None = None,
         transport: WorkerProcess | None = None,
         worker_config: WorkerConfig | None = None,
+        runtime_snapshot: RuntimeSnapshot | None = None,
         timer_factory: Callable[[QObject], Any] = QTimer,
     ) -> None:
         super().__init__(parent)
         self.transport = transport or WorkerProcess(app_dir=app_dir)
-        self.worker_config = worker_config or load_vs_runtime().worker
+        self.runtime_snapshot = None
+        self._owns_transport = transport is None
+        self.worker_config = worker_config
+        if runtime_snapshot is not None:
+            if worker_config is not None and worker_config != runtime_snapshot.runtime.worker:
+                raise ValueError("worker_config 与 runtime_snapshot 冲突")
+            self.configure_runtime(runtime_snapshot)
+        elif transport is not None and worker_config is None:
+            self.worker_config = load_vs_runtime().worker
         self._timer_factory = timer_factory
         self._timeouts: dict[int, tuple[Any, _TimeoutToken]] = {}
         self._timed_out: dict[int, tuple[int, int]] = {}
@@ -73,6 +83,18 @@ class VSWorkerClient(QObject):
             Qt.ConnectionType.QueuedConnection,
         )
         self.transport.add_listener(self._relay_transport_event)
+
+    def configure_runtime(self, snapshot: RuntimeSnapshot) -> None:
+        """工厂创建后、启动前绑定一次快照；运行中只能退休并新建 client。"""
+        if not isinstance(snapshot, RuntimeSnapshot):
+            raise TypeError("snapshot 必须是 RuntimeSnapshot")
+        if self.transport.generation != 0:
+            raise RuntimeError("已启动的 client 不能替换 runtime")
+        if Path(self.transport.app_dir).resolve() != Path(snapshot.app_dir):
+            raise ValueError("client app_dir 与 runtime_snapshot 冲突")
+        self.runtime_snapshot = snapshot
+        self.worker_config = snapshot.runtime.worker
+        self.transport.env = snapshot.worker_environment(self.transport.env)
 
     @property
     def generation(self) -> int:
@@ -175,6 +197,11 @@ class VSWorkerClient(QObject):
                 self.transport.kill()
 
     def _start_transport(self) -> int:
+        if self._owns_transport and self.runtime_snapshot is None:
+            snapshot = RuntimeSnapshot.resolve(self.transport.app_dir)
+            if self.worker_config is not None and self.worker_config != snapshot.runtime.worker:
+                raise ValueError("worker_config 与运行配置冲突")
+            self.configure_runtime(snapshot)
         self.transport.start()
         self._failure_reported_generation = None
         request_id = self.transport.send_request(

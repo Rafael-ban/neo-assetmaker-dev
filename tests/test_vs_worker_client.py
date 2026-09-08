@@ -4,15 +4,17 @@ import os
 import sys
 import threading
 import unittest
+from pathlib import Path
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PyQt6.QtCore import QCoreApplication, QEvent, QObject, QThread, QTimer, pyqtSlot
 
-from config.vs_runtime import WorkerConfig
+from config.vs_runtime import VSRuntimeConfig, WorkerConfig
 from core.vs_runtime.session import NodeMetadata, SessionMetadata
 from core.vs_runtime.worker_process import STAGING_CLEANUP_ERROR_CODE
 from gui.workers.vs_worker_client import VSWorkerClient
+from tests.qt_harness import ensure_app
 
 
 class _Signal:
@@ -156,7 +158,7 @@ class _ThreadProbe(QObject):
 class VSWorkerClientTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.app = QCoreApplication.instance() or QCoreApplication([])
+        cls.app = ensure_app()
 
     def setUp(self):
         _FakeTimer.instances.clear()
@@ -208,6 +210,31 @@ class VSWorkerClientTests(unittest.TestCase):
 
         self.assertIs(self.client.transport, self.transport)
         self.assertEqual(received, [(request_id, 7, metadata)])
+
+    def test_explicit_runtime_snapshot_controls_client_timeouts_and_transport(self):
+        """同一快照同时决定 worker 环境与 GUI 请求超时。"""
+        from core.vs_runtime.snapshot import RuntimeSnapshot
+
+        snapshot = RuntimeSnapshot(
+            app_dir=str(Path(__file__).resolve().parents[1]),
+            runtime=VSRuntimeConfig(
+                worker=WorkerConfig(
+                    startup_timeout_ms=101,
+                    frame_timeout_ms=202,
+                    shutdown_timeout_ms=303,
+                )
+            ),
+            fingerprint="a" * 64,
+        )
+        client = VSWorkerClient(runtime_snapshot=snapshot)
+        self.addCleanup(client.close)
+
+        self.assertIs(client.runtime_snapshot, snapshot)
+        self.assertEqual(client.worker_config, snapshot.runtime.worker)
+        self.assertEqual(
+            client.transport.env["ASSETMAKER_VS_RUNTIME_FINGERPRINT"],
+            snapshot.fingerprint,
+        )
 
     def test_reader_thread_event_reaches_receiver_on_gui_thread(self):
         probe = _ThreadProbe()

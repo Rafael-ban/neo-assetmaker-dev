@@ -10,6 +10,7 @@ from tests.qt_harness import ensure_app
 
 from config.epconfig import EPConfig
 from config.epconfig import VSScriptState
+from config.vs_runtime import VSRuntimeConfig
 from core.vs_runtime.job import RationalFPS
 from core.vs_runtime.script_header import ScriptHeader
 from core.vs_runtime.session import ScriptSelection
@@ -92,6 +93,7 @@ class VSProjectCompatibilityTests(unittest.TestCase):
 
     def test_main_window_wires_verified_project_script_to_both_previews(self):
         from gui.main_window import MainWindow
+        from core.vs_runtime.snapshot import RuntimeSnapshot
 
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -115,9 +117,14 @@ class VSProjectCompatibilityTests(unittest.TestCase):
             window._apply_timeline_capability_controls = mock.Mock()
             store = mock.Mock()
             store.is_trusted.return_value = True
+            snapshot = RuntimeSnapshot(
+                app_dir=str(root), runtime=VSRuntimeConfig(), fingerprint="b" * 64
+            )
 
             with (
-                mock.patch("gui.main_window.load_vs_runtime"),
+                mock.patch(
+                    "gui.main_window.RuntimeSnapshot.resolve", return_value=snapshot
+                ) as resolve_snapshot,
                 mock.patch(
                     "gui.main_window.resolve_script_reference", return_value=script
                 ) as resolve,
@@ -134,6 +141,7 @@ class VSProjectCompatibilityTests(unittest.TestCase):
                 MainWindow._configure_preview_render_contexts(window)
 
             resolve.assert_called_once()
+            resolve_snapshot.assert_called_once_with(window._app_dir)
             store.is_trusted.assert_called_once_with(script.parent, "a" * 64)
             loop_context = window.video_preview.set_render_context.call_args.args[0]
             intro_context = window.intro_preview.set_render_context.call_args.args[0]
@@ -143,6 +151,8 @@ class VSProjectCompatibilityTests(unittest.TestCase):
             self.assertEqual(intro_context.selection.script_path, str(script.resolve()))
             self.assertEqual(loop_context.header, header)
             self.assertEqual(intro_context.header, header)
+            self.assertIs(loop_context.runtime_snapshot, snapshot)
+            self.assertIs(intro_context.runtime_snapshot, snapshot)
             self.assertTrue(window._script_ready)
             window._set_script_export_enabled.assert_called_once_with(True)
 

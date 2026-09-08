@@ -433,20 +433,28 @@ class WorkerServer:
     ) -> None:
         # 入口已先把 Python stdout 挪到 stderr；这里在导入受指纹保护的
         # helper 前建立基线，随后安装结构化 logger 并立即复核。
-        from config.vs_runtime import (
-            default_vs_runtime_user_path,
-            load_vs_runtime,
+        from core.vs_runtime.snapshot import (
+            RuntimeSnapshot,
+            SNAPSHOT_ENV_KEYS,
         )
-        from core.vs_runtime.vs_loader import compute_runtime_fingerprint
 
         self.writer = writer
         self.app_dir = app_dir
         self.self_test = self_test
-        self.runtime = load_vs_runtime(
-            app_dir / "config" / "vs_runtime.json",
-            default_vs_runtime_user_path(),
-        )
-        self.runtime_fingerprint = compute_runtime_fingerprint(app_dir, self.runtime)
+        try:
+            if SNAPSHOT_ENV_KEYS.intersection(os.environ):
+                snapshot = RuntimeSnapshot.from_environment(app_dir, os.environ)
+            else:
+                # 兼容直接 WorkerProcess/self-test：只有完全没有快照环境才
+                # 允许在 child 启动边界读取磁盘。GUI 总是传入完整冻结环境。
+                snapshot = RuntimeSnapshot.resolve(app_dir)
+        except (ValueError, RuntimeError, OSError) as error:
+            raise ProtocolError(
+                f"worker runtime 环境无效: {error}",
+                code="worker.runtime_environment",
+            ) from error
+        self.runtime = snapshot.runtime
+        self.runtime_fingerprint = snapshot.fingerprint
         if generation_staging is None:
             from core.vs_runtime.session import GenerationStagingRoot
 
