@@ -21,6 +21,7 @@ _load_lock = threading.Lock()
 _loaded_module: Any | None = None
 _dll_directory_handle: Any | None = None
 _resource_baseline: Any | None = None
+_native_plugin_state: Any | None = None
 
 
 class VSLoaderError(RuntimeError):
@@ -50,7 +51,7 @@ def load_vapoursynth(
     runtime: VSRuntimeConfig | dict[str, Any],
 ) -> Any:
     """从应用 portable tree 显式加载 VS；调用者必须是 worker。"""
-    global _dll_directory_handle, _loaded_module, _resource_baseline
+    global _dll_directory_handle, _loaded_module, _native_plugin_state, _resource_baseline
     config = _validated_runtime(runtime)
     media_dir = Path(app_dir).resolve() / "tools" / "media"
     pyd = media_dir / "vapoursynth.pyd"
@@ -65,9 +66,9 @@ def load_vapoursynth(
         existing = sys.modules.get("vapoursynth")
         if existing is not None:
             raise VSLoaderError("worker 启动前已意外导入 vapoursynth")
-        native_dirs = [str(Path(path)) for path in config.plugins.native_plugin_dirs]
-        # 配置是唯一插件来源；空数组也必须清掉父进程可能继承的旧值。
-        os.environ["VAPOURSYNTH_EXTRA_PLUGIN_PATH"] = os.pathsep.join(native_dirs)
+        # P3：R79 会把该变量当作单一目录自动加载。配置目录只能在 binding
+        # import 完成后由共享策略逐个 LoadAllPlugins，不能让 R79 先隐式加载。
+        os.environ["VAPOURSYNTH_EXTRA_PLUGIN_PATH"] = ""
         os.environ["ASSETMAKER_VS_PYTHON_DIRS_JSON"] = json.dumps(
             list(config.plugins.python_module_dirs),
             ensure_ascii=False,
@@ -84,7 +85,18 @@ def load_vapoursynth(
             from resources.vapoursynth.python.assetmaker_vs.core_resources import (
                 CoreResourceBaseline,
             )
+            from resources.vapoursynth.python.assetmaker_vs.native_plugins import (
+                configure_native_plugins,
+            )
 
+            _native_plugin_state = configure_native_plugins(
+                module.core,
+                config.plugins.native_plugin_dirs,
+                builtin_plugin_dirs=(
+                    media_dir / "vs-plugins",
+                    media_dir / "vs-coreplugins",
+                ),
+            )
             _resource_baseline = CoreResourceBaseline.capture(module.core)
         except VSLoaderError:
             sys.modules.pop("vapoursynth", None)
@@ -114,9 +126,37 @@ def restore_vapoursynth_resources(
         raise VSLoaderError(str(error)) from error
 
 
+def verify_vapoursynth_native_plugins(
+    module: Any,
+    runtime: VSRuntimeConfig | dict[str, Any],
+    requirements: list[str],
+) -> None:
+    """在用户脚本执行前核验 required callable 与实际 native plugin 来源。"""
+    if _native_plugin_state is None:
+        raise VSLoaderError("VapourSynth native plugin 状态尚未捕获")
+    config = _validated_runtime(runtime)
+    from resources.vapoursynth.python.assetmaker_vs.native_plugins import (
+        canonical_native_plugin_dirs,
+    )
+
+    configured = canonical_native_plugin_dirs(config.plugins.native_plugin_dirs)
+    if configured != _native_plugin_state.configured_dirs:
+        raise VSLoaderError("VapourSynth native plugin 配置与加载状态不一致")
+    from resources.vapoursynth.python.assetmaker_vs.native_plugins import (
+        NativePluginPolicyError,
+        verify_native_plugin_requirements,
+    )
+
+    try:
+        verify_native_plugin_requirements(module.core, _native_plugin_state, requirements)
+    except NativePluginPolicyError as error:
+        raise VSLoaderError(str(error)) from error
+
+
 __all__ = [
     "VSLoaderError",
     "compute_runtime_fingerprint",
     "load_vapoursynth",
     "restore_vapoursynth_resources",
+    "verify_vapoursynth_native_plugins",
 ]

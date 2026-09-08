@@ -280,6 +280,20 @@ class VSRuntimeFingerprintTests(unittest.TestCase):
             compute_runtime_fingerprint(self.root, runtime), before
         )
 
+    def test_fingerprint_tracks_existing_optional_portable_coreplugins(self):
+        """I4：被 native policy 信任的 coreplugins DLL 必须进入会话身份。"""
+        coreplugins = self.media / "vs-coreplugins"
+        coreplugins.mkdir()
+        plugin = coreplugins / "AvsCompat.dll"
+        plugin.write_bytes(b"coreplugin-v1")
+
+        before = compute_runtime_fingerprint(self.root, VSRuntimeConfig())
+        plugin.write_bytes(b"coreplugin-v2")
+
+        self.assertNotEqual(
+            compute_runtime_fingerprint(self.root, VSRuntimeConfig()), before
+        )
+
     def test_fingerprint_ignores_generated_pycache_but_tracks_released_pyc(self):
         """解释器缓存可再生，不是 runtime 发行契约；顶层发布字节码仍是。"""
         runtime = VSRuntimeConfig()

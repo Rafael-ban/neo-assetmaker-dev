@@ -96,13 +96,11 @@ class RuntimeSnapshot:
     ) -> dict[str, str]:
         """构建 worker 唯一可接受的完整 runtime 环境。"""
         env = dict(os.environ if base_environment is None else base_environment)
-        native_dirs = [
-            str(Path(path)) for path in self.runtime.plugins.native_plugin_dirs
-        ]
         python_dirs = [
             str(Path(path)) for path in self.runtime.plugins.python_module_dirs
         ]
-        env["VAPOURSYNTH_EXTRA_PLUGIN_PATH"] = os.pathsep.join(native_dirs)
+        # R79 不能从多目录环境变量可靠加载；worker 在 import 后共享显式策略。
+        env["VAPOURSYNTH_EXTRA_PLUGIN_PATH"] = ""
         env[PYTHON_DIRS_ENV] = json.dumps(
             python_dirs, ensure_ascii=False, separators=(",", ":")
         )

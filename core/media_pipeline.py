@@ -90,9 +90,10 @@ def build_vspipe_render_env(
         )
     _prepend_env_path(env, "PATH", media_dir)
     _prepend_env_path(env, "PYTHONPATH", media_dir / "Lib" / "site-packages")
-    native_dirs = [str(Path(path)) for path in runtime.plugins.native_plugin_dirs]
     python_dirs = [str(Path(path)) for path in runtime.plugins.python_module_dirs]
-    env["VAPOURSYNTH_EXTRA_PLUGIN_PATH"] = os.pathsep.join(native_dirs)
+    # R79 把该值解释为一个自动加载目录；native 目录保留在冻结 runtime JSON，
+    # 由 runner 在 import 后逐目录显式 LoadAllPlugins。
+    env["VAPOURSYNTH_EXTRA_PLUGIN_PATH"] = ""
     env["ASSETMAKER_VS_PYTHON_DIRS_JSON"] = json.dumps(
         python_dirs, ensure_ascii=False, separators=(",", ":")
     )

@@ -1,6 +1,7 @@
 """固定 VSPipe 启动器：加载用户脚本并注册通过契约的 output 0。"""
 
 import hashlib
+import os
 import sys
 
 
@@ -31,11 +32,15 @@ from assetmaker_vs.job_api import (  # noqa: E402
     load_job,
     runtime_python_dirs_from_env,
 )
-from assetmaker_vs.runtime_fingerprint import verify_runtime_from_env  # noqa: E402
+from assetmaker_vs.runtime_fingerprint import (  # noqa: E402
+    RUNTIME_APP_DIR_ENV,
+    verify_runtime_from_env,
+)
 from assetmaker_vs.core_resources import (  # noqa: E402
     CoreResourceBaseline,
     restore_core_resources,
 )
+from assetmaker_vs.native_plugins import configure_native_plugins, verify_native_plugin_requirements  # noqa: E402
 from assetmaker_vs.script_header import (  # noqa: E402
     parse_script_header,
     validate_invocation,
@@ -66,6 +71,14 @@ verified_runtime = verify_runtime_from_env()
 core_config = verified_runtime.runtime["core"]
 core_baseline = CoreResourceBaseline.capture(vs.core)
 restore_core_resources(vs.core, core_config, core_baseline)
+native_plugin_state = configure_native_plugins(
+    vs.core,
+    verified_runtime.runtime["plugins"]["native_plugin_dirs"],
+    builtin_plugin_dirs=(
+        Path(os.environ[RUNTIME_APP_DIR_ENV]) / "tools" / "media" / "vs-plugins",
+        Path(os.environ[RUNTIME_APP_DIR_ENV]) / "tools" / "media" / "vs-coreplugins",
+    ),
+)
 header = parse_script_header(assetmaker_script)
 _verify_job_content("读取 job 前")
 job = load_job(assetmaker_job, for_export=True)
@@ -75,6 +88,7 @@ validate_invocation(
     api_version=assetmaker_api,
     mode=assetmaker_mode,
 )
+verify_native_plugin_requirements(vs.core, native_plugin_state, header["requires"])
 verify_required_callables(vs.core, header["requires"])
 _verify_job_content("执行用户脚本前")
 graph = execute_user_script(

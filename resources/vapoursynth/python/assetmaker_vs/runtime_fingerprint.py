@@ -279,6 +279,11 @@ def compute_runtime_fingerprint(
             root / "resources" / "vapoursynth" / "python" / "assetmaker_vs",
         ),
     ]
+    coreplugins = media_dir / "vs-coreplugins"
+    # coreplugins 是 portable runtime 的可选目录：缺失不改变旧安装行为，存在
+    # 时却会被 native policy 许可，必须成为 session fingerprint 的输入。
+    if coreplugins.is_dir():
+        directories.append(("default-coreplugins", coreplugins))
     directories.extend(
         (f"native-{index}", Path(path).resolve())
         for index, path in enumerate(native_dirs)
@@ -325,24 +330,18 @@ def verify_runtime_from_env(
             actual=expected if not expected else app_dir,
         )
     plugins = _require_mapping(runtime["plugins"], "plugins")
-    native = [
-        str(Path(path))
-        for path in _require_string_list(
-            plugins["native_plugin_dirs"], "plugins.native_plugin_dirs"
-        )
-    ]
     python_dirs = [
         str(Path(path))
         for path in _require_string_list(
             plugins["python_module_dirs"], "plugins.python_module_dirs"
         )
     ]
-    if env.get("VAPOURSYNTH_EXTRA_PLUGIN_PATH", "") != os.pathsep.join(native):
+    if env.get("VAPOURSYNTH_EXTRA_PLUGIN_PATH", "") != "":
         raise RuntimeFingerprintError(
-            "VSPipe native plugin 环境与冻结 runtime 不一致",
+            "VSPipe native plugin 环境不得启用隐式 autoload",
             code="runtime.native_plugin_env",
             field="VAPOURSYNTH_EXTRA_PLUGIN_PATH",
-            expected=os.pathsep.join(native),
+            expected="",
             actual=env.get("VAPOURSYNTH_EXTRA_PLUGIN_PATH", ""),
         )
     if env.get(PYTHON_DIRS_ENV, "") != json.dumps(

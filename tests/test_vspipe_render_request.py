@@ -57,8 +57,8 @@ class VSPipeRenderRequestTests(unittest.TestCase):
         with self.assertRaises(TypeError):
             build_x264_command("x264-7mod.exe", "D:/输出/out.264")
 
-    def test_vspipe_environment_bytes_are_derived_only_from_frozen_runtime(self):
-        """C1：production env 只能来自 frozen runtime 的唯一 canonical 编码。"""
+    def test_vspipe_environment_disables_implicit_native_autoload(self):
+        """C1：native 目录留在 frozen runtime，绝不交给 R79 环境 autoload。"""
         from config.vs_runtime import (
             CoreConfig,
             PluginConfig,
@@ -125,7 +125,7 @@ class VSPipeRenderRequestTests(unittest.TestCase):
             )
             self.assertEqual(
                 env["VAPOURSYNTH_EXTRA_PLUGIN_PATH"],
-                os.pathsep.join(map(str, native_dirs)),
+                "",
             )
             self.assertEqual(
                 env["ASSETMAKER_VS_PYTHON_DIRS_JSON"],
