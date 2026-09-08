@@ -5,6 +5,7 @@ import multiprocessing
 import os
 import tempfile
 import threading
+import types
 import unittest
 from contextlib import contextmanager
 from pathlib import Path
@@ -1100,6 +1101,34 @@ class LegacyVSConfigMigrationTests(unittest.TestCase):
         self.assertEqual(report.source_hash, "")
         self.assertFalse(self.user_path.exists())
         self.assertFalse(self.marker_path.exists())
+
+
+class CoreResourceBaselineTests(unittest.TestCase):
+    def test_zero_uses_captured_baseline_and_nonzero_overrides_it(self):
+        """配置 0 必须恢复真实基线，而不能写入 0 或沿用脚本污染。"""
+        from resources.vapoursynth.python.assetmaker_vs.core_resources import (
+            CoreResourceBaseline,
+            restore_core_resources,
+        )
+
+        core = types.SimpleNamespace(num_threads=7, max_cache_size=37)
+        baseline = CoreResourceBaseline.capture(core)
+        core.num_threads = 99
+        core.max_cache_size = 199
+
+        restore_core_resources(
+            core,
+            {"num_threads": 0, "max_cache_size_mb": 0},
+            baseline,
+        )
+        self.assertEqual((core.num_threads, core.max_cache_size), (7, 37))
+
+        restore_core_resources(
+            core,
+            {"num_threads": 2, "max_cache_size_mb": 101},
+            baseline,
+        )
+        self.assertEqual((core.num_threads, core.max_cache_size), (2, 101))
 
 
 if __name__ == "__main__":

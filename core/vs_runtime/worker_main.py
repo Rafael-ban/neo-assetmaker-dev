@@ -813,12 +813,23 @@ class WorkerServer:
             # 的 pyd/DLL/plugin。用户代码执行前必须重新确认三方身份一致。
             self._assert_runtime_unchanged(message["runtime_fingerprint"])
             self._assert_snapshot_job_identity(snapshot, message["job_sha256"])
+            from core.vs_runtime.vs_loader import restore_vapoursynth_resources
+
+            restore_vapoursynth_resources(vs, self.runtime)
         except ProtocolError as error:
             self._close_snapshot(snapshot, error)
             self._send_error(
                 "request_error", request_id, error, epoch=job["epoch"]
             )
             raise _FatalWorkerExit(FATAL_RUNTIME_CHANGED_EXIT) from error
+        except BaseException as error:
+            clean = self._close_snapshot(snapshot, error)
+            self._send_error(
+                "request_error", request_id, error, epoch=job["epoch"]
+            )
+            if not clean:
+                raise _FatalWorkerExit(FATAL_RETIREMENT_EXIT) from error
+            return
 
         try:
             verify_required_callables(vs.core, header["requires"])

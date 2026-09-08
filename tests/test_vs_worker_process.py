@@ -23,6 +23,7 @@ from config.vs_runtime import (
     load_vs_runtime,
 )
 from core.media_tools import MediaToolchain
+from core.media_pipeline import VSPipeRenderRequest, build_vspipe_render_env
 from core.vs_runtime.script_header import parse_script_header
 from core.vs_runtime.protocol import (
     MAX_MESSAGE_BYTES,
@@ -55,6 +56,8 @@ from core.vs_runtime.worker_process import (
 
 ROOT = Path(__file__).resolve().parents[1]
 TOOLCHAIN = MediaToolchain.discover(str(ROOT))
+RUNNER = ROOT / "resources" / "vapoursynth" / "assetmaker_runner.vpy"
+RESOURCE_ORDER_WORKER = ROOT / "tests" / "helpers" / "run_vs_resource_order_worker.py"
 
 
 class ParentProcessIsolationTests(unittest.TestCase):
@@ -2479,6 +2482,73 @@ class WorkerServerFrameTests(unittest.TestCase):
         verify_required_callables.assert_not_called()
         execute_user_script.assert_not_called()
 
+    def test_restore_failure_with_snapshot_cleanup_failure_kills_worker(self):
+        """恢复 setter 与快照清理同时失败时，不得留下可复用 worker。"""
+        from core.vs_runtime.worker_main import WorkerServer
+
+        server = object.__new__(WorkerServer)
+        server.runtime = load_vs_runtime()
+        server._prepare_load = mock.Mock(
+            return_value=(
+                3,
+                {"epoch": 7},
+                {"requires": []},
+                ROOT / "pipeline.vpy",
+                str(ROOT / "job.json"),
+                mock.Mock(close=mock.Mock(side_effect=OSError("cleanup failed"))),
+            )
+        )
+        snapshot = server._prepare_load.return_value[-1]
+        server._retire_current = mock.Mock()
+        server._ensure_vs = mock.Mock(
+            return_value=SimpleNamespace(core=SimpleNamespace())
+        )
+        server._assert_runtime_unchanged = mock.Mock()
+        server._assert_snapshot_job_identity = mock.Mock()
+        server._send_error = mock.Mock()
+        message = {
+            "request_id": 3,
+            "epoch": 7,
+            "api_version": 1,
+            "mode": "raw",
+            "bundle_hash": "c" * 64,
+            "job_sha256": "b" * 64,
+            "runtime_fingerprint": "a" * 64,
+        }
+        with (
+            mock.patch(
+                "core.vs_runtime.session.compute_script_bundle_hash",
+                return_value="c" * 64,
+            ),
+            mock.patch(
+                "core.vs_runtime.vs_loader.restore_vapoursynth_resources",
+                side_effect=RuntimeError("restore failed"),
+            ) as restore_vapoursynth_resources,
+            mock.patch(
+                "resources.vapoursynth.python.assetmaker_vs.executor.execute_user_script"
+            ) as execute_user_script,
+            self.assertRaises(BaseException) as raised,
+        ):
+            server._handle_load(message)
+
+        self.assertEqual(type(raised.exception).__name__, "_FatalWorkerExit")
+        self.assertEqual(raised.exception.exit_code, 70)
+        self.assertIsInstance(raised.exception.__cause__, RuntimeError)
+        self.assertEqual(str(raised.exception.__cause__), "restore failed")
+        restore_vapoursynth_resources.assert_called_once_with(
+            server._ensure_vs.return_value, server.runtime
+        )
+        snapshot.close.assert_called_once_with()
+        server._send_error.assert_called_once()
+        self.assertEqual(
+            server._send_error.call_args.args[:2], ("request_error", 3)
+        )
+        self.assertIs(
+            server._send_error.call_args.args[2], raised.exception.__cause__
+        )
+        self.assertEqual(server._send_error.call_args.kwargs, {"epoch": 7})
+        execute_user_script.assert_not_called()
+
     def test_runtime_change_error_terminates_stale_worker_after_terminal(self):
         from core.vs_runtime.worker_main import WorkerServer
 
@@ -3282,6 +3352,297 @@ class RealVSWorkerLifecycleTests(unittest.TestCase):
                 client.start(timeout_ms=15_000)
 
         self.assertIn("runtime", str(raised.exception))
+
+    def test_script_resource_changes_do_not_leak_across_drained_loads(self):
+        """真实 A callback 排空后，B 只可看到其 runtime 请求的资源值。"""
+        from core.vs_runtime.snapshot import RuntimeSnapshot
+
+        def write_job(epoch: int) -> None:
+            _write_job(self.job)
+            payload = json.loads(self.job.read_text(encoding="utf-8"))
+            payload["epoch"] = epoch
+            self.job.write_text(
+                json.dumps(payload, ensure_ascii=False), encoding="utf-8"
+            )
+
+        cases = (
+            (
+                "零配置",
+                VSRuntimeConfig(core=CoreConfig()),
+                None,
+            ),
+            (
+                "非默认一",
+                VSRuntimeConfig(core=CoreConfig(num_threads=1, max_cache_size_mb=101)),
+                (1, 101),
+            ),
+            (
+                "非默认二",
+                VSRuntimeConfig(core=CoreConfig(num_threads=2, max_cache_size_mb=202)),
+                (2, 202),
+            ),
+        )
+        if os.environ.get("TASK3B_ONLY_ZERO") == "1":
+            cases = cases[:1]
+        for name, runtime, expected in cases:
+            client = None
+            released = None
+            frame_thread = None
+            with self.subTest(runtime=name):
+                probe = self.root / f"资源基线-{name}.json"
+                arm = self.root / f"资源挂起-{name}.txt"
+                entered = self.root / f"资源进入-{name}.txt"
+                wait_entered = self.root / f"资源退休等待-{name}.txt"
+                retire_called = self.root / f"资源退休调用-{name}.txt"
+                load_received = self.root / f"资源B请求接收-{name}.txt"
+                restore_observed = self.root / f"资源恢复观察-{name}.json"
+                event_log = self.root / f"资源事件-{name}.jsonl"
+                harness_ready = self.root / f"资源harness就绪-{name}.txt"
+                check = self.root / f"资源检查-{name}.txt"
+                acknowledged = self.root / f"资源确认-{name}.json"
+                released = self.root / f"资源释放-{name}.txt"
+                retired = self.root / f"资源退休-{name}.txt"
+                b_started = self.root / f"资源B开始-{name}.txt"
+                write_job(3)
+                script_a = self._write_script(
+                    f"资源A-{name}",
+                    _valid_script(
+                        compatible=False,
+                        extra=(
+                            "import json, time\n"
+                            "from pathlib import Path\n"
+                            f"PROBE = Path({str(probe)!r})\n"
+                            f"ARM = Path({str(arm)!r})\n"
+                            f"ENTERED = Path({str(entered)!r})\n"
+                            f"CHECK = Path({str(check)!r})\n"
+                            f"ACKNOWLEDGED = Path({str(acknowledged)!r})\n"
+                            f"RELEASED = Path({str(released)!r})\n"
+                            "baseline = [core.num_threads, core.max_cache_size]\n"
+                            "PROBE.write_text(json.dumps({'baseline': baseline}), encoding='utf-8')\n"
+                            "core.num_threads = baseline[0] + 3\n"
+                            "core.max_cache_size = baseline[1] + 307\n"
+                            "def hold_callback(n, f):\n"
+                            "    if ARM.exists():\n"
+                            "        ENTERED.write_text('entered', encoding='utf-8')\n"
+                            "        while not RELEASED.exists():\n"
+                            "            if CHECK.exists() and not ACKNOWLEDGED.exists():\n"
+                            "                ACKNOWLEDGED.write_text(\n"
+                            "                    json.dumps([core.num_threads, core.max_cache_size]),\n"
+                            "                    encoding='utf-8',\n"
+                            "                )\n"
+                            "            time.sleep(0.01)\n"
+                            "        assert core.num_threads == baseline[0] + 3\n"
+                            "        assert core.max_cache_size == baseline[1] + 307\n"
+                            "    return f\n"
+                            "base = core.std.ModifyFrame(\n"
+                            "    clip=base, clips=base, selector=hold_callback\n"
+                            ")\n"
+                        ),
+                    ),
+                )
+                script_b = self._write_script(
+                    f"资源B-{name}",
+                    _valid_script(
+                        compatible=False,
+                        extra=(
+                            "import json\n"
+                            "from pathlib import Path\n"
+                            f"PROBE = Path({str(probe)!r})\n"
+                            f"B_STARTED = Path({str(b_started)!r})\n"
+                            f"RETIRED = Path({str(retired)!r})\n"
+                            "payload = json.loads(PROBE.read_text(encoding='utf-8'))\n"
+                            "key = 'vspipe_b' if 'worker_b' in payload else 'worker_b'\n"
+                            "payload[key] = [core.num_threads, core.max_cache_size]\n"
+                            "PROBE.write_text(json.dumps(payload), encoding='utf-8')\n"
+                            "assert RETIRED.exists(), 'A graph 未在 B 脚本前退休'\n"
+                            "B_STARTED.write_text('started', encoding='utf-8')\n"
+                        ),
+                    ),
+                )
+                snapshot = RuntimeSnapshot(
+                    str(ROOT), runtime, compute_runtime_fingerprint(ROOT, runtime)
+                )
+                client = SyncVSWorkerProcess(
+                    app_dir=ROOT,
+                    env=snapshot.worker_environment(
+                        {
+                            **os.environ,
+                            "APPDATA": str(self.appdata),
+                            "TASK3B_APP_DIR": str(ROOT),
+                            "TASK3B_TARGET_EPOCH": "3",
+                            "TASK3B_WAIT_ENTERED": str(wait_entered),
+                            "TASK3B_RETIRE_CALLED": str(retire_called),
+                            "TASK3B_LOAD_RECEIVED": str(load_received),
+                            "TASK3B_RESTORE_OBSERVED": str(restore_observed),
+                            "TASK3B_EVENT_LOG": str(event_log),
+                            "TASK3B_HARNESS_READY": str(harness_ready),
+                            "TASK3B_RETIRE_DONE": str(retired),
+                        }
+                    ),
+                    command=[
+                        str(Path(sys.executable).resolve()),
+                        "-B",
+                        str(RESOURCE_ORDER_WORKER),
+                    ],
+                )
+                self.addCleanup(client.close)
+                try:
+                    client.start(timeout_ms=15_000)
+                    self.assertTrue(harness_ready.exists(), "测试 worker harness 未安装")
+                    client.load(
+                        _session(script_a, self.job, epoch=3, runtime=runtime),
+                        timeout_ms=20_000,
+                    )
+                except BaseException as error:
+                    self.fail(f"A 未进入延迟 callback 边界: {error!r}")
+                frame_errors: list[BaseException] = []
+
+                def request_a_frame() -> None:
+                    try:
+                        client.request_frame(
+                            epoch=3,
+                            index=0,
+                            surface="final",
+                            viewport=(384, 640),
+                            zoom_factor=1.0,
+                            pan=(0.5, 0.5),
+                            timeout_ms=15_000,
+                        )
+                    except BaseException as error:
+                        frame_errors.append(error)
+
+                arm.write_text("armed", encoding="utf-8")
+                frame_thread = threading.Thread(target=request_a_frame)
+                frame_thread.start()
+                deadline = time.monotonic() + 10
+                while not entered.exists() and time.monotonic() < deadline:
+                    time.sleep(0.01)
+                self.assertTrue(entered.exists(), "A 的真实延迟 callback 未进入")
+                self.assertFalse(retired.exists())
+
+                write_job(4)
+                session_b = _session(
+                    script_b, self.job, epoch=4, runtime=runtime
+                )
+                b_request = client.transport.send_request(
+                    session_b.to_load_message(1)
+                )
+                deadline = time.monotonic() + 10
+                while not load_received.exists() and time.monotonic() < deadline:
+                    time.sleep(0.01)
+                self.assertTrue(load_received.exists(), "worker 未接收 B load 请求")
+                deadline = time.monotonic() + 10
+                while not retire_called.exists() and time.monotonic() < deadline:
+                    time.sleep(0.01)
+                self.assertTrue(retire_called.exists(), "B 未调用 A 图退休边界")
+                deadline = time.monotonic() + 10
+                while not wait_entered.exists() and time.monotonic() < deadline:
+                    time.sleep(0.01)
+                self.assertTrue(wait_entered.exists(), "B 未进入 A 图退休等待")
+                self.assertFalse(retired.exists())
+                self.assertFalse(b_started.exists())
+                check.write_text("check", encoding="utf-8")
+                deadline = time.monotonic() + 10
+                while not acknowledged.exists() and time.monotonic() < deadline:
+                    time.sleep(0.01)
+                self.assertTrue(acknowledged.exists(), "A 未在 B 等待时确认资源")
+                baseline = json.loads(probe.read_text(encoding="utf-8"))["baseline"]
+                self.assertEqual(
+                    json.loads(acknowledged.read_text(encoding="utf-8")),
+                    [baseline[0] + 3, baseline[1] + 307],
+                )
+                released.write_text("released", encoding="utf-8")
+                frame_thread.join(15)
+                self.assertFalse(frame_thread.is_alive(), "A callback 未在释放后结束")
+                client._wait_for(b_request, 20_000)
+                self.assertTrue(restore_observed.exists(), "B 未调用资源恢复")
+                restore_records = [
+                    json.loads(line)
+                    for line in restore_observed.read_text(encoding="utf-8").splitlines()
+                ]
+                self.assertEqual([record["epoch"] for record in restore_records], [3, 4])
+                self.assertEqual(restore_records[1]["before"], [baseline[0] + 3, baseline[1] + 307])
+                self.assertEqual(restore_records[1]["after"], list(expected) if expected else baseline)
+                events = [
+                    json.loads(line)["event"]
+                    for line in event_log.read_text(encoding="utf-8").splitlines()
+                ]
+                self.assertEqual(
+                    events[-5:],
+                    [
+                        "load_received",
+                        "retire_called",
+                        "retire_wait_entered",
+                        "retire_done",
+                        "restore",
+                    ],
+                )
+                self.assertEqual(frame_errors, [])
+                self.assertTrue(retired.exists(), "A 图未在 B 前退休")
+                observed = json.loads(probe.read_text(encoding="utf-8"))
+                self.assertIn("worker_b", observed)
+                if expected is None:
+                    self.assertEqual(observed["worker_b"], observed["baseline"])
+                else:
+                    self.assertEqual(observed["worker_b"], list(expected))
+
+                request = VSPipeRenderRequest(
+                    runner_path=str(RUNNER),
+                    script_path=str(script_b),
+                    job_path=str(self.job),
+                    expected_job_sha256=hashlib.sha256(
+                        self.job.read_bytes()
+                    ).hexdigest(),
+                    api_version=1,
+                    mode="raw",
+                    app_dir=str(ROOT),
+                    runtime=runtime,
+                    runtime_fingerprint=snapshot.fingerprint,
+                )
+                command = [
+                    str(TOOLCHAIN.vspipe_path),
+                    "--info",
+                    "--arg",
+                    f"assetmaker_job={request.job_path}",
+                    "--arg",
+                    f"expected_job_sha256={request.expected_job_sha256}",
+                    "--arg",
+                    f"assetmaker_script={request.script_path}",
+                    "--arg",
+                    "assetmaker_api=1",
+                    "--arg",
+                    "assetmaker_mode=raw",
+                    request.runner_path,
+                    "-",
+                ]
+                vspipe = subprocess.run(
+                    command,
+                    cwd=ROOT,
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                    timeout=30,
+                    check=False,
+                    env=build_vspipe_render_env(
+                        str(TOOLCHAIN.vspipe_path),
+                        app_dir=request.app_dir,
+                        runtime=runtime,
+                        expected_fingerprint=request.runtime_fingerprint,
+                    ),
+                )
+                self.assertEqual(
+                    vspipe.returncode, 0, vspipe.stderr or vspipe.stdout
+                )
+                observed = json.loads(probe.read_text(encoding="utf-8"))
+                self.assertEqual(observed["vspipe_b"], observed["worker_b"])
+                client.close()
+            if released is not None and not released.exists():
+                released.write_text("released", encoding="utf-8")
+            if frame_thread is not None:
+                frame_thread.join(15)
+            if client is not None:
+                client.close()
 
     def test_disk_runtime_reload_keeps_a_on_restart_then_switches_widget_to_b(self):
         """磁盘 A→B 必须在 widget/client/session/真实 child 同步生效。"""

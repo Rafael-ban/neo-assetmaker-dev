@@ -20,6 +20,7 @@ from resources.vapoursynth.python.assetmaker_vs.runtime_fingerprint import (
 _load_lock = threading.Lock()
 _loaded_module: Any | None = None
 _dll_directory_handle: Any | None = None
+_resource_baseline: Any | None = None
 
 
 class VSLoaderError(RuntimeError):
@@ -49,7 +50,7 @@ def load_vapoursynth(
     runtime: VSRuntimeConfig | dict[str, Any],
 ) -> Any:
     """从应用 portable tree 显式加载 VS；调用者必须是 worker。"""
-    global _dll_directory_handle, _loaded_module
+    global _dll_directory_handle, _loaded_module, _resource_baseline
     config = _validated_runtime(runtime)
     media_dir = Path(app_dir).resolve() / "tools" / "media"
     pyd = media_dir / "vapoursynth.pyd"
@@ -80,11 +81,11 @@ def load_vapoursynth(
             module = importlib.util.module_from_spec(spec)
             sys.modules["vapoursynth"] = module
             spec.loader.exec_module(module)
-            core = module.core
-            if config.core.num_threads > 0:
-                core.num_threads = config.core.num_threads
-            if config.core.max_cache_size_mb > 0:
-                core.max_cache_size = config.core.max_cache_size_mb
+            from resources.vapoursynth.python.assetmaker_vs.core_resources import (
+                CoreResourceBaseline,
+            )
+
+            _resource_baseline = CoreResourceBaseline.capture(module.core)
         except VSLoaderError:
             sys.modules.pop("vapoursynth", None)
             raise
@@ -95,8 +96,27 @@ def load_vapoursynth(
         return module
 
 
+def restore_vapoursynth_resources(
+    module: Any, runtime: VSRuntimeConfig | dict[str, Any]
+) -> None:
+    """每次执行用户脚本前恢复首次捕获的 core 基线或冻结配置。"""
+    if _resource_baseline is None:
+        raise VSLoaderError("VapourSynth core 资源基线尚未捕获")
+    config = _validated_runtime(runtime)
+    from resources.vapoursynth.python.assetmaker_vs.core_resources import (
+        CoreResourceError,
+        restore_core_resources,
+    )
+
+    try:
+        restore_core_resources(module.core, config.core, _resource_baseline)
+    except CoreResourceError as error:
+        raise VSLoaderError(str(error)) from error
+
+
 __all__ = [
     "VSLoaderError",
     "compute_runtime_fingerprint",
     "load_vapoursynth",
+    "restore_vapoursynth_resources",
 ]

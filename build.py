@@ -44,6 +44,7 @@ VS_WORKER_SUPPORT_FILES = (
     "resources/vapoursynth/python/assetmaker_vs/contract.py",
     "resources/vapoursynth/python/assetmaker_vs/display.py",
     "resources/vapoursynth/python/assetmaker_vs/runtime_fingerprint.py",
+    "resources/vapoursynth/python/assetmaker_vs/core_resources.py",
 )
 
 

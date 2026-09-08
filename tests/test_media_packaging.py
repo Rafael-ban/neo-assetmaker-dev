@@ -361,6 +361,7 @@ class MediaPackagingTests(unittest.TestCase):
                         "contract.py",
                         "display.py",
                         "runtime_fingerprint.py",
+                        "core_resources.py",
                     )
                 ],
             ],
@@ -408,6 +409,7 @@ class MediaPackagingTests(unittest.TestCase):
             "ArknightsPassMaker/resources/vapoursynth/python/assetmaker_vs/job_api.py",
             "ArknightsPassMaker/resources/vapoursynth/python/assetmaker_vs/display.py",
             "ArknightsPassMaker/resources/vapoursynth/python/assetmaker_vs/runtime_fingerprint.py",
+            "ArknightsPassMaker/resources/vapoursynth/python/assetmaker_vs/core_resources.py",
         ):
             with self.subTest(artifact=artifact):
                 self.assertIn(artifact, workflow)

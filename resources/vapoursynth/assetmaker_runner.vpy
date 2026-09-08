@@ -32,6 +32,10 @@ from assetmaker_vs.job_api import (  # noqa: E402
     runtime_python_dirs_from_env,
 )
 from assetmaker_vs.runtime_fingerprint import verify_runtime_from_env  # noqa: E402
+from assetmaker_vs.core_resources import (  # noqa: E402
+    CoreResourceBaseline,
+    restore_core_resources,
+)
 from assetmaker_vs.script_header import (  # noqa: E402
     parse_script_header,
     validate_invocation,
@@ -60,10 +64,8 @@ def _verify_job_content(stage):
 # worker loader 相同的语义应用非零 core 限制；0 保留 VapourSynth 默认值。
 verified_runtime = verify_runtime_from_env()
 core_config = verified_runtime.runtime["core"]
-if core_config["num_threads"] > 0:
-    vs.core.num_threads = core_config["num_threads"]
-if core_config["max_cache_size_mb"] > 0:
-    vs.core.max_cache_size = core_config["max_cache_size_mb"]
+core_baseline = CoreResourceBaseline.capture(vs.core)
+restore_core_resources(vs.core, core_config, core_baseline)
 header = parse_script_header(assetmaker_script)
 _verify_job_content("读取 job 前")
 job = load_job(assetmaker_job, for_export=True)
