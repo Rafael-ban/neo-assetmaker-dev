@@ -90,17 +90,40 @@ class DragTests(unittest.TestCase):
     """Every resize handle, dragged well past the frame edge, stays locked."""
 
     def _drag(self, w, mode, dx, dy):
-        w.drag_mode = mode
-        w.drag_start_pos = QPoint(0, 0)
-        w.drag_start_cropbox = list(w.cropbox)
         # feed rotated-space deltas directly (bypass display mapping)
         w._display_to_rotated_coords = lambda widget, pos: (pos.x(), pos.y())
+        x, y, width, height = w.cropbox
+        points = {
+            w.DRAG_MOVE: QPoint(x + width // 2, y + height // 2),
+            w.DRAG_RESIZE_BR: QPoint(x + width, y + height),
+            w.DRAG_RESIZE_TL: QPoint(x, y),
+            w.DRAG_RESIZE_TR: QPoint(x + width, y),
+            w.DRAG_RESIZE_BL: QPoint(x, y + height),
+        }
+        start = points[mode]
+        w._handle_mouse_press(
+            w.video_label,
+            QMouseEvent(
+                QMouseEvent.Type.MouseButtonPress, QPointF(start),
+                Qt.MouseButton.LeftButton, Qt.MouseButton.LeftButton,
+                Qt.KeyboardModifier.NoModifier,
+            ),
+        )
         ev = QMouseEvent(
-            QMouseEvent.Type.MouseMove, QPointF(dx, dy),
+            QMouseEvent.Type.MouseMove,
+            QPointF(start.x() + dx, start.y() + dy),
             Qt.MouseButton.LeftButton, Qt.MouseButton.LeftButton,
             Qt.KeyboardModifier.NoModifier,
         )
         w._handle_mouse_move(w.video_label, ev)
+        w._handle_mouse_release(
+            QMouseEvent(
+                QMouseEvent.Type.MouseButtonRelease,
+                QPointF(start.x() + dx, start.y() + dy),
+                Qt.MouseButton.LeftButton, Qt.MouseButton.LeftButton,
+                Qt.KeyboardModifier.NoModifier,
+            )
+        )
 
     def test_all_handles_stay_locked_when_dragged_out_of_bounds(self):
         from gui.widgets.video_preview import VideoPreviewWidget

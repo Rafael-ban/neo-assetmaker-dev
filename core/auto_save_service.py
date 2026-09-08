@@ -5,7 +5,7 @@ import os
 import json
 import logging
 import time
-from typing import Optional
+from typing import Callable, Optional
 from dataclasses import dataclass
 
 from PyQt6.QtCore import QObject, pyqtSignal, QTimer
@@ -32,18 +32,26 @@ class AutoSaveService(QObject):
         self.config = config or AutoSaveConfig()
         self._timer: Optional[QTimer] = None
         self._config_obj: Optional[object] = None
+        self._snapshot_provider: Optional[Callable[[], object]] = None
         self._project_path: str = ""
         self._base_dir: str = ""
         self._last_save_time: float = 0
         self._is_saving: bool = False
 
-    def start(self, config_obj: object, project_path: str, base_dir: str):
+    def start(
+        self,
+        config_obj: object,
+        project_path: str,
+        base_dir: str,
+        snapshot_provider: Optional[Callable[[], object]] = None,
+    ):
         """启动自动保存"""
         if not self.config.enabled:
             logger.info("自动保存已禁用")
             return
 
         self._config_obj = config_obj
+        self._snapshot_provider = snapshot_provider
         self._project_path = project_path
         self._base_dir = base_dir
 
@@ -85,12 +93,17 @@ class AutoSaveService(QObject):
         try:
             self._is_saving = True
 
-            if not hasattr(self._config_obj, 'save_to_file'):
+            config_obj = (
+                self._snapshot_provider()
+                if self._snapshot_provider is not None
+                else self._config_obj
+            )
+            if config_obj is None or not hasattr(config_obj, 'save_to_file'):
                 logger.warning("配置对象没有 save_to_file 方法")
                 return
 
             backup_path = self._get_backup_path()
-            self._config_obj.save_to_file(backup_path)
+            config_obj.save_to_file(backup_path)
 
             self._last_save_time = time.time()
             logger.info(f"自动保存成功: {backup_path}")

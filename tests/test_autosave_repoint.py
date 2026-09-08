@@ -26,8 +26,8 @@ class _ServiceSpy:
     def __init__(self):
         self.started_with = None
 
-    def start(self, config_obj, project_path, base_dir):
-        self.started_with = (config_obj, project_path, base_dir)
+    def start(self, config_obj, project_path, base_dir, snapshot_provider=None):
+        self.started_with = (config_obj, project_path, base_dir, snapshot_provider)
 
 
 def _null(*_a, **_k):
@@ -76,11 +76,12 @@ class AutoSaveRepointTests(unittest.TestCase):
                 w._auto_save_service.started_with,
                 "new project must restart the auto-save service",
             )
-            cfg, path, base = w._auto_save_service.started_with
+            cfg, path, base, snapshot_provider = w._auto_save_service.started_with
             self.assertIs(cfg, w._config)
             self.assertIsNot(cfg, old_config, "service must track the NEW config")
             self.assertEqual(path, os.path.join(temp_dir, CONFIG_FILENAME))
             self.assertEqual(base, temp_dir)
+            self.assertTrue(callable(snapshot_provider))
 
     def test_save_as_repoints_autosave(self):
         from gui import main_window as mw_mod
@@ -120,10 +121,11 @@ class AutoSaveRepointTests(unittest.TestCase):
                 w._auto_save_service.started_with,
                 "save-as must restart the auto-save service at the new path",
             )
-            cfg, path, base = w._auto_save_service.started_with
+            cfg, path, base, snapshot_provider = w._auto_save_service.started_with
             self.assertIs(cfg, w._config)
             self.assertEqual(path, target)
             self.assertEqual(base, temp_dir)
+            self.assertTrue(callable(snapshot_provider))
             self.assertFalse(w._is_modified)
 
 

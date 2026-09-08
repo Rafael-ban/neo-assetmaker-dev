@@ -22,7 +22,7 @@ try:
 except ImportError:
     HAS_CV2 = False
 
-from PyQt6.QtCore import QPoint, QSize, QTimer, Qt, pyqtSignal
+from PyQt6.QtCore import QEvent, QPoint, QSize, QTimer, Qt, pyqtSignal
 from PyQt6.QtGui import (
     QImage,
     QKeyEvent,
@@ -172,11 +172,20 @@ class _PreviewLabel(QLabel):
     def mouseReleaseEvent(self, event: QMouseEvent):
         self._owner._handle_mouse_release(event)
 
+    def event(self, event):
+        if event.type() == QEvent.Type.UngrabMouse:
+            self._owner.end_crop_edit(commit=True)
+        return super().event(event)
+
 
 class VideoPreviewWidget(QWidget):
     """Preview media, expose crop/trim state, and keep the legacy public API."""
 
     cropbox_changed = pyqtSignal(int, int, int, int)
+    # 拖动中的裁剪框只影响控件绘制；正式 cropbox_changed 只在提交时发射。
+    draft_cropbox_changed = pyqtSignal(int, int, int, int)
+    crop_edit_started = pyqtSignal()
+    crop_edit_committed = pyqtSignal()
     frame_changed = pyqtSignal(int)
     playback_state_changed = pyqtSignal(bool)
     video_loaded = pyqtSignal(int, float)
@@ -271,6 +280,8 @@ class VideoPreviewWidget(QWidget):
         self.drag_mode = self.DRAG_NONE
         self.drag_start_pos: Optional[QPoint] = None
         self.drag_start_cropbox: list[int] = []
+        self._crop_edit_start: tuple[int, int, int, int] | None = None
+        self._draft_cropbox: list[int] | None = None
         self.handle_size = 15
 
         self._setup_ui()
@@ -550,6 +561,10 @@ class VideoPreviewWidget(QWidget):
         if not self._metadata_resolved or not self.video_path:
             return
         self._job_dirty = True
+        if self._crop_edit_start is not None:
+            # 手势中的 draft 不能让 100ms debounce 抢先创建新 session；已有
+            # trim/rotation 等 pending 状态仍由 _job_dirty 保留到提交后。
+            return
         self._job_debounce.start(100)
 
     def _flush_debounced_render_job(self) -> None:
@@ -559,6 +574,10 @@ class VideoPreviewWidget(QWidget):
             self._fail_current_load(f"无法更新 VapourSynth 预览作业：{exc}")
 
     def flush_render_job(self) -> RenderSession:
+        if self._crop_edit_start is not None:
+            # 调用方若没有先通过 ensure_render_state_committed 收口，绝不能
+            # 把中间 draft 写成 worker job。正常导出/保存边界会先显式提交。
+            return self._render_session
         if self._execution_blocked_reason:
             raise RuntimeError(self._execution_blocked_reason)
         if not self._metadata_resolved or self._fps_rational is None:
@@ -570,6 +589,7 @@ class VideoPreviewWidget(QWidget):
     def set_timeline_range(self, start_frame: int, end_exclusive: int) -> bool:
         if not self.supports_editor_capability("trim"):
             return False
+        self.ensure_render_state_committed()
         if type(start_frame) is not int or type(end_exclusive) is not int:
             raise TypeError("timeline 边界必须是整数")
         if start_frame < 0 or end_exclusive <= start_frame:
@@ -978,6 +998,7 @@ class VideoPreviewWidget(QWidget):
             self._job_paths.discard(path)
 
     def set_target_resolution(self, width: int, height: int):
+        self.ensure_render_state_committed()
         if self.target_width == width and self.target_height == height:
             return
         self.target_width = width
@@ -1006,6 +1027,7 @@ class VideoPreviewWidget(QWidget):
         if not os.path.exists(path):
             self.video_label.setText(f"File not found: {path}")
             return False
+        self.ensure_render_state_committed()
         self._teardown_media()
         self.pause()
         self.video_path = str(Path(path).resolve())
@@ -1069,6 +1091,7 @@ class VideoPreviewWidget(QWidget):
         image = cv2.imdecode(data, cv2.IMREAD_UNCHANGED)
         if image is None:
             return False
+        self.ensure_render_state_committed()
         self._teardown_media()
         self.pause()
         self.video_path = str(Path(path).resolve())
@@ -1094,6 +1117,7 @@ class VideoPreviewWidget(QWidget):
         return True
 
     def _load_static_frame(self, frame: np.ndarray) -> bool:
+        self.ensure_render_state_committed()
         self.pause()
         self._teardown_media()
         self._load_epoch += 1
@@ -1203,14 +1227,25 @@ class VideoPreviewWidget(QWidget):
             return
         self.cropbox = self._fit_cropbox_to_ratio(*self.cropbox)
 
+    def _display_cropbox(self) -> list[int]:
+        return self._draft_cropbox if self._draft_cropbox is not None else self.cropbox
+
     def _emit_cropbox_changed(self):
-        x, y, w, h = self.cropbox
+        """发出一次正式裁剪提交，并把它加入渲染 debounce。"""
+        x, y, w, h = self._display_cropbox()
         self.cropbox_changed.emit(x, y, w, h)
         self._update_info_label()
         self._schedule_render_job()
 
+    def _emit_draft_cropbox_changed(self) -> None:
+        """仅更新实时覆盖层，绝不写 config/undo 或 worker job。"""
+        x, y, w, h = self._display_cropbox()
+        self.draft_cropbox_changed.emit(x, y, w, h)
+        self._update_info_label()
+        self.video_label.update()
+
     def _update_info_label(self):
-        x, y, w, h = self.cropbox
+        x, y, w, h = self._display_cropbox()
         rotation = f" | Rotation: {self._rotation}" if self._rotation else ""
         self.info_label.setText(
             f"Frame {self.current_frame_index}/{self.total_frames} | "
@@ -1304,7 +1339,7 @@ class VideoPreviewWidget(QWidget):
             return
         rotated_w, rotated_h = self._get_rotated_video_size()
         self._update_display_geometry(widget, rotated_w, rotated_h)
-        x, y, w, h = self.cropbox
+        x, y, w, h = self._display_cropbox()
         painter = QPainter(widget)
         pen = QPen(Qt.GlobalColor.cyan, 2)
         painter.setPen(pen)
@@ -1442,14 +1477,85 @@ class VideoPreviewWidget(QWidget):
         return self.current_frame_index
 
     def get_cropbox(self) -> Tuple[int, int, int, int]:
-        return tuple(self.cropbox)
+        return tuple(self._display_cropbox())
 
     def get_cropbox_in_rotated_space(self) -> Tuple[int, int, int, int]:
-        return tuple(self.cropbox)
+        return tuple(self._display_cropbox())
+
+    def get_draft_cropbox(self) -> Tuple[int, int, int, int] | None:
+        """返回尚未提交的裁剪框，供自动保存快照使用。"""
+        if self._draft_cropbox is None:
+            return None
+        return tuple(self._draft_cropbox)
+
+    def has_active_crop_edit(self) -> bool:
+        return self._crop_edit_start is not None
+
+    def begin_crop_edit(self) -> bool:
+        """开始一次裁剪手势，冻结正式 cropbox 与现有 job debounce。"""
+        if self._crop_edit_start is not None:
+            return False
+        if not self.supports_editor_capability("crop"):
+            return False
+        self._crop_edit_start = tuple(self.cropbox)
+        self._draft_cropbox = list(self.cropbox)
+        self._job_debounce.stop()
+        self.crop_edit_started.emit()
+        return True
+
+    def _reset_crop_drag_state(self) -> None:
+        self.drag_mode = self.DRAG_NONE
+        self.drag_start_pos = None
+        self.drag_start_cropbox = []
+
+    def _normalise_draft_cropbox(self, cropbox: list[int]) -> list[int]:
+        committed = self.cropbox
+        try:
+            self.cropbox = list(cropbox)
+            self._bound_cropbox()
+            return list(self.cropbox)
+        finally:
+            self.cropbox = committed
+
+    def _set_draft_cropbox(self, cropbox: list[int]) -> None:
+        if self._crop_edit_start is None:
+            raise RuntimeError("未开始裁剪事务")
+        draft = self._normalise_draft_cropbox(cropbox)
+        if draft == self._draft_cropbox:
+            return
+        self._draft_cropbox = draft
+        self._emit_draft_cropbox_changed()
+
+    def end_crop_edit(self, *, commit: bool = True) -> bool:
+        """提交或取消当前手势；重复调用不会制造新的信号或作业。"""
+        if self._crop_edit_start is None:
+            self._reset_crop_drag_state()
+            return False
+        start = self._crop_edit_start
+        draft = tuple(self._draft_cropbox or self.cropbox)
+        self._crop_edit_start = None
+        self._draft_cropbox = None
+        self._reset_crop_drag_state()
+        changed = commit and draft != start
+        if changed:
+            self.cropbox = list(draft)
+            self._emit_cropbox_changed()
+            self.crop_edit_committed.emit()
+        else:
+            self._update_info_label()
+            if self._job_dirty:
+                self._schedule_render_job()
+        self.video_label.update()
+        return changed
+
+    def ensure_render_state_committed(self) -> bool:
+        """供保存/导出/模式切换等外部边界在消费状态前调用。"""
+        return self.end_crop_edit(commit=True)
 
     def set_cropbox(self, x: int, y: int, w: int, h: int) -> bool:
         if not self.supports_editor_capability("crop"):
             return False
+        self.ensure_render_state_committed()
         self.cropbox = [x, y, w, h]
         self._bound_cropbox()
         self._emit_cropbox_changed()
@@ -1460,6 +1566,7 @@ class VideoPreviewWidget(QWidget):
         return self.video_fps, self.total_frames, self.video_width, self.video_height
 
     def set_preview_mode(self, enabled: bool):
+        self.ensure_render_state_committed()
         if self._preview_mode == bool(enabled):
             return
         self._preview_mode = bool(enabled)
@@ -1486,6 +1593,7 @@ class VideoPreviewWidget(QWidget):
     def set_rotation(self, degrees: int) -> bool:
         if not self.supports_editor_capability("rotation"):
             return False
+        self.ensure_render_state_committed()
         # Snap to a cardinal angle: the VapourSynth export graph only
         # support 0/90/180/270, so keep preview and export in lockstep and never let an
         # arbitrary angle through the UI (timeline SpinBox also steps by 90).
@@ -1598,7 +1706,7 @@ class VideoPreviewWidget(QWidget):
         return max(0, x), max(0, y)
 
     def _get_drag_mode(self, vx: int, vy: int) -> int:
-        x, y, w, h = self.cropbox
+        x, y, w, h = self._display_cropbox()
         hs = self.handle_size
         if abs(vx - x) < hs and abs(vy - y) < hs:
             return self.DRAG_RESIZE_TL
@@ -1624,6 +1732,9 @@ class VideoPreviewWidget(QWidget):
         vx, vy = self._display_to_rotated_coords(widget, event.pos())
         self.drag_mode = self._get_drag_mode(vx, vy)
         if self.drag_mode != self.DRAG_NONE:
+            if not self.begin_crop_edit():
+                self._reset_crop_drag_state()
+                return
             self.drag_start_pos = event.pos()
             self.drag_start_cropbox = self.cropbox.copy()
             self.setFocus()
@@ -1650,51 +1761,75 @@ class VideoPreviewWidget(QWidget):
         dx, dy = crx - srx, cry - sry
         sx, sy, sw, sh = self.drag_start_cropbox
         if self.drag_mode == self.DRAG_MOVE:
-            self.cropbox = [sx + dx, sy + dy, sw, sh]
+            cropbox = [sx + dx, sy + dy, sw, sh]
         elif self.drag_mode == self.DRAG_RESIZE_BR:
             new_w = max(1, sw + dx)
-            self.cropbox = [sx, sy, new_w, int(new_w / self.target_aspect_ratio)]
+            cropbox = [sx, sy, new_w, int(new_w / self.target_aspect_ratio)]
         elif self.drag_mode == self.DRAG_RESIZE_TL:
             new_w = max(1, sw - dx)
             new_h = int(new_w / self.target_aspect_ratio)
-            self.cropbox = [sx + sw - new_w, sy + sh - new_h, new_w, new_h]
+            cropbox = [sx + sw - new_w, sy + sh - new_h, new_w, new_h]
         elif self.drag_mode == self.DRAG_RESIZE_TR:
             new_w = max(1, sw + dx)
             new_h = int(new_w / self.target_aspect_ratio)
-            self.cropbox = [sx, sy + sh - new_h, new_w, new_h]
+            cropbox = [sx, sy + sh - new_h, new_w, new_h]
         elif self.drag_mode == self.DRAG_RESIZE_BL:
             new_w = max(1, sw - dx)
             new_h = int(new_w / self.target_aspect_ratio)
-            self.cropbox = [sx + sw - new_w, sy, new_w, new_h]
-        self._bound_cropbox()
-        self._emit_cropbox_changed()
-        self._refresh_display()
+            cropbox = [sx + sw - new_w, sy, new_w, new_h]
+        else:
+            return
+        if self._crop_edit_start is None:
+            return
+        self._set_draft_cropbox(cropbox)
 
     def _handle_mouse_release(self, event: QMouseEvent):
         if event.button() == Qt.MouseButton.LeftButton:
-            self.drag_mode = self.DRAG_NONE
-            self.drag_start_pos = None
+            self.end_crop_edit(commit=True)
 
     def keyPressEvent(self, event: QKeyEvent):
+        if self.has_active_crop_edit():
+            if event.key() == Qt.Key.Key_Escape:
+                self.end_crop_edit(commit=False)
+            # 鼠标 draft 期间键盘不能越过事务直接改正式 crop；WASD 忽略。
+            if event.key() in (
+                Qt.Key.Key_W, Qt.Key.Key_A, Qt.Key.Key_S, Qt.Key.Key_D,
+                Qt.Key.Key_Escape,
+            ):
+                event.accept()
+                return
         if not (self._has_video or self.current_frame is not None):
             super().keyPressEvent(event)
             return
         has_modifier = event.modifiers() != Qt.KeyboardModifier.NoModifier
         key = event.key()
+        crop_changed = False
         if key == Qt.Key.Key_Space and not has_modifier and self._has_video:
             self.toggle_play()
         elif key == Qt.Key.Key_Left and not has_modifier and self._has_video:
             self.prev_frame()
         elif key == Qt.Key.Key_Right and not has_modifier and self._has_video:
             self.next_frame()
-        elif key == Qt.Key.Key_W and not has_modifier and self.supports_editor_capability("crop"):
+        elif (key == Qt.Key.Key_W and not has_modifier
+              and self.supports_editor_capability("crop")
+              and not self._preview_mode and self._zoom_factor <= 1.0):
             self.cropbox[1] -= 10
-        elif key == Qt.Key.Key_S and not has_modifier and self.supports_editor_capability("crop"):
+            crop_changed = True
+        elif (key == Qt.Key.Key_S and not has_modifier
+              and self.supports_editor_capability("crop")
+              and not self._preview_mode and self._zoom_factor <= 1.0):
             self.cropbox[1] += 10
-        elif key == Qt.Key.Key_A and not has_modifier and self.supports_editor_capability("crop"):
+            crop_changed = True
+        elif (key == Qt.Key.Key_A and not has_modifier
+              and self.supports_editor_capability("crop")
+              and not self._preview_mode and self._zoom_factor <= 1.0):
             self.cropbox[0] -= 10
-        elif key == Qt.Key.Key_D and not has_modifier and self.supports_editor_capability("crop"):
+            crop_changed = True
+        elif (key == Qt.Key.Key_D and not has_modifier
+              and self.supports_editor_capability("crop")
+              and not self._preview_mode and self._zoom_factor <= 1.0):
             self.cropbox[0] += 10
+            crop_changed = True
         elif key == Qt.Key.Key_Equal and event.modifiers() == Qt.KeyboardModifier.ControlModifier:
             # Ctrl+= (zoom in)
             self.zoom_slider.setValue(self.zoom_slider.value() + 10)
@@ -1707,9 +1842,21 @@ class VideoPreviewWidget(QWidget):
         else:
             super().keyPressEvent(event)
             return
-        self._bound_cropbox()
-        self._emit_cropbox_changed()
-        self._refresh_display()
+        if crop_changed:
+            self._bound_cropbox()
+            self._emit_cropbox_changed()
+            self._refresh_display()
+
+    def focusOutEvent(self, event) -> None:
+        # 键盘焦点离开意味着用户不再能可靠地完成 release；提交当前 draft。
+        self.end_crop_edit(commit=True)
+        super().focusOutEvent(event)
+
+    def event(self, event) -> bool:
+        if event.type() in (QEvent.Type.WindowDeactivate, QEvent.Type.UngrabMouse):
+            # 窗口失活或 grab 被别的控件夺走时同样必须只有一次明确收口。
+            self.end_crop_edit(commit=True)
+        return super().event(event)
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
@@ -1728,6 +1875,7 @@ class VideoPreviewWidget(QWidget):
         factor = 10 ** (value / 100.0)
         if abs(factor - self._zoom_factor) < 0.001:
             return
+        self.ensure_render_state_committed()
         self._zoom_factor = factor
         self.zoom_label.setText(f"{int(factor * 100)}%")
         self._request_current_frame(coalesce=True)
@@ -1753,6 +1901,7 @@ class VideoPreviewWidget(QWidget):
         return self._zoom_factor
 
     def clear(self, sync_shutdown: bool = False):
+        self.ensure_render_state_committed()
         self.pause()
         self._teardown_media(sync_shutdown=sync_shutdown)
         self._load_epoch += 1

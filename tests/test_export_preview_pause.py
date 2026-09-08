@@ -103,6 +103,7 @@ class _ValidValidator:
 
 
 class _OnExportWindow(_ExportWindow):
+    _ensure_render_state_committed = MainWindow._ensure_render_state_committed
     _pause_export_previews = MainWindow._pause_export_previews
     _restore_export_previews = MainWindow._restore_export_previews
     _on_export_completed = MainWindow._on_export_completed

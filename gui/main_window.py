@@ -699,6 +699,10 @@ class MainWindow(QMainWindow):
         # 裁剪框变化写入 config.editor(此前从未连接:关闭即静默丢失)
         self.video_preview.cropbox_changed.connect(
             lambda *a: self._on_editor_state_changed(self.video_preview))
+        self.video_preview.crop_edit_started.connect(
+            lambda: self._on_crop_edit_started(self.video_preview))
+        self.video_preview.crop_edit_committed.connect(
+            lambda: self._on_crop_edit_committed(self.video_preview))
 
         self.btn_firmware.clicked.connect(self._on_sidebar_firmware)
         self.btn_material.clicked.connect(self._on_sidebar_material)
@@ -719,6 +723,10 @@ class MainWindow(QMainWindow):
                 "入场视频", msg, self.intro_preview))
         self.intro_preview.cropbox_changed.connect(
             lambda *a: self._on_editor_state_changed(self.intro_preview))
+        self.intro_preview.crop_edit_started.connect(
+            lambda: self._on_crop_edit_started(self.intro_preview))
+        self.intro_preview.crop_edit_committed.connect(
+            lambda: self._on_crop_edit_committed(self.intro_preview))
 
         # qfluentwidgets 1.11.1 的 TabWidget.setCurrentIndex() 只同步 Tab/
         # stack，不会发射 currentChanged；在全部信号和时间轴就绪后显式同步。
@@ -1083,8 +1091,7 @@ class MainWindow(QMainWindow):
         self.status_bar.showMessage("已创建临时项目，可以开始编辑")
         logger.info(f"已初始化临时项目: {temp_dir}")
 
-        self._auto_save_service.start(
-            self._config, self._project_path, self._base_dir)
+        self._start_auto_save()
         self._reset_undo_history()
 
     def _cleanup_temp_dir(self):
@@ -1183,8 +1190,7 @@ class MainWindow(QMainWindow):
         # 重新指向自动保存:服务在 start() 时缓存 config 对象与项目路径
         # (auto_save_service.py),不重启会继续把旧项目的配置备份到旧位置,
         # 崩溃恢复也会指向错误的项目。
-        self._auto_save_service.start(
-            self._config, self._project_path, self._base_dir)
+        self._start_auto_save()
         self._reset_undo_history()
         self._update_title()
         self.status_bar.showMessage(f"新建项目: {dir_path}")
@@ -1288,8 +1294,7 @@ class MainWindow(QMainWindow):
 
         self._update_title()
         self.status_bar.showMessage(f"已打开: {self._project_path}")
-        self._auto_save_service.start(
-            self._config, self._project_path, self._base_dir)
+        self._start_auto_save()
         self._reset_undo_history()
 
     def _load_project(self, path: str):
@@ -1318,6 +1323,8 @@ class MainWindow(QMainWindow):
         if not self._config:
             return
 
+        self._ensure_render_state_committed()
+
         if not self._project_path:
             self._on_save_as()
             return
@@ -1334,6 +1341,8 @@ class MainWindow(QMainWindow):
         """另存为"""
         if not self._config:
             return
+
+        self._ensure_render_state_committed()
 
         path, _ = QFileDialog.getSaveFileName(
             self, "保存配置文件",
@@ -1372,8 +1381,7 @@ class MainWindow(QMainWindow):
             self._configure_preview_render_contexts()
 
             # 重新指向自动保存(路径已切换;服务缓存的是 start() 时的值)。
-            self._auto_save_service.start(
-                self._config, self._project_path, self._base_dir)
+            self._start_auto_save()
 
             self._update_title()
             self.status_bar.showMessage(f"已保存: {path}")
@@ -1420,6 +1428,8 @@ class MainWindow(QMainWindow):
         if not self._script_ready:
             QMessageBox.warning(self, "脚本未就绪", self._script_block_reason)
             return
+
+        self._ensure_render_state_committed()
 
         from core.validator import EPConfigValidator
         validator = EPConfigValidator(self._base_dir)
@@ -1912,6 +1922,20 @@ class MainWindow(QMainWindow):
             return
         self._undo_timer.start(800)
 
+    def _settle_pending_undo_change(self) -> None:
+        """立即登记已有普通编辑，给新裁剪手势独立的历史边界。"""
+        if self._undo_timer.isActive():
+            self._undo_timer.stop()
+            self._commit_undo_snapshot()
+
+    def _on_crop_edit_started(self, _preview=None) -> None:
+        """手势开始前先结清此前的普通编辑，绝不和 crop 合并。"""
+        self._settle_pending_undo_change()
+
+    def _on_crop_edit_committed(self, _preview=None) -> None:
+        """正式 crop 已写 config；立即建立该手势专属 undo 并清空 redo。"""
+        self._settle_pending_undo_change()
+
     def _commit_undo_snapshot(self):
         """Debounce fired: push the pre-burst baseline as one undo step."""
         if not self._config:
@@ -1928,10 +1952,9 @@ class MainWindow(QMainWindow):
 
     def _on_undo(self):
         """撤销操作"""
+        self._ensure_render_state_committed()
         # Flush a pending debounce so an in-flight burst becomes undoable first.
-        if self._undo_timer.isActive():
-            self._undo_timer.stop()
-            self._commit_undo_snapshot()
+        self._settle_pending_undo_change()
         if not self._undo_stack:
             return
         prev_state = self._undo_stack.pop()
@@ -1943,6 +1966,7 @@ class MainWindow(QMainWindow):
 
     def _on_redo(self):
         """重做操作"""
+        self._ensure_render_state_committed()
         if not self._redo_stack:
             return
         next_state = self._redo_stack.pop()
@@ -2844,8 +2868,7 @@ class MainWindow(QMainWindow):
                 self._auto_save_service.config.enabled = True
                 # 如果有项目打开，重启定时器
                 if self._config and self._project_path:
-                    self._auto_save_service.start(
-                        self._config, self._project_path, self._base_dir)
+                    self._start_auto_save()
             else:
                 self._auto_save_service.config.enabled = False
                 self._auto_save_service.stop()
@@ -3100,6 +3123,41 @@ class MainWindow(QMainWindow):
 
     def _is_timeline_bound_to(self, preview: VideoPreviewWidget) -> bool:
         return self._timeline_preview is preview
+
+    def _ensure_render_state_committed(self) -> None:
+        """在消费项目状态前提交两个视频预览尚未结束的裁剪手势。"""
+        for preview in (
+            getattr(self, "video_preview", None),
+            getattr(self, "intro_preview", None),
+        ):
+            ensure = getattr(preview, "ensure_render_state_committed", None)
+            if callable(ensure):
+                ensure()
+
+    def _autosave_snapshot(self):
+        """返回可恢复的项目副本，包含手势中的 crop draft 而不污染正式状态。"""
+        if self._config is None:
+            return None
+        snapshot = self._config.copy()
+        for preview, track in (
+            (getattr(self, "video_preview", None), snapshot.editor.loop),
+            (getattr(self, "intro_preview", None), snapshot.editor.intro),
+        ):
+            get_draft = getattr(preview, "get_draft_cropbox", None)
+            draft = get_draft() if callable(get_draft) else None
+            if draft is not None:
+                track.crop = list(draft)
+        return snapshot
+
+    def _start_auto_save(self) -> None:
+        if self._config is None:
+            return
+        self._auto_save_service.start(
+            self._config,
+            self._project_path,
+            self._base_dir,
+            snapshot_provider=self._autosave_snapshot,
+        )
 
     def _snapshot_active_timeline_state(self):
         if self._timeline_preview is self.intro_preview:
@@ -3478,6 +3536,7 @@ class MainWindow(QMainWindow):
 
     def _on_preview_tab_changed(self, index: int):
         """预览标签页切换"""
+        self._ensure_render_state_committed()
         # 保存当前 in/out 到正确的位置（基于当前连接的预览器）
         self._snapshot_active_timeline_state()
 
@@ -4034,6 +4093,7 @@ class MainWindow(QMainWindow):
         """收集导出所需的数据"""
         from core.image_processor import ImageProcessor
 
+        self._ensure_render_state_committed()
         self._snapshot_active_timeline_state()
         data = {}
 
@@ -4213,6 +4273,7 @@ class MainWindow(QMainWindow):
 
     def _check_save(self) -> bool:
         """检查是否需要保存"""
+        self._ensure_render_state_committed()
         if not self._is_modified:
             return True
 
@@ -4299,6 +4360,7 @@ class MainWindow(QMainWindow):
 
     def _shutdown_runtime_resources(self):
         """Stop media previews and auxiliary pages during close or app quit."""
+        self._ensure_render_state_committed()
         try:
             self._auto_save_service.stop()
         except Exception as exc:
