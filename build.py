@@ -7,6 +7,7 @@ import sys
 import subprocess
 import argparse
 import shutil
+import stat
 import urllib.request
 from pathlib import Path
 from zipfile import ZIP_DEFLATED, ZipFile
@@ -22,6 +23,15 @@ OBFUSCATION_DIR = os.path.join(".tmp", "pyarmor-src")
 OBFUSCATABLE_ENTRIES = ["main.py", "core", "config", "utils", "_mext"]
 MEDIA_TOOL_DIR = os.path.join("tools", "media")
 MEDIA_TOOL_SOURCE_DIRS = ("", MEDIA_TOOL_DIR)
+PYCACHE_SOURCE_ROOTS = (
+    Path("core"),
+    Path("config"),
+    Path("gui"),
+    Path("utils"),
+    Path("_mext"),
+    Path("tests"),
+    Path("resources/vapoursynth/python"),
+)
 MEDIA_TOOL_CANDIDATES = [
     ("VSPipe.exe", os.path.join(MEDIA_TOOL_DIR, "VSPipe.exe")),
     ("x264-7mod.exe", os.path.join(MEDIA_TOOL_DIR, "x264-7mod.exe")),
@@ -159,27 +169,77 @@ def find_inno_setup():
     return None
 
 
-def _clean_pycache(base_dir="."):
-    """清理项目源码的 __pycache__ 目录
+def _lstat_without_reparse(path):
+    try:
+        result = path.lstat()
+    except OSError:
+        return None
+    if stat.S_ISLNK(result.st_mode):
+        return None
+    try:
+        attributes = result.st_file_attributes
+    except (AttributeError, OSError):
+        return None
+    if attributes & stat.FILE_ATTRIBUTE_REPARSE_POINT:
+        return None
+    return result
 
-    跳过 .venv/ 等无关目录（避免删除第三方包字节码）
-    """
-    skip_dirs = {
-        ".venv",
-        "venv",
-        ".git",
-        "simulator",
-        "node_modules",
-        BUILD_DIR,
-        DIST_DIR,
-    }
-    for root, dirs, files in os.walk(base_dir):
-        dirs[:] = [d for d in dirs if d not in skip_dirs]
-        if "__pycache__" in dirs:
-            cache_path = os.path.join(root, "__pycache__")
-            shutil.rmtree(cache_path)
-            print(f"  Cleared: {cache_path}")
-            dirs.remove("__pycache__")
+
+def _cache_tree_is_safe(cache_path):
+    pending = [cache_path]
+    while pending:
+        path = pending.pop()
+        result = _lstat_without_reparse(path)
+        if result is None:
+            return False
+        if not stat.S_ISDIR(result.st_mode):
+            continue
+        try:
+            with os.scandir(path) as entries:
+                pending.extend(Path(entry.path) for entry in entries)
+        except OSError:
+            return False
+    return True
+
+
+def _clean_pycache(base_dir="."):
+    """仅清理明确项目源码目录内的安全 ``__pycache__`` 树。"""
+    base_path = Path(base_dir)
+    base_stat = _lstat_without_reparse(base_path)
+    if base_stat is None or not stat.S_ISDIR(base_stat.st_mode):
+        return
+
+    root_cache = base_path / "__pycache__"
+    if _cache_tree_is_safe(root_cache):
+        shutil.rmtree(root_cache)
+        print(f"  Cleared: {root_cache}")
+
+    for source_root in PYCACHE_SOURCE_ROOTS:
+        current = base_path
+        for part in source_root.parts:
+            current /= part
+            current_stat = _lstat_without_reparse(current)
+            if current_stat is None or not stat.S_ISDIR(current_stat.st_mode):
+                break
+        else:
+            pending = [current]
+            while pending:
+                directory = pending.pop()
+                try:
+                    with os.scandir(directory) as entries:
+                        children = [Path(entry.path) for entry in entries]
+                except OSError:
+                    continue
+                for child in children:
+                    child_stat = _lstat_without_reparse(child)
+                    if child_stat is None or not stat.S_ISDIR(child_stat.st_mode):
+                        continue
+                    if child.name == "__pycache__":
+                        if _cache_tree_is_safe(child):
+                            shutil.rmtree(child)
+                            print(f"  Cleared: {child}")
+                        continue
+                    pending.append(child)
 
 
 def _diagnose_build_env():
