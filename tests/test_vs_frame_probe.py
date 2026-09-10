@@ -25,15 +25,20 @@ except ImportError:
     HAS_CV2 = False
 
 from core.media_tools import MediaToolchain
+from resources.vapoursynth.python.assetmaker_vs.runtime_layout import (
+    RuntimeLayoutError,
+    resolve_runtime_layout,
+)
 
 
 REPO = Path(__file__).resolve().parents[1]
 CHILD_PROBE = REPO / "tests" / "helpers" / "run_vs_frame_probe.py"
 TC = MediaToolchain.discover(str(REPO))
-VS_OK = (
-    (REPO / "tools" / "media" / "vapoursynth.pyd").is_file()
-    and sys.version_info >= (3, 12)
-)
+try:
+    R79_LAYOUT = resolve_runtime_layout(REPO)
+except RuntimeLayoutError:
+    R79_LAYOUT = None
+VS_OK = R79_LAYOUT is not None and sys.version_info >= (3, 12)
 ENCODE_OK = HAS_CV2 and not TC.missing_for_export()
 
 

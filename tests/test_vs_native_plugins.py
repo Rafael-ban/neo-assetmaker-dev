@@ -17,6 +17,74 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def _resolve_r79_test_layout(root: Path):
+    """Return the validated shared R79 layout without importing VapourSynth."""
+    from resources.vapoursynth.python.assetmaker_vs.runtime_layout import (
+        RuntimeLayoutError,
+        resolve_runtime_layout,
+    )
+
+    try:
+        return resolve_runtime_layout(root)
+    except RuntimeLayoutError:
+        return None
+
+
+def _copy_r79_application_fixture(app_root: Path):
+    """Copy the complete checked R79 distribution and its shared scripts."""
+    source_layout = _resolve_r79_test_layout(ROOT)
+    if source_layout is None:
+        raise AssertionError("source checkout has no complete R79 runtime")
+    shutil.copytree(
+        source_layout.runtime_root,
+        app_root / "tools" / "media" / "runtime",
+    )
+    shutil.copytree(
+        ROOT / "resources" / "vapoursynth",
+        app_root / "resources" / "vapoursynth",
+    )
+    layout = _resolve_r79_test_layout(app_root)
+    if layout is None:
+        raise AssertionError("copied R79 runtime does not satisfy shared layout")
+    return layout
+
+
+def _source_harness_bootstrap(source_root: Path) -> str:
+    """Anchor test-only source imports without a PYTHONPATH escape hatch."""
+    return (
+        "import sys\n"
+        f"sys.path.insert(0, {str(source_root.resolve())!r})\n"
+    )
+
+
+def _fixture_process_environment(layout, app_root: Path) -> dict[str, str]:
+    """Build a private pre-launch environment through the shared sanitizer."""
+    from resources.vapoursynth.python.assetmaker_vs.runtime_layout import (
+        sanitize_runtime_process_environment,
+    )
+
+    private_appdata = app_root / "private-appdata"
+    private_appdata.mkdir(exist_ok=True)
+    base_environment = dict(os.environ)
+    for name in (
+        "PYTHONHOME",
+        "PYTHONPATH",
+        "VAPOURSYNTH_CONF_PATH",
+        "VAPOURSYNTH_EXTRA_PLUGIN_PATH",
+        "VAPOURSYNTH_PLUGIN_PATH",
+        "VAPOURSYNTH_PYTHON_PATH",
+    ):
+        base_environment[name] = str(app_root / "forbidden-search-path")
+    environment = sanitize_runtime_process_environment(base_environment, layout)
+    environment["APPDATA"] = str(private_appdata)
+    environment["PYTHONIOENCODING"] = "utf-8"
+    environment["PYTHONUTF8"] = "1"
+    return environment
+
+
+R79_LAYOUT = _resolve_r79_test_layout(ROOT)
+
+
 class _Plugin:
     def __init__(self, namespace: str, plugin_path: str | None, functions=()):
         self.namespace = namespace
@@ -479,69 +547,162 @@ class NativePluginPolicyTests(unittest.TestCase):
             )
 
 
+class R79NativeFixtureDeterministicTests(unittest.TestCase):
+    def test_runtime_gate_accepts_complete_r79_layout_and_rejects_flat_r73(self):
+        from tests.test_vs_runtime_layout import _build_r79_fixture
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.assertIsNone(_resolve_r79_test_layout(root))
+            (root / "tools" / "media").mkdir(parents=True)
+            (root / "tools" / "media" / "vapoursynth.pyd").write_bytes(b"R73")
+            self.assertIsNone(_resolve_r79_test_layout(root))
+            shutil.rmtree(root / "tools")
+            _build_r79_fixture(root)
+
+            layout = _resolve_r79_test_layout(root)
+
+            self.assertIsNotNone(layout)
+            self.assertEqual(
+                layout.binding.relative_to(root).as_posix(),
+                "tools/media/runtime/Lib/site-packages/vapoursynth/vapoursynth.pyd",
+            )
+            self.assertEqual(
+                tuple(
+                    path.relative_to(root).as_posix()
+                    for path in layout.bundled_native_plugin_dirs
+                ),
+                (
+                    "tools/media/runtime/native-plugins/01-lsmas",
+                    "tools/media/runtime/native-plugins/02-imwri",
+                ),
+            )
+
+    def test_source_harness_bootstraps_root_from_sanitized_temporary_cwd(self):
+        from tests.test_vs_runtime_layout import _build_r79_fixture
+
+        with tempfile.TemporaryDirectory() as temporary:
+            fixture_root = Path(temporary) / "fixture"
+            _build_r79_fixture(fixture_root)
+            layout = _resolve_r79_test_layout(fixture_root)
+            self.assertIsNotNone(layout)
+            app_root = fixture_root / "isolated app"
+            app_root.mkdir()
+            private_appdata = app_root / "private-appdata"
+            environment = _fixture_process_environment(layout, app_root)
+            unbootstrapped = subprocess.run(
+                [sys.executable, "-I", "-S", "-c", "import core"],
+                cwd=app_root,
+                env=environment,
+                capture_output=True,
+                check=False,
+            )
+            self.assertNotEqual(unbootstrapped.returncode, 0)
+            self.assertIn(b"No module named 'core'", unbootstrapped.stderr)
+
+            bootstrapped = subprocess.run(
+                [
+                    sys.executable,
+                    "-I",
+                    "-S",
+                    "-c",
+                    _source_harness_bootstrap(ROOT)
+                    + "import core\nprint(core.__file__)\n",
+                ],
+                cwd=app_root,
+                env=environment,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(bootstrapped.returncode, 0, bootstrapped.stderr)
+            self.assertEqual(
+                Path(bootstrapped.stdout.decode("utf-8").strip()).resolve(),
+                ROOT / "core" / "__init__.py",
+            )
+            self.assertFalse(
+                any(name.upper() == "PYTHONPATH" for name in environment)
+            )
+            self.assertEqual(environment["APPDATA"], str(private_appdata))
+
+
 @unittest.skipUnless(
-    (ROOT / "tools" / "media" / "vapoursynth.pyd").is_file(),
-    "需要本机 portable VapourSynth fixture",
+    R79_LAYOUT is not None,
+    "需要通过 shared runtime layout 校验的 R79 fixture",
 )
 class NativePluginPortableIntegrationTests(unittest.TestCase):
     def test_two_chinese_space_directories_load_real_plugins_without_original_autoload(self):
-        """临时 portable 副本只能从两个配置目录加载 imwri/lsmas。"""
-        source_media = ROOT / "tools" / "media"
-        source_plugins = source_media / "vs-plugins"
+        """Fresh core 以生产函数首次加载两个额外目录中的真实插件。"""
+        source_layout = R79_LAYOUT
+        self.assertIsNotNone(source_layout)
         image = ROOT / "resources" / "class_icons" / "ak_logo.png"
         for required in (
-            source_media / "vapoursynth.pyd",
-            source_media / "vapoursynth.dll",
-            source_media / "portable.vs",
-            source_plugins / "libimwri.dll",
-            source_plugins / "LSMASHSource.dll",
+            source_layout.binding,
+            source_layout.core,
+            source_layout.bundled_native_plugin_dirs[0] / "LSMASHSource.dll",
+            source_layout.bundled_native_plugin_dirs[1] / "libimwri.dll",
+            ROOT / "tools" / "media" / "avcodec-60.dll",
+            ROOT / "tools" / "media" / "avutil-58.dll",
+            ROOT / "tools" / "media" / "swresample-4.dll",
             image,
         ):
             self.assertTrue(required.is_file(), required)
 
         with tempfile.TemporaryDirectory() as temporary:
-            app_root = Path(temporary) / "独立 portable"
-            media = app_root / "tools" / "media"
-            media.mkdir(parents=True)
-            for candidate in source_media.iterdir():
-                if candidate.is_file() and (
-                    candidate.suffix.casefold() in {".dll", ".pyd"}
-                    or candidate.name == "portable.vs"
-                ):
-                    shutil.copy2(candidate, media / candidate.name)
-            # 保留空 autoload 目录；原始 DLL 绝不能在此 fixture 中替代配置目录。
-            (media / "vs-plugins").mkdir()
-            (media / "vs-coreplugins").mkdir()
+            app_root = Path(temporary) / "独立 R79 应用"
+            layout = _copy_r79_application_fixture(app_root)
             first = app_root / "插件 中文 一"
             second = app_root / "插件 空格 二"
             first.mkdir()
             second.mkdir()
-            shutil.copy2(source_plugins / "LSMASHSource.dll", first / "LSMASHSource.dll")
-            shutil.copy2(source_plugins / "libimwri.dll", second / "libimwri.dll")
-            # 普通依赖 DLL 与 plugin DLL 共存不应让该目录被拒绝。
-            shutil.copy2(source_media / "avcodec-60.dll", second / "avcodec-60.dll")
+            shutil.copy2(
+                layout.bundled_native_plugin_dirs[0] / "LSMASHSource.dll",
+                first / "LSMASHSource.dll",
+            )
+            shutil.copy2(
+                layout.bundled_native_plugin_dirs[1] / "libimwri.dll",
+                second / "libimwri.dll",
+            )
+            for dependency_name in (
+                "avcodec-60.dll",
+                "avutil-58.dll",
+                "swresample-4.dll",
+            ):
+                dependency = ROOT / "tools" / "media" / dependency_name
+                shutil.copy2(dependency, second / dependency.name)
             probe = app_root / "probe.py"
             probe.write_text(
                 "from __future__ import annotations\n"
+                + _source_harness_bootstrap(ROOT)
+                + "import importlib.util\n"
                 "import json\n"
+                "import os\n"
                 "import sys\n"
                 "from pathlib import Path\n"
-                f"sys.path.insert(0, {str(ROOT)!r})\n"
-                "from config.vs_runtime import PluginConfig, VSRuntimeConfig\n"
-                "from core.vs_runtime.vs_loader import (\n"
-                "    load_vapoursynth, verify_vapoursynth_native_plugins,\n"
+                "from resources.vapoursynth.python.assetmaker_vs.native_plugins import (\n"
+                "    configure_native_plugins, verify_native_plugin_requirements,\n"
                 ")\n"
+                "from resources.vapoursynth.python.assetmaker_vs.runtime_layout import resolve_runtime_layout\n"
                 f"root = Path({str(app_root)!r})\n"
                 f"first = Path({str(first)!r})\n"
                 f"second = Path({str(second)!r})\n"
                 f"image = Path({str(image)!r})\n"
-                "runtime = VSRuntimeConfig(plugins=PluginConfig(\n"
-                "    native_plugin_dirs=(str(first), str(second)),\n"
-                "))\n"
-                "vs = load_vapoursynth(root, runtime)\n"
-                "verify_vapoursynth_native_plugins(\n"
-                "    vs, runtime, ('lsmas.LWLibavSource', 'imwri.Read'),\n"
-                ")\n"
+                "layout = resolve_runtime_layout(root)\n"
+                "assert os.environ['VAPOURSYNTH_EXTRA_PLUGIN_PATH'] == ''\n"
+                "assert not any(name.upper() in {'VAPOURSYNTH_PLUGIN_PATH', 'VAPOURSYNTH_PYTHON_PATH', 'VAPOURSYNTH_CONF_PATH', 'PYTHONHOME', 'PYTHONPATH'} for name in os.environ)\n"
+                "assert Path(os.environ['APPDATA']).resolve().is_relative_to(root)\n"
+                "handles = [os.add_dll_directory(str(p)) for p in (layout.vs_package_dir, layout.runtime_root, first, second)]\n"
+                "spec = importlib.util.spec_from_file_location('vapoursynth', str(layout.package_entry), submodule_search_locations=[str(layout.vs_package_dir)])\n"
+                "assert spec is not None and spec.loader is not None\n"
+                "vs = importlib.util.module_from_spec(spec)\n"
+                "sys.modules['vapoursynth'] = vs\n"
+                "spec.loader.exec_module(vs)\n"
+                "assert Path(sys.modules['vapoursynth.vapoursynth'].__file__).resolve() == layout.binding.resolve()\n"
+                "assert vs.__version__.release_major == 79\n"
+                "assert tuple(vs.__api_version__) == (4, 2)\n"
+                "assert {'lsmas', 'imwri'}.isdisjoint({p.namespace for p in vs.core.plugins()})\n"
+                "state = configure_native_plugins(vs.core, (first, second), builtin_plugin_dirs=layout.builtin_plugin_dirs)\n"
+                "verify_native_plugin_requirements(vs.core, state, ('lsmas.LWLibavSource', 'imwri.Read'))\n"
                 "frame = vs.core.imwri.Read(str(image)).get_frame(0)\n"
                 "try:\n"
                 "    payload = {\n"
@@ -550,16 +711,16 @@ class NativePluginPortableIntegrationTests(unittest.TestCase):
                 "        if plugin.namespace in {'lsmas', 'imwri'}\n"
                 "    }\n"
                 "    payload['frame'] = [frame.width, frame.height]\n"
+                "    payload['runtime'] = str(layout.runtime_root)\n"
                 "    print(json.dumps(payload, ensure_ascii=True))\n"
                 "finally:\n"
                 "    frame.close()\n",
                 encoding="utf-8",
             )
-            environment = os.environ.copy()
-            environment["VAPOURSYNTH_EXTRA_PLUGIN_PATH"] = str(source_plugins)
+            environment = _fixture_process_environment(layout, app_root)
             result = subprocess.run(
-                [sys.executable, "-B", str(probe)],
-                cwd=ROOT,
+                [sys.executable, "-I", "-X", "utf8", "-B", str(probe)],
+                cwd=app_root,
                 env=environment,
                 capture_output=True,
                 text=True,
@@ -574,6 +735,55 @@ class NativePluginPortableIntegrationTests(unittest.TestCase):
             self.assertEqual(Path(payload["lsmas"]).resolve(), first / "LSMASHSource.dll")
             self.assertEqual(Path(payload["imwri"]).resolve(), second / "libimwri.dll")
             self.assertEqual(payload["frame"], [75, 35])
+            self.assertEqual(Path(payload["runtime"]).resolve(), layout.runtime_root)
+
+    def test_product_loader_rejects_bundled_plugin_copied_to_another_directory(self):
+        """完整 bundle 先加载后，异路径同 identity 必须精确冲突。"""
+        with tempfile.TemporaryDirectory() as temporary:
+            app_root = Path(temporary) / "冲突 R79 应用"
+            layout = _copy_r79_application_fixture(app_root)
+            extra = app_root / "额外 中文 空格"
+            extra.mkdir()
+            candidate = extra / "LSMASHSource.dll"
+            shutil.copy2(
+                layout.bundled_native_plugin_dirs[0] / candidate.name,
+                candidate,
+            )
+            probe = app_root / "conflict_probe.py"
+            probe.write_text(
+                _source_harness_bootstrap(ROOT)
+                + "import os\n"
+                "from pathlib import Path\n"
+                "from config.vs_runtime import PluginConfig, VSRuntimeConfig\n"
+                "from core.vs_runtime.vs_loader import load_vapoursynth\n"
+                f"root = Path({str(app_root)!r})\n"
+                f"extra = Path({str(extra)!r})\n"
+                "assert os.environ['VAPOURSYNTH_EXTRA_PLUGIN_PATH'] == ''\n"
+                "assert not any(name.upper() in {'VAPOURSYNTH_PLUGIN_PATH', 'VAPOURSYNTH_PYTHON_PATH', 'VAPOURSYNTH_CONF_PATH', 'PYTHONHOME', 'PYTHONPATH'} for name in os.environ)\n"
+                "assert Path(os.environ['APPDATA']).resolve().is_relative_to(root)\n"
+                "load_vapoursynth(root, VSRuntimeConfig(plugins=PluginConfig(native_plugin_dirs=(str(extra),))))\n",
+                encoding="utf-8",
+            )
+            environment = _fixture_process_environment(layout, app_root)
+            result = subprocess.run(
+                [sys.executable, "-I", "-X", "utf8", "-B", str(probe)],
+                cwd=app_root,
+                env=environment,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=60,
+                check=False,
+            )
+
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("native_plugin.conflict", result.stderr)
+            self.assertIn(str(candidate), result.stderr)
+            self.assertIn(
+                str(layout.bundled_native_plugin_dirs[0] / candidate.name),
+                result.stderr,
+            )
 
     def test_worker_and_fresh_vspipe_use_isolated_native_directories(self):
         """I5：worker IPC 与 fixed runner 均排除 autoload 后实际取 imwri 帧。"""
@@ -594,46 +804,32 @@ class NativePluginPortableIntegrationTests(unittest.TestCase):
         from core.vs_runtime.worker_process import SyncVSWorkerProcess
         from core.vs_runtime.script_header import parse_script_header
 
-        source_media = ROOT / "tools" / "media"
-        source_plugins = source_media / "vs-plugins"
-        source_resources = ROOT / "resources" / "vapoursynth"
+        source_layout = R79_LAYOUT
+        self.assertIsNotNone(source_layout)
         image = ROOT / "resources" / "class_icons" / "ak_logo.png"
         for required in (
-            source_media / "VSPipe.exe",
-            source_media / "vapoursynth.pyd",
-            source_media / "vapoursynth.dll",
-            source_media / "portable.vs",
-            source_plugins / "LSMASHSource.dll",
-            source_plugins / "libimwri.dll",
+            source_layout.vspipe_executable,
+            source_layout.binding,
+            source_layout.core,
+            source_layout.bundled_native_plugin_dirs[0] / "LSMASHSource.dll",
+            source_layout.bundled_native_plugin_dirs[1] / "libimwri.dll",
             image,
         ):
             self.assertTrue(required.is_file(), required)
 
         with tempfile.TemporaryDirectory() as temporary:
-            app_root = Path(temporary) / "isolated portable 应用"
-            media = app_root / "tools" / "media"
-            media.mkdir(parents=True)
-            for source in source_media.iterdir():
-                if source.is_file() and (
-                    source.suffix.casefold() in {".dll", ".pyd", ".exe"}
-                    or source.name
-                    in {"portable.vs", "python312.zip", "python312._pth", "python.cat"}
-                ):
-                    shutil.copy2(source, media / source.name)
-            # VSPipe 使用 portable 内嵌解释器，不能只复制 exe/pyd/dll。
-            shutil.copytree(source_media / "Lib", media / "Lib")
-            shutil.copytree(source_resources, app_root / "resources" / "vapoursynth")
-            (media / "vs-plugins").mkdir()
-            (media / "vs-coreplugins").mkdir()
-            first = app_root / "插件 中文 一"
-            second = app_root / "插件 空格 二"
-            first.mkdir()
-            second.mkdir()
-            shutil.copy2(source_plugins / "LSMASHSource.dll", first / "LSMASHSource.dll")
-            shutil.copy2(source_plugins / "libimwri.dll", second / "libimwri.dll")
-            shutil.copy2(source_media / "avcodec-60.dll", second / "avcodec-60.dll")
+            app_root = Path(temporary) / "isolated R79 应用"
+            layout = _copy_r79_application_fixture(app_root)
+            first, second = layout.bundled_native_plugin_dirs
             runtime = VSRuntimeConfig(
-                plugins=PluginConfig(native_plugin_dirs=(str(first), str(second)))
+                plugins=PluginConfig(
+                    native_plugin_dirs=(
+                        str(first),
+                        str(first),
+                        str(second),
+                        str(second),
+                    )
+                )
             )
             fingerprint = compute_runtime_fingerprint(app_root, runtime)
             project = app_root / "project 中文"
@@ -647,6 +843,8 @@ class NativePluginPortableIntegrationTests(unittest.TestCase):
                 "# assetmaker-requires: lsmas.LWLibavSource, imwri.Read\n"
                 "# assetmaker-editor-output: 0\n\n"
                 "import json\n"
+                "import os\n"
+                "import sys\n"
                 "from pathlib import Path\n"
                 "import vapoursynth as vs\n\n"
                 f"image = Path({str(image)!r})\n"
@@ -659,6 +857,11 @@ class NativePluginPortableIntegrationTests(unittest.TestCase):
                 "marker.write_text(json.dumps({\n"
                 "    'lsmas': vs.core.lsmas.plugin_path,\n"
                 "    'imwri': vs.core.imwri.plugin_path,\n"
+                "    'package_entry': str(Path(vs.__file__).resolve()),\n"
+                "    'binding': str(Path(sys.modules['vapoursynth.vapoursynth'].__file__).resolve()),\n"
+                "    'release_major': vs.__version__.release_major,\n"
+                "    'api': list(vs.__api_version__),\n"
+                "    'appdata': os.environ['APPDATA'],\n"
                 "}), encoding='utf-8')\n"
                 "base = vs.core.std.BlankClip(width=384, height=640, length=3, "
                 "fpsnum=30000, fpsden=1001, format=vs.YUV420P8, "
@@ -688,8 +891,9 @@ class NativePluginPortableIntegrationTests(unittest.TestCase):
             )
 
             worker_program = (
-                "import sys\n"
-                "from pathlib import Path\n"
+                _source_harness_bootstrap(ROOT)
+                + "from pathlib import Path\n"
+                f"assert Path(__import__('core').__file__).resolve() == Path({str(ROOT / 'core' / '__init__.py')!r}).resolve()\n"
                 "owner = sys.stdout\n"
                 "protocol_stream = owner.buffer\n"
                 "sys.stdout = sys.stderr\n"
@@ -697,12 +901,25 @@ class NativePluginPortableIntegrationTests(unittest.TestCase):
                 f"raise SystemExit(main(protocol_stream=protocol_stream, app_dir=Path({str(app_root)!r})))\n"
             )
             snapshot = RuntimeSnapshot(str(app_root), runtime, fingerprint)
-            worker_env = snapshot.worker_environment(
-                {**os.environ, "PYTHONPATH": str(ROOT)}
+            fixture_environment = _fixture_process_environment(layout, app_root)
+            worker_env = snapshot.worker_environment(fixture_environment)
+            self.assertFalse(
+                any(name.upper() == "PYTHONPATH" for name in worker_env)
+            )
+            self.assertEqual(
+                Path(worker_env["APPDATA"]).resolve(),
+                (app_root / "private-appdata").resolve(),
             )
             client = SyncVSWorkerProcess(
                 app_dir=app_root,
-                command=[str(Path(sys.executable).resolve()), "-B", "-c", worker_program],
+                command=[
+                    str(Path(sys.executable).resolve()),
+                    "-X",
+                    "utf8",
+                    "-B",
+                    "-c",
+                    worker_program,
+                ],
                 env=worker_env,
             )
             self.addCleanup(client.close)
@@ -731,6 +948,19 @@ class NativePluginPortableIntegrationTests(unittest.TestCase):
             worker_sources = json.loads(sources_marker.read_text(encoding="utf-8"))
             self.assertEqual(Path(worker_sources["lsmas"]).resolve(), first / "LSMASHSource.dll")
             self.assertEqual(Path(worker_sources["imwri"]).resolve(), second / "libimwri.dll")
+            self.assertEqual(
+                Path(worker_sources["package_entry"]).resolve(),
+                layout.package_entry.resolve(),
+            )
+            self.assertEqual(
+                Path(worker_sources["binding"]).resolve(), layout.binding.resolve()
+            )
+            self.assertEqual(worker_sources["release_major"], 79)
+            self.assertEqual(worker_sources["api"], [4, 2])
+            self.assertEqual(
+                Path(worker_sources["appdata"]).resolve(),
+                (app_root / "private-appdata").resolve(),
+            )
             client.unload(timeout_ms=10_000)
             self.assertEqual(client.shutdown(timeout_ms=10_000)["operation"], "shutdown")
 
@@ -747,14 +977,17 @@ class NativePluginPortableIntegrationTests(unittest.TestCase):
                 runtime_fingerprint=fingerprint,
             )
             env = build_vspipe_render_env(
-                str(media / "VSPipe.exe"),
+                str(layout.vspipe_executable),
                 app_dir=str(app_root),
                 runtime=runtime,
                 expected_fingerprint=fingerprint,
             )
+            env["APPDATA"] = fixture_environment["APPDATA"]
+            env["PYTHONIOENCODING"] = "utf-8"
+            env["PYTHONUTF8"] = "1"
             self.assertEqual(env["VAPOURSYNTH_EXTRA_PLUGIN_PATH"], "")
             result = subprocess.run(
-                build_vspipe_command(str(media / "VSPipe.exe"), request),
+                build_vspipe_command(str(layout.vspipe_executable), request),
                 cwd=app_root,
                 env=env,
                 capture_output=True,
@@ -768,11 +1001,26 @@ class NativePluginPortableIntegrationTests(unittest.TestCase):
             runner_sources = json.loads(sources_marker.read_text(encoding="utf-8"))
             self.assertEqual(Path(runner_sources["lsmas"]).resolve(), first / "LSMASHSource.dll")
             self.assertEqual(Path(runner_sources["imwri"]).resolve(), second / "libimwri.dll")
+            self.assertEqual(
+                Path(runner_sources["package_entry"]).resolve(),
+                layout.package_entry.resolve(),
+            )
+            self.assertEqual(
+                Path(runner_sources["binding"]).resolve(), layout.binding.resolve()
+            )
+            self.assertEqual(runner_sources["release_major"], 79)
+            self.assertEqual(runner_sources["api"], [4, 2])
+            self.assertEqual(
+                Path(runner_sources["appdata"]).resolve(),
+                (app_root / "private-appdata").resolve(),
+            )
 
             blocked_env = dict(env)
-            blocked_env["VAPOURSYNTH_EXTRA_PLUGIN_PATH"] = str(source_plugins)
+            blocked_env["VAPOURSYNTH_EXTRA_PLUGIN_PATH"] = str(
+                ROOT / "外部 污染 native"
+            )
             blocked = subprocess.run(
-                build_vspipe_command(str(media / "VSPipe.exe"), request),
+                build_vspipe_command(str(layout.vspipe_executable), request),
                 cwd=app_root,
                 env=blocked_env,
                 capture_output=True,
