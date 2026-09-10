@@ -24,6 +24,10 @@ from resources.vapoursynth.python.assetmaker_vs.runtime_fingerprint import (
     canonical_runtime_json_bytes,
     verify_runtime_from_env,
 )
+from resources.vapoursynth.python.assetmaker_vs.runtime_layout import (
+    resolve_runtime_layout,
+    sanitize_runtime_process_environment,
+)
 
 
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
@@ -95,12 +99,15 @@ class RuntimeSnapshot:
         self, base_environment: Mapping[str, str] | None = None
     ) -> dict[str, str]:
         """构建 worker 唯一可接受的完整 runtime 环境。"""
-        env = dict(os.environ if base_environment is None else base_environment)
+        layout = resolve_runtime_layout(self.app_dir)
+        env = sanitize_runtime_process_environment(
+            os.environ if base_environment is None else base_environment,
+            layout,
+        )
         python_dirs = [
             str(Path(path)) for path in self.runtime.plugins.python_module_dirs
         ]
         # R79 不能从多目录环境变量可靠加载；worker 在 import 后共享显式策略。
-        env["VAPOURSYNTH_EXTRA_PLUGIN_PATH"] = ""
         env[PYTHON_DIRS_ENV] = json.dumps(
             python_dirs, ensure_ascii=False, separators=(",", ":")
         )

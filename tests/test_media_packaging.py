@@ -361,6 +361,7 @@ class MediaPackagingTests(unittest.TestCase):
                         "contract.py",
                         "display.py",
                         "runtime_fingerprint.py",
+                        "runtime_layout.py",
                         "core_resources.py",
                         "native_plugins.py",
                     )
@@ -410,6 +411,7 @@ class MediaPackagingTests(unittest.TestCase):
             "ArknightsPassMaker/resources/vapoursynth/python/assetmaker_vs/job_api.py",
             "ArknightsPassMaker/resources/vapoursynth/python/assetmaker_vs/display.py",
             "ArknightsPassMaker/resources/vapoursynth/python/assetmaker_vs/runtime_fingerprint.py",
+            "ArknightsPassMaker/resources/vapoursynth/python/assetmaker_vs/runtime_layout.py",
             "ArknightsPassMaker/resources/vapoursynth/python/assetmaker_vs/core_resources.py",
             "ArknightsPassMaker/resources/vapoursynth/python/assetmaker_vs/native_plugins.py",
         ):

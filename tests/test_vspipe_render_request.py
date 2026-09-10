@@ -73,11 +73,11 @@ class VSPipeRenderRequestTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir).resolve()
-            media_dir = root / "tools" / "media"
-            media_dir.mkdir(parents=True)
-            vspipe = media_dir / "VSPipe.exe"
-            vspipe.touch()
-            (media_dir / "Lib" / "site-packages").mkdir(parents=True)
+            from tests.test_vs_runtime_layout import _build_r79_fixture
+
+            runtime_root = _build_r79_fixture(root)
+            package = runtime_root / "Lib" / "site-packages" / "vapoursynth"
+            vspipe = package / "vspipe.exe"
             native_dirs = (
                 root / "运行时" / "原生 插件 一",
                 root / "运行时" / "原生 插件 二",
@@ -164,12 +164,14 @@ class VSPipeRenderRequestTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir).resolve()
-            (root / "tools" / "media").mkdir(parents=True)
+            from tests.test_vs_runtime_layout import _build_r79_fixture
+
+            _build_r79_fixture(root)
             external_vspipe = root / "external" / "VSPipe.exe"
             external_vspipe.parent.mkdir()
             external_vspipe.touch()
 
-            with self.assertRaisesRegex(ValueError, "app_dir/tools/media/VSPipe.exe"):
+            with self.assertRaisesRegex(ValueError, "R79 runtime layout"):
                 build_vspipe_render_env(
                     str(external_vspipe),
                     app_dir=str(root),

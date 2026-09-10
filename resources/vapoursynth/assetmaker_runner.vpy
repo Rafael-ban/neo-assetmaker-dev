@@ -33,14 +33,16 @@ from assetmaker_vs.job_api import (  # noqa: E402
     runtime_python_dirs_from_env,
 )
 from assetmaker_vs.runtime_fingerprint import (  # noqa: E402
-    RUNTIME_APP_DIR_ENV,
     verify_runtime_from_env,
 )
 from assetmaker_vs.core_resources import (  # noqa: E402
     CoreResourceBaseline,
     restore_core_resources,
 )
-from assetmaker_vs.native_plugins import configure_native_plugins, verify_native_plugin_requirements  # noqa: E402
+from assetmaker_vs.native_plugins import (  # noqa: E402
+    configure_native_plugins,
+    verify_native_plugin_requirements,
+)
 from assetmaker_vs.script_header import (  # noqa: E402
     parse_script_header,
     validate_invocation,
@@ -73,11 +75,11 @@ core_baseline = CoreResourceBaseline.capture(vs.core)
 restore_core_resources(vs.core, core_config, core_baseline)
 native_plugin_state = configure_native_plugins(
     vs.core,
-    verified_runtime.runtime["plugins"]["native_plugin_dirs"],
-    builtin_plugin_dirs=(
-        Path(os.environ[RUNTIME_APP_DIR_ENV]) / "tools" / "media" / "vs-plugins",
-        Path(os.environ[RUNTIME_APP_DIR_ENV]) / "tools" / "media" / "vs-coreplugins",
+    (
+        *verified_runtime.layout.bundled_native_plugin_dirs,
+        *verified_runtime.runtime["plugins"]["native_plugin_dirs"],
     ),
+    builtin_plugin_dirs=verified_runtime.layout.builtin_plugin_dirs,
 )
 header = parse_script_header(assetmaker_script)
 _verify_job_content("读取 job 前")

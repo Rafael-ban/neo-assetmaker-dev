@@ -194,8 +194,16 @@ class VSRuntimeFingerprintTests(unittest.TestCase):
         self.addCleanup(self.temp_dir.cleanup)
         self.root = Path(self.temp_dir.name)
         self.media = self.root / "tools" / "media"
-        self.plugins = self.media / "vs-plugins"
-        self.plugins.mkdir(parents=True)
+        from tests.test_vs_runtime_layout import _build_r79_fixture
+
+        self.runtime_root = _build_r79_fixture(self.root)
+        self.plugins = (
+            self.runtime_root
+            / "Lib"
+            / "site-packages"
+            / "vapoursynth"
+            / "plugins"
+        )
         self.helper = (
             self.root
             / "resources"
@@ -203,16 +211,6 @@ class VSRuntimeFingerprintTests(unittest.TestCase):
             / "python"
             / "assetmaker_vs"
         )
-        self.helper.mkdir(parents=True)
-        (self.helper / "contract.py").write_text(
-            "VALUE = 1\n", encoding="utf-8"
-        )
-        for name, content in (
-            ("vapoursynth.pyd", b"pyd-v1"),
-            ("vapoursynth.dll", b"dll-v1"),
-            ("portable.vs", b""),
-        ):
-            (self.media / name).write_bytes(content)
 
     def test_fingerprint_changes_for_runtime_and_code_but_ignores_non_code(self):
         configured = self.root / "configured-plugins"
@@ -280,12 +278,9 @@ class VSRuntimeFingerprintTests(unittest.TestCase):
             compute_runtime_fingerprint(self.root, runtime), before
         )
 
-    def test_fingerprint_tracks_existing_optional_portable_coreplugins(self):
-        """I4：被 native policy 信任的 coreplugins DLL 必须进入会话身份。"""
-        coreplugins = self.media / "vs-coreplugins"
-        coreplugins.mkdir()
-        plugin = coreplugins / "AvsCompat.dll"
-        plugin.write_bytes(b"coreplugin-v1")
+    def test_fingerprint_tracks_r79_builtin_plugins(self):
+        """被 native policy 信任的 R79 builtin DLL 必须进入会话身份。"""
+        plugin = self.plugins / "avscompat.dll"
 
         before = compute_runtime_fingerprint(self.root, VSRuntimeConfig())
         plugin.write_bytes(b"coreplugin-v2")
@@ -318,12 +313,19 @@ class VSRuntimeFingerprintTests(unittest.TestCase):
             released_pyc.unlink(missing_ok=True)
 
     def test_missing_portable_core_file_fails_loudly(self):
-        (self.media / "portable.vs").unlink()
+        missing = (
+            self.runtime_root
+            / "Lib"
+            / "site-packages"
+            / "vapoursynth"
+            / "libvapoursynthfilters_avx2.dll"
+        )
+        missing.unlink()
 
         with self.assertRaises(VSLoaderError) as raised:
             compute_runtime_fingerprint(self.root, VSRuntimeConfig())
 
-        self.assertIn("portable.vs", str(raised.exception))
+        self.assertIn(missing.name, str(raised.exception))
 
     def test_importing_loader_does_not_import_vapoursynth(self):
         self.assertNotIn("vapoursynth", sys.modules)
@@ -507,6 +509,99 @@ class WorkerProcessTransportTests(unittest.TestCase):
             self.assertEqual(
                 kwargs["creationflags"], subprocess.CREATE_NO_WINDOW
             )
+
+    def test_snapshot_environment_is_sanitized_before_popen(self):
+        """worker spawn 前必须移除宿主 VS/Python 搜索路径并收敛 PATH。"""
+        from core.vs_runtime.snapshot import RuntimeSnapshot
+        from resources.vapoursynth.python.assetmaker_vs.runtime_layout import (
+            resolve_runtime_layout,
+        )
+
+        blocked_search_names = {
+            "VAPOURSYNTH_PLUGIN_PATH",
+            "VAPOURSYNTH_PYTHON_PATH",
+            "VAPOURSYNTH_CONF_PATH",
+            "PYTHONHOME",
+            "PYTHONPATH",
+        }
+        system_root = r"Z:\Windows"
+        base_environment = {
+            "APPDATA": "worker-environment-test",
+            "SYSTEMROOT": system_root,
+            "Path": r"C:\external-title-path",
+            "PATH": r"C:\external-vs;C:\external-python",
+            "CUSTOM_PARENT_VALUE": "preserved",
+            "vapoursynth_plugin_path": "external-plugin",
+            "VapourSynth_Python_Path": "external-vs-python",
+            "vapoursynth_conf_path": "external-config",
+            "PythonHome": "external-home",
+            "pythonpath": "external-python",
+            "VapourSynth_Extra_Plugin_Path": "external-extra",
+        }
+        original_base = dict(base_environment)
+        original_host = dict(os.environ)
+        snapshot = RuntimeSnapshot(str(ROOT), VSRuntimeConfig(), "a" * 64)
+        process = WorkerProcess(
+            app_dir=ROOT,
+            command=[str(Path(sys.executable).resolve()), str(ROOT / "vs_worker.py")],
+            env=snapshot.worker_environment(base_environment),
+        )
+        fake = mock.Mock()
+        fake.stdin = io.BytesIO()
+        fake.stdout = io.BytesIO()
+        fake.stderr = io.BytesIO()
+        fake.pid = 654
+        fake.wait.return_value = 0
+        fake.poll.return_value = None
+
+        with mock.patch(
+            "core.vs_runtime.worker_process.subprocess.Popen", return_value=fake
+        ) as popen:
+            process.start()
+            process.wait(timeout_ms=1_000)
+
+        spawned_environment = popen.call_args.kwargs["env"]
+        layout = resolve_runtime_layout(ROOT)
+        expected_path = os.pathsep.join(
+            dict.fromkeys(
+                str(path)
+                for path in (
+                    layout.vs_package_dir,
+                    layout.runtime_root,
+                    Path(system_root) / "System32",
+                    Path(system_root),
+                )
+            )
+        )
+        with self.subTest(contract="blocked search aliases"):
+            self.assertEqual(
+                [
+                    name
+                    for name in spawned_environment
+                    if name.casefold()
+                    in {item.casefold() for item in blocked_search_names}
+                ],
+                [],
+            )
+        with self.subTest(contract="extra plugin alias"):
+            self.assertEqual(
+                [
+                    (name, value)
+                    for name, value in spawned_environment.items()
+                    if name.casefold() == "vapoursynth_extra_plugin_path"
+                ],
+                [("VAPOURSYNTH_EXTRA_PLUGIN_PATH", "")],
+            )
+        with self.subTest(contract="single controlled PATH key"):
+            self.assertEqual(
+                [name for name in spawned_environment if name.casefold() == "path"],
+                ["PATH"],
+            )
+        with self.subTest(contract="non-C system root"):
+            self.assertEqual(spawned_environment["PATH"], expected_path)
+        self.assertEqual(spawned_environment["CUSTOM_PARENT_VALUE"], "preserved")
+        self.assertEqual(base_environment, original_base)
+        self.assertEqual(dict(os.environ), original_host)
 
     def test_exit_listener_can_restart_without_old_waiter_poisoning_new_generation(self):
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -3014,13 +3109,18 @@ class WorkerProcessLifecycleTests(unittest.TestCase):
 class RealVSWorkerLifecycleTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
+        from resources.vapoursynth.python.assetmaker_vs.runtime_layout import (
+            resolve_runtime_layout,
+        )
+
+        layout = resolve_runtime_layout(ROOT)
         missing = [
             path
             for path in (
                 TOOLCHAIN.vspipe_path,
                 TOOLCHAIN.x264_path,
                 TOOLCHAIN.muxer_path,
-                str(ROOT / "tools" / "media" / "vapoursynth.pyd"),
+                str(layout.binding),
             )
             if not path or not Path(path).is_file()
         ]

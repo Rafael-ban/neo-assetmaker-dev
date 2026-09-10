@@ -12,6 +12,12 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import Any, Mapping
 
+from .runtime_layout import (
+    RuntimeLayout,
+    RuntimeLayoutError,
+    resolve_runtime_layout,
+)
+
 
 RUNTIME_CONFIG_ENV = "ASSETMAKER_VS_RUNTIME_CONFIG_JSON"
 RUNTIME_FINGERPRINT_ENV = "ASSETMAKER_VS_RUNTIME_FINGERPRINT"
@@ -19,7 +25,6 @@ RUNTIME_APP_DIR_ENV = "ASSETMAKER_VS_APP_DIR"
 PYTHON_DIRS_ENV = "ASSETMAKER_VS_PYTHON_DIRS_JSON"
 RUNTIME_MEDIA_ROOT_ENV = "ASSETMAKER_VS_MEDIA_ROOT"
 _CODE_SUFFIXES = frozenset({".py", ".pyc", ".pyd", ".dll", ".zip", ".whl"})
-_PORTABLE_CORE_FILES = ("vapoursynth.pyd", "vapoursynth.dll", "portable.vs")
 _RUNTIME_ERROR_MARKER = "ASSETMAKER_VS_ERROR:"
 
 
@@ -71,6 +76,7 @@ class VerifiedRuntime:
 
     runtime: Mapping[str, Any]
     fingerprint: str
+    layout: RuntimeLayout
 
 
 def _record(digest: Any, label: str, data: bytes) -> None:
@@ -252,9 +258,8 @@ def _freeze_json(value: Any) -> Any:
 def compute_runtime_fingerprint(
     app_dir: str | os.PathLike[str], runtime: Mapping[str, Any]
 ) -> str:
-    """对 portable core、默认/配置插件和 helper 源码执行稳定 SHA-256。"""
+    """对完整 R79 分发、配置插件和 helper 源码执行稳定 SHA-256。"""
     root = Path(app_dir).resolve()
-    media_dir = root / "tools" / "media"
     data = _validate_runtime(runtime)
     plugins = data["plugins"]
     native_dirs = _require_string_list(
@@ -266,24 +271,29 @@ def compute_runtime_fingerprint(
 
     digest = hashlib.sha256()
     _record(digest, "runtime.json", canonical_runtime_json_bytes(data))
-    for filename in _PORTABLE_CORE_FILES:
-        path = media_dir / filename
-        if not path.is_file():
-            raise RuntimeFingerprintError(f"portable VapourSynth 文件不存在: {path}")
-        _file(digest, f"portable/{filename.casefold()}", path)
+    try:
+        layout = resolve_runtime_layout(root)
+    except RuntimeLayoutError as exc:
+        raise RuntimeFingerprintError(
+            str(exc),
+            code="runtime.layout_invalid",
+            field="runtime_layout",
+            expected="完整且无 flat 残留的 R79 portable runtime",
+            actual=str(root / "tools" / "media"),
+        ) from exc
+    for path in layout.identity_files():
+        _file(
+            digest,
+            f"distribution/{path.relative_to(layout.runtime_root).as_posix()}",
+            path,
+        )
 
     directories: list[tuple[str, Path]] = [
-        ("default-plugins", media_dir / "vs-plugins"),
         (
             "assetmaker-vs",
             root / "resources" / "vapoursynth" / "python" / "assetmaker_vs",
         ),
     ]
-    coreplugins = media_dir / "vs-coreplugins"
-    # coreplugins 是 portable runtime 的可选目录：缺失不改变旧安装行为，存在
-    # 时却会被 native policy 许可，必须成为 session fingerprint 的输入。
-    if coreplugins.is_dir():
-        directories.append(("default-coreplugins", coreplugins))
     directories.extend(
         (f"native-{index}", Path(path).resolve())
         for index, path in enumerate(native_dirs)
@@ -354,7 +364,17 @@ def verify_runtime_from_env(
             expected=json.dumps(python_dirs, ensure_ascii=False, separators=(",", ":")),
             actual=env.get(PYTHON_DIRS_ENV, ""),
         )
-    expected_media_root = str(Path(app_dir) / "tools" / "media")
+    try:
+        layout = resolve_runtime_layout(app_dir)
+    except RuntimeLayoutError as exc:
+        raise RuntimeFingerprintError(
+            str(exc),
+            code="runtime.layout_invalid",
+            field="runtime_layout",
+            expected="完整且无 flat 残留的 R79 portable runtime",
+            actual=str(Path(app_dir) / "tools" / "media"),
+        ) from exc
+    expected_media_root = str(layout.media_root)
     actual_media_root = env.get(RUNTIME_MEDIA_ROOT_ENV, "")
     if (
         not actual_media_root
@@ -379,7 +399,9 @@ def verify_runtime_from_env(
             actual=actual,
             hint="runtime 配置或其覆盖的 portable/plugin/helper 代码已变化；请重新预检。",
         )
-    return VerifiedRuntime(runtime=_freeze_json(runtime), fingerprint=actual)
+    return VerifiedRuntime(
+        runtime=_freeze_json(runtime), fingerprint=actual, layout=layout
+    )
 
 
 __all__ = [

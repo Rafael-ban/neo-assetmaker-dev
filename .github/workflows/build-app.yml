@@ -249,6 +249,7 @@ jobs:
             "ArknightsPassMaker/resources/vapoursynth/python/assetmaker_vs/contract.py",
             "ArknightsPassMaker/resources/vapoursynth/python/assetmaker_vs/display.py",
             "ArknightsPassMaker/resources/vapoursynth/python/assetmaker_vs/runtime_fingerprint.py",
+            "ArknightsPassMaker/resources/vapoursynth/python/assetmaker_vs/runtime_layout.py",
             "ArknightsPassMaker/resources/vapoursynth/python/assetmaker_vs/core_resources.py",
             "ArknightsPassMaker/resources/vapoursynth/python/assetmaker_vs/native_plugins.py"
           )

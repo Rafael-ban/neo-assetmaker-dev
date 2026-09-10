@@ -313,25 +313,27 @@ class PreviewWorkerMediaGateRegressionTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
+            from tests.test_vs_runtime_layout import _build_r79_fixture
+
+            _build_r79_fixture(root)
             worker = root / "core" / "vs_runtime" / "worker_main.py"
             worker.parent.mkdir(parents=True)
             worker.write_text("# worker\n", encoding="utf-8")
             for relative in (
-                "tools/media/vapoursynth.pyd",
-                "tools/media/vapoursynth.dll",
-                "tools/media/portable.vs",
                 "resources/vapoursynth/assetmaker_runner.vpy",
                 "resources/vapoursynth/default_pipeline.vpy",
                 "resources/vapoursynth/python/assetmaker_vs/executor.py",
                 "resources/vapoursynth/python/assetmaker_vs/contract.py",
                 "resources/vapoursynth/python/assetmaker_vs/display.py",
                 "resources/vapoursynth/python/assetmaker_vs/job_api.py",
+                "resources/vapoursynth/python/assetmaker_vs/runtime_fingerprint.py",
+                "resources/vapoursynth/python/assetmaker_vs/runtime_layout.py",
+                "resources/vapoursynth/python/assetmaker_vs/core_resources.py",
+                "resources/vapoursynth/python/assetmaker_vs/native_plugins.py",
             ):
                 path = root / relative
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_text("# present\n", encoding="utf-8")
-            (root / "tools" / "media" / "vs-plugins").mkdir()
-
             with (
                 mock.patch("core.media_tools.get_app_dir", return_value=str(root)),
                 mock.patch("core.media_tools.load_vs_runtime"),

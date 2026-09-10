@@ -445,13 +445,28 @@ class NativePluginPolicyTests(unittest.TestCase):
 
         configure_native_plugins = self._api().configure_native_plugins
         with tempfile.TemporaryDirectory() as temporary:
-            directory = Path(temporary) / "重复 目录"
+            from tests.test_vs_runtime_layout import _build_r79_fixture
+
+            root = Path(temporary)
+            _build_r79_fixture(root)
+            layout = vs_loader.resolve_runtime_layout(root)
+            directory = root / "重复 目录"
             directory.mkdir()
             core = _Core({})
-            state = configure_native_plugins(core, (str(directory), str(directory)))
+            state = configure_native_plugins(
+                core,
+                (
+                    *layout.bundled_native_plugin_dirs,
+                    str(directory),
+                    str(directory),
+                ),
+            )
             old_state = vs_loader._native_plugin_state
+            old_layout = vs_loader._loaded_layout
             vs_loader._native_plugin_state = state
+            vs_loader._loaded_layout = layout
             self.addCleanup(setattr, vs_loader, "_native_plugin_state", old_state)
+            self.addCleanup(setattr, vs_loader, "_loaded_layout", old_layout)
 
             vs_loader.verify_vapoursynth_native_plugins(
                 types.SimpleNamespace(core=core),

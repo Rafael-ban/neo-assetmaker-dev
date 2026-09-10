@@ -44,16 +44,18 @@ class MediaToolchainTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
+            from tests.test_vs_runtime_layout import _build_r79_fixture
+
+            _build_r79_fixture(root)
             media_dir = root / "tools" / "media"
-            media_dir.mkdir(parents=True)
-            for name in ("VSPipe.exe", "x264-7mod.exe", "MP4Box.exe"):
+            for name in ("x264-7mod.exe", "MP4Box.exe"):
                 (media_dir / name).write_text("", encoding="utf-8")
             (root / "ffmpeg.exe").write_text("", encoding="utf-8")
             (root / "ffprobe.exe").write_text("", encoding="utf-8")
 
             toolchain = MediaToolchain.discover(root)
 
-        self.assertEqual(Path(toolchain.vspipe_path).name, "VSPipe.exe")
+        self.assertEqual(Path(toolchain.vspipe_path).name, "vspipe.exe")
         self.assertEqual(Path(toolchain.x264_path).name, "x264-7mod.exe")
         self.assertEqual(Path(toolchain.muxer_path).name, "MP4Box.exe")
         self.assertNotIn("ffmpeg", toolchain.describe().lower())
@@ -156,9 +158,11 @@ class MediaToolchainTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
+            from tests.test_vs_runtime_layout import _build_r79_fixture
+
+            _build_r79_fixture(root)
             media_dir = root / "tools" / "media"
-            media_dir.mkdir(parents=True)
-            for name in ("VSPipe.exe", "x264-7mod.exe", "lsmash-muxer.exe"):
+            for name in ("x264-7mod.exe", "lsmash-muxer.exe"):
                 (media_dir / name).write_text("", encoding="utf-8")
 
             toolchain = MediaToolchain.discover(root)

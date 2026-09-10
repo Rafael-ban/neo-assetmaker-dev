@@ -23,6 +23,11 @@ from resources.vapoursynth.python.assetmaker_vs.runtime_fingerprint import (
     RUNTIME_MEDIA_ROOT_ENV,
     canonical_runtime_json_bytes,
 )
+from resources.vapoursynth.python.assetmaker_vs.runtime_layout import (
+    RuntimeLayoutError,
+    resolve_runtime_layout,
+    sanitize_runtime_process_environment,
+)
 
 # VSPipe -p prints "Frame: <done>/<total>" lines (\r-refreshed) to stderr.
 _VSPIPE_PROGRESS_RE = re.compile(rb"Frame:\s*(\d+)\s*/\s*(\d+)")
@@ -55,13 +60,6 @@ class VSPipeRenderRequest:
                 raise ValueError(f"{field} 必须是小写 SHA-256")
 
 
-def _prepend_env_path(env: dict[str, str], name: str, value: Path) -> None:
-    if not value.exists():
-        return
-    current = env.get(name, "")
-    env[name] = str(value) + (os.pathsep + current if current else "")
-
-
 def build_vspipe_render_env(
     vspipe_path: str,
     *,
@@ -78,22 +76,22 @@ def build_vspipe_render_env(
         raise TypeError("runtime 必须是 VSRuntimeConfig")
     if len(expected_fingerprint) != 64:
         raise ValueError("expected_fingerprint 必须是 SHA-256")
-    env = os.environ.copy()
     root = Path(app_dir).resolve()
-    media_dir = root / "tools" / "media"
-    expected_vspipe = media_dir / "VSPipe.exe"
+    try:
+        layout = resolve_runtime_layout(root)
+    except RuntimeLayoutError as exc:
+        raise ValueError(str(exc)) from exc
+    expected_vspipe = layout.vspipe_executable
     actual_vspipe = Path(vspipe_path).resolve()
     if actual_vspipe != expected_vspipe.resolve():
         raise ValueError(
-            "VSPipe 必须是 app_dir/tools/media/VSPipe.exe，"
+            "VSPipe 必须来自已验证的 R79 runtime layout，"
             f"实际为: {actual_vspipe}"
         )
-    _prepend_env_path(env, "PATH", media_dir)
-    _prepend_env_path(env, "PYTHONPATH", media_dir / "Lib" / "site-packages")
+    env = sanitize_runtime_process_environment(os.environ, layout)
     python_dirs = [str(Path(path)) for path in runtime.plugins.python_module_dirs]
     # R79 把该值解释为一个自动加载目录；native 目录保留在冻结 runtime JSON，
     # 由 runner 在 import 后逐目录显式 LoadAllPlugins。
-    env["VAPOURSYNTH_EXTRA_PLUGIN_PATH"] = ""
     env["ASSETMAKER_VS_PYTHON_DIRS_JSON"] = json.dumps(
         python_dirs, ensure_ascii=False, separators=(",", ":")
     )
@@ -102,7 +100,7 @@ def build_vspipe_render_env(
         runtime.to_dict()
     ).decode("utf-8")
     env["ASSETMAKER_VS_RUNTIME_FINGERPRINT"] = expected_fingerprint
-    env[RUNTIME_MEDIA_ROOT_ENV] = str(media_dir)
+    env[RUNTIME_MEDIA_ROOT_ENV] = str(layout.media_root)
     # clean install 只携带源码时，runner import helper 生成的 __pycache__ 不得
     # 反过来改变本次预检已固定的 runtime fingerprint。
     env["PYTHONDONTWRITEBYTECODE"] = "1"
