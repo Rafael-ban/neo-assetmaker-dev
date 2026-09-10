@@ -24,10 +24,7 @@ from tests.qt_harness import ensure_app
 REPO = Path(__file__).resolve().parents[1]
 M5_CHILD_PROBE = REPO / "tests" / "helpers" / "run_m5_render_case.py"
 TOOLCHAIN = MediaToolchain.discover(str(REPO))
-VS_OK = (
-    (REPO / "tools" / "media" / "vapoursynth.pyd").is_file()
-    and sys.version_info >= (3, 12)
-)
+VS_OK = not TOOLCHAIN.missing_for_preview() and sys.version_info >= (3, 12)
 ENCODE_OK = HAS_CV2 and not TOOLCHAIN.missing_for_export()
 
 
@@ -110,7 +107,7 @@ class PreviewMatchesEncodedOutputTests(unittest.TestCase):
                 "_Matrix": 6,
                 "_Transfer": 6,
                 "_Primaries": 6,
-                "_ColorRange": 1,
+                "_Range": 0,
             },
         )
 

@@ -227,13 +227,7 @@ def _write_invalid_prop_script(
     *,
     prop: str,
     value_expression: str,
-    remove_color_range: bool = False,
 ) -> None:
-    remove_line = (
-        '    del changed.props["_ColorRange"]\n'
-        if remove_color_range
-        else ""
-    )
     path.write_text(
         "# assetmaker-api: 1\n"
         "# assetmaker-mode: raw\n"
@@ -251,7 +245,6 @@ def _write_invalid_prop_script(
         ")\n\n"
         "def invalid(n, f):\n"
         "    changed = f.copy()\n"
-        + remove_line
         + f"    changed.props[{prop!r}] = {value_expression}\n"
         "    return changed\n\n"
         "vs.core.std.ModifyFrame(\n"
@@ -1116,14 +1109,14 @@ class TrustedRunnerTests(unittest.TestCase):
 
     def test_convertible_noninteger_props_fail_through_fixed_runner(self):
         cases = (
-            ("_Matrix", "6.5", False, "matrix"),
-            ("_Transfer", "6.0", False, "transfer"),
-            ("_Primaries", "b'6'", False, "primaries"),
-            ("_Range", "0.0", True, "range"),
-            ("_ColorRange", "1.0", False, "range"),
-            ("_Matrix", "b'not-an-int'", False, "matrix"),
+            ("_Matrix", "6.5", "matrix"),
+            ("_Transfer", "6.0", "transfer"),
+            ("_Primaries", "b'6'", "primaries"),
+            ("_Range", "0.0", "range"),
+            ("_ColorRange", "1.0", "range"),
+            ("_Matrix", "b'not-an-int'", "matrix"),
         )
-        for prop, value_expression, remove_color_range, field in cases:
+        for prop, value_expression, field in cases:
             with self.subTest(prop=prop, value=value_expression):
                 with tempfile.TemporaryDirectory() as temp_dir:
                     project = Path(temp_dir).resolve() / "素材" / "黍"
@@ -1133,7 +1126,6 @@ class TrustedRunnerTests(unittest.TestCase):
                         script,
                         prop=prop,
                         value_expression=value_expression,
-                        remove_color_range=remove_color_range,
                     )
                     job = project / "job.json"
                     _write_job(job)

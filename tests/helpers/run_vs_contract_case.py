@@ -12,6 +12,7 @@ import sys
 import tempfile
 import threading
 import types
+import warnings
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -932,7 +933,9 @@ def _executor_retirement_unbind_failure_case() -> dict[str, object]:
         sys.modules.pop("marker", None)
 
 
-def _job_payload(*, frame_count: int = 5) -> dict[str, object]:
+def _job_payload(
+    *, frame_count: int = 5, output_range: str = "limited"
+) -> dict[str, object]:
     return {
         "api_version": 1,
         "epoch": 1,
@@ -968,7 +971,7 @@ def _job_payload(*, frame_count: int = 5) -> dict[str, object]:
             "matrix": "170m",
             "transfer": "170m",
             "primaries": "170m",
-            "range": "limited",
+            "range": output_range,
             "final_rotate_180": False,
         },
         "paths": {"cache_dir": r"D:\素材\黍\cache"},
@@ -1059,7 +1062,6 @@ def _invalid_prop_clip(
     prop: str,
     value: object,
     late: bool = False,
-    remove_color_range: bool = False,
 ):
     base = _tagged_clip(vs)
 
@@ -1067,8 +1069,6 @@ def _invalid_prop_clip(
         if late and n != 1:
             return f
         changed = f.copy()
-        if remove_color_range:
-            del changed.props["_ColorRange"]
         changed.props[prop] = value
         return changed
 
@@ -1085,19 +1085,18 @@ def _contract_strict_types_case() -> dict[str, object]:
     )
 
     cases = (
-        ("_Matrix", 6.5, False),
-        ("_Transfer", 6.0, False),
-        ("_Primaries", b"6", False),
-        ("_Range", 0.0, True),
-        ("_ColorRange", 1.0, False),
+        ("_Matrix", 6.5),
+        ("_Transfer", 6.0),
+        ("_Primaries", b"6"),
+        ("_Range", 0.0),
+        ("_ColorRange", 1.0),
     )
     results: dict[str, object] = {}
-    for prop, value, remove_color_range in cases:
+    for prop, value in cases:
         clip = _invalid_prop_clip(
             vs,
             prop=prop,
             value=value,
-            remove_color_range=remove_color_range,
         )
         vs.clear_outputs()
         clip.set_output(0)
@@ -1110,6 +1109,148 @@ def _contract_strict_types_case() -> dict[str, object]:
             }
         else:
             results[prop] = {"accepted": True}
+    return {"results": results}
+
+
+def _physical_old_range_clip(
+    vs,
+    *,
+    shadowed: bool,
+    late: bool,
+):
+    base = _tagged_clip(vs)
+
+    def invalid(n, f):
+        if late and n != 1:
+            return f
+        changed = f.copy()
+        changed.props["_ColorRange"] = 1.0
+        if shadowed:
+            changed.props["_Range"] = 0
+        return changed
+
+    return vs.core.std.ModifyFrame(clip=base, clips=base, selector=invalid)
+
+
+def _physical_old_range_layout(
+    vs,
+    clip,
+    *,
+    frame_index: int,
+    expected_keys: set[str],
+) -> dict[str, object]:
+    frame = clip.get_frame(frame_index)
+    try:
+        frame_props_type_identity = type(frame.props) is vs.FrameProps
+        physical_keys = [
+            key
+            for key in frame.props.keys()
+            if key in ("_Range", "_ColorRange")
+        ]
+        assert frame_props_type_identity, type(frame.props)
+        assert set(physical_keys) == expected_keys, physical_keys
+        new_range_type_identity = None
+        new_range_is_limited = None
+        if "_Range" in expected_keys:
+            new_range = frame.props["_Range"]
+            new_range_type_identity = type(new_range) is vs.Range
+            new_range_is_limited = new_range is vs.Range.RANGE_LIMITED
+            assert new_range_type_identity, type(new_range)
+            assert new_range_is_limited, new_range
+        return {
+            "frame_props_type_identity": frame_props_type_identity,
+            "physical_keys": physical_keys,
+            "new_range_type_identity": new_range_type_identity,
+            "new_range_is_limited": new_range_is_limited,
+        }
+    finally:
+        frame.close()
+
+
+def _contract_physical_old_range_case() -> dict[str, object]:
+    sys.path.insert(0, str(HELPER_ROOT))
+    vs = _load_vs()
+    from assetmaker_vs.contract import (
+        decode_output_contract_error,
+        validate_outputs,
+    )
+
+    results: dict[str, object] = {}
+    for label, shadowed, late in (
+        ("old_only_sentinel", False, False),
+        ("old_only_late", False, True),
+        ("shadowed_sentinel", True, False),
+        ("shadowed_late", True, True),
+    ):
+        clip = _physical_old_range_clip(
+            vs,
+            shadowed=shadowed,
+            late=late,
+        )
+        expected_keys = (
+            {"_Range", "_ColorRange"}
+            if shadowed
+            else {"_ColorRange"}
+        )
+        expected_actual = {
+            "property": "_ColorRange",
+            "read": (
+                "shadowed_by__Range" if shadowed else "unavailable"
+            ),
+            "physical_keys": (
+                ["_Range", "_ColorRange"]
+                if shadowed
+                else ["_ColorRange"]
+            ),
+        }
+        layout = _physical_old_range_layout(
+            vs,
+            clip,
+            frame_index=1 if late else 0,
+            expected_keys=expected_keys,
+        )
+        vs.clear_outputs()
+        clip.set_output(0)
+        if late:
+            validated = validate_outputs(
+                vs,
+                _job_payload(),
+                _raw_header(),
+            )
+            try:
+                validated.guarded_clip.get_frame(1)
+            except BaseException as exc:
+                caught = exc
+            else:
+                raise AssertionError(f"{label} 未在第 1 帧拒绝物理 _ColorRange")
+            error_stage = "guarded_frame_1"
+        else:
+            try:
+                validate_outputs(
+                    vs,
+                    _job_payload(),
+                    _raw_header(),
+                )
+            except BaseException as exc:
+                caught = exc
+            else:
+                raise AssertionError(
+                    f"{label} 未在 validate_outputs 拒绝物理 _ColorRange"
+                )
+            error_stage = "validate_outputs"
+        decoded = decode_output_contract_error(caught)
+        if decoded is None:
+            raise caught
+        error = decoded.to_dict()
+        assert error["code"] == "contract.range", error
+        assert error["field"] == "range", error
+        assert error["expected"] == ["limited", "full"], error
+        assert error["actual"] == expected_actual, error
+        results[label] = {
+            "layout": layout,
+            "error_stage": error_stage,
+            "error": error,
+        }
     return {"results": results}
 
 
@@ -1152,31 +1293,197 @@ def _contract_bytes_late_case() -> dict[str, object]:
     return _contract_bytes_case(late=True)
 
 
+def _describe_prop(value: object) -> dict[str, object]:
+    value_type = type(value)
+    description: dict[str, object] = {
+        "repr": repr(value),
+        "type": value_type.__name__,
+        "module": value_type.__module__,
+    }
+    name = getattr(value, "name", None)
+    enum_value = getattr(value, "value", None)
+    if type(name) is str:
+        description["name"] = name
+    if type(enum_value) is int:
+        description["value"] = enum_value
+    return description
+
+
 def _range_probe_case() -> dict[str, object]:
+    sys.path.insert(0, str(HELPER_ROOT))
     vs = _load_vs()
-    rgb = vs.core.std.BlankClip(
-        width=16,
-        height=16,
-        length=1,
-        format=vs.RGB24,
-        color=[32, 64, 96],
+    from assetmaker_vs.contract import validate_outputs
+
+    binding = sys.modules["vapoursynth.vapoursynth"]
+    base = vs.core.std.BlankClip(
+        width=384,
+        height=640,
+        length=5,
+        fpsnum=30000,
+        fpsden=1001,
+        format=vs.YUV420P8,
+        color=[16, 128, 128],
     )
-    payload: dict[str, object] = {}
-    for name in ("limited", "full"):
-        clip = vs.core.resize.Bicubic(
-            rgb,
-            format=vs.YUV420P8,
-            matrix_s="170m",
-            range_s=name,
+    base = vs.core.std.SetFrameProps(
+        base,
+        _Matrix=6,
+        _Transfer=6,
+        _Primaries=6,
+    )
+    payload: dict[str, object] = {
+        "runtime": {
+            "package": str(Path(vs.__file__).resolve()),
+            "binding": str(Path(binding.__file__).resolve()),
+            "version": repr(vs.__version__),
+            "api": repr(vs.__api_version__),
+            "core_version": str(vs.core.core_version),
+            "range_type": {
+                "name": vs.Range.__name__,
+                "module": vs.Range.__module__,
+            },
+            "binding_range_is_package_range": binding.Range is vs.Range,
+            "color_range_is_range": vs.ColorRange is vs.Range,
+        },
+        "cases": {},
+    }
+    cases = (
+        ("new_limited", "_Range", 0, "limited", "RANGE_LIMITED", 0, "tv"),
+        ("new_full", "_Range", 1, "full", "RANGE_FULL", 1, "pc"),
+        ("old_full", "_ColorRange", 0, "full", "RANGE_FULL", 1, "pc"),
+        (
+            "old_limited",
+            "_ColorRange",
+            1,
+            "limited",
+            "RANGE_LIMITED",
+            0,
+            "tv",
+        ),
+    )
+    for label, prop, code, job_range, enum_name, enum_value, vui_range in cases:
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            clip = vs.core.std.SetFrameProps(base, **{prop: code})
+            frame = clip.get_frame(0)
+            try:
+                contains = {
+                    key: key in frame.props
+                    for key in ("_Range", "_ColorRange")
+                }
+                raw_reads = {
+                    key: frame.props[key]
+                    for key in ("_Range", "_ColorRange")
+                }
+                raw_physical = dict(frame.props)
+                raw_colour = {
+                    key: frame.props[key]
+                    for key in ("_Matrix", "_Transfer", "_Primaries")
+                }
+                range_type_identity = {
+                    key: type(value) is vs.Range
+                    for key, value in raw_reads.items()
+                }
+                physical_range_type_identity = (
+                    type(raw_physical["_Range"]) is vs.Range
+                )
+                colour_type_identity = {
+                    key: type(value) is int
+                    for key, value in raw_colour.items()
+                }
+                assert all(range_type_identity.values()), range_type_identity
+                assert physical_range_type_identity
+                assert all(colour_type_identity.values()), colour_type_identity
+                reads = {
+                    key: _describe_prop(value)
+                    for key, value in raw_reads.items()
+                }
+                physical_range = {
+                    key: _describe_prop(value)
+                    for key, value in raw_physical.items()
+                    if key in ("_Range", "_ColorRange")
+                }
+                colour_types = {
+                    key: _describe_prop(value)
+                    for key, value in raw_colour.items()
+                }
+            finally:
+                frame.close()
+        for value in reads.values():
+            assert value["type"] == vs.Range.__name__, value
+            assert value["module"] == vs.Range.__module__, value
+            assert value["name"] == enum_name, value
+            assert value["value"] == enum_value, value
+        assert contains == {"_Range": True, "_ColorRange": True}, contains
+        assert list(physical_range) == ["_Range"], physical_range
+        assert physical_range["_Range"]["name"] == enum_name, physical_range
+        assert all(value["type"] == "int" for value in colour_types.values())
+
+        vs.clear_outputs()
+        clip.set_output(0)
+        validated = validate_outputs(
+            vs,
+            _job_payload(output_range=job_range),
+            _raw_header(),
         )
-        frame = clip.get_frame(0)
-        payload[name] = {
-            key: int(frame.props[key])
-            for key in ("_Range", "_ColorRange")
-            if key in frame.props
+        guarded = validated.guarded_clip.get_frame(1)
+        guarded.close()
+        assert validated.vui.range_ == vui_range, validated.vui
+        payload["cases"][label] = {
+            "write": {"prop": prop, "code": code},
+            "job_range": job_range,
+            "contains": contains,
+            "keys": [
+                key
+                for key in raw_physical
+                if key in ("_Range", "_ColorRange")
+            ],
+            "dict": physical_range,
+            "reads": reads,
+            "range_type_identity": range_type_identity,
+            "physical_range_type_identity": physical_range_type_identity,
+            "colour_types": colour_types,
+            "colour_type_identity": colour_type_identity,
+            "vui_range": validated.vui.range_,
+            "warnings": [
+                {
+                    "category": item.category.__name__,
+                    "message": str(item.message),
+                }
+                for item in caught
+            ],
         }
-        frame.close()
     return payload
+
+
+def _contract_range_late_drift_case() -> dict[str, object]:
+    sys.path.insert(0, str(HELPER_ROOT))
+    vs = _load_vs()
+    from assetmaker_vs.contract import (
+        decode_output_contract_error,
+        validate_outputs,
+    )
+
+    base = _tagged_clip(vs)
+
+    def drift(n, f):
+        if n != 1:
+            return f
+        changed = f.copy()
+        changed.props["_Range"] = 1
+        return changed
+
+    clip = vs.core.std.ModifyFrame(clip=base, clips=base, selector=drift)
+    vs.clear_outputs()
+    clip.set_output(0)
+    validated = validate_outputs(vs, _job_payload(), _raw_header())
+    try:
+        validated.guarded_clip.get_frame(1)
+    except BaseException as exc:
+        contract_error = decode_output_contract_error(exc)
+        if contract_error is not None:
+            return {"error": contract_error.to_dict()}
+        raise
+    raise AssertionError("逐帧 guard 未拒绝第 2 帧的 Range 漂移")
 
 
 def _display_geometry_case() -> dict[str, object]:
@@ -1446,7 +1753,7 @@ def _node_metadata(node) -> dict[str, object]:
     frame = node.get_frame(0)
     props = {
         key: int(frame.props[key])
-        for key in ("_Matrix", "_Transfer", "_Primaries", "_ColorRange")
+        for key in ("_Matrix", "_Transfer", "_Primaries", "_Range")
         if key in frame.props
     }
     frame.close()
@@ -1852,7 +2159,7 @@ def _encoded_vui_case() -> dict[str, int]:
     try:
         return {
             name: int(frame.props[name])
-            for name in ("_Matrix", "_Transfer", "_Primaries", "_ColorRange")
+            for name in ("_Matrix", "_Transfer", "_Primaries", "_Range")
         }
     finally:
         frame.close()
@@ -1862,6 +2169,8 @@ CASES = {
     "contract_bytes_late": _contract_bytes_late_case,
     "contract_bytes_sentinel": _contract_bytes_sentinel_case,
     "contract_late_drift": _contract_late_drift_case,
+    "contract_physical_old_range": _contract_physical_old_range_case,
+    "contract_range_late_drift": _contract_range_late_drift_case,
     "contract_strict_types": _contract_strict_types_case,
     "contract_valid": _contract_valid_case,
     "display_center": _display_center_case,

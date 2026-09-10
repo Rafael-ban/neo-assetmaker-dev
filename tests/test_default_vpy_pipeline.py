@@ -168,7 +168,7 @@ class DefaultPipelineRealSubprocessTests(unittest.TestCase):
                 "_Matrix": 6,
                 "_Transfer": 6,
                 "_Primaries": 6,
-                "_ColorRange": 1,
+                "_Range": 0,
             },
         )
         self.assertEqual(
@@ -205,7 +205,7 @@ class DefaultPipelineRealSubprocessTests(unittest.TestCase):
                 "_Matrix": 6,
                 "_Transfer": 6,
                 "_Primaries": 6,
-                "_ColorRange": 1,
+                "_Range": 0,
             },
         )
 

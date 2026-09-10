@@ -183,7 +183,7 @@ def _preview_export_contract() -> dict[str, object]:
             "_Matrix": 6,
             "_Transfer": 6,
             "_Primaries": 6,
-            "_ColorRange": 1,
+            "_Range": 0,
         }:
             raise AssertionError(f"encoded VUI props mismatch: {encoded_props}")
     return {

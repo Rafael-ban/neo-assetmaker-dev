@@ -350,24 +350,55 @@ def _check_node_static(vs: Any, clip: Any, job: dict[str, Any]) -> None:
             raise _error("fps", expected_fps, actual_fps)
 
 
-def _range_value(props: Any) -> str:
+def _range_name(vs: Any, code: Any, integer_codes: dict[int, str]) -> str:
+    if type(code) is vs.Range:
+        if code is vs.Range.RANGE_LIMITED:
+            return "limited"
+        if code is vs.Range.RANGE_FULL:
+            return "full"
+        raise _error("range", ["limited", "full"], code)
+    if type(code) is not int:
+        raise _error("range", ["limited", "full"], code)
+    try:
+        return integer_codes[code]
+    except KeyError as exc:
+        raise _error("range", ["limited", "full"], code) from exc
+
+
+def _range_value(vs: Any, props: Any) -> str:
     values: list[str] = []
-    if "_Range" in props:
-        code = props["_Range"]
-        if type(code) is not int:
-            raise _error("range", ["limited", "full"], code)
-        try:
-            values.append({0: "limited", 1: "full"}[code])
-        except KeyError as exc:
-            raise _error("range", ["limited", "full"], code) from exc
-    if "_ColorRange" in props:
-        code = props["_ColorRange"]
-        if type(code) is not int:
-            raise _error("range", ["limited", "full"], code)
-        try:
-            values.append({1: "limited", 0: "full"}[code])
-        except KeyError as exc:
-            raise _error("range", ["limited", "full"], code) from exc
+    physical_props = tuple(props.keys())
+    frame_props_type = getattr(vs, "FrameProps", None)
+    if (
+        frame_props_type is not None
+        and type(props) is frame_props_type
+        and "_ColorRange" in physical_props
+    ):
+        if "_Range" in physical_props:
+            actual = {
+                "property": "_ColorRange",
+                "read": "shadowed_by__Range",
+                "physical_keys": ["_Range", "_ColorRange"],
+            }
+        else:
+            actual = {
+                "property": "_ColorRange",
+                "read": "unavailable",
+                "physical_keys": ["_ColorRange"],
+            }
+        raise _error("range", ["limited", "full"], actual)
+    if "_Range" in physical_props:
+        values.append(
+            _range_name(vs, props["_Range"], {0: "limited", 1: "full"})
+        )
+    if "_ColorRange" in physical_props:
+        values.append(
+            _range_name(
+                vs,
+                props["_ColorRange"],
+                {1: "limited", 0: "full"},
+            )
+        )
     if not values:
         raise _error("range", "_Range or _ColorRange", None)
     if any(value != values[0] for value in values[1:]):
@@ -396,7 +427,9 @@ def _code_value(
     return code
 
 
-def _check_frame(frame: Any, clip: Any, job: dict[str, Any]) -> tuple[int, int, int, str]:
+def _check_frame(
+    vs: Any, frame: Any, clip: Any, job: dict[str, Any]
+) -> tuple[int, int, int, str]:
     if frame.format is None or frame.format.id != clip.format.id:
         raise _error(
             "pixel_format", _format_name(clip.format), _format_name(frame.format)
@@ -429,19 +462,21 @@ def _check_frame(frame: Any, clip: Any, job: dict[str, Any]) -> tuple[int, int, 
         expected_name=expected["primaries"],
         known=PRIMARIES_CODES,
     )
-    range_name = _range_value(frame.props)
+    range_name = _range_value(vs, frame.props)
     if range_name != expected["range"]:
         raise _error("range", expected["range"], range_name)
     return matrix, transfer, primaries, range_name
 
 
-def _sentinel_signature(clip: Any, job: dict[str, Any]) -> tuple[int, int, int, str]:
+def _sentinel_signature(
+    vs: Any, clip: Any, job: dict[str, Any]
+) -> tuple[int, int, int, str]:
     indices = sorted({0, clip.num_frames // 2, clip.num_frames - 1})
     baseline: tuple[int, int, int, str] | None = None
     for index in indices:
         frame = clip.get_frame(index)
         try:
-            signature = _check_frame(frame, clip, job)
+            signature = _check_frame(vs, frame, clip, job)
         finally:
             frame.close()
         if baseline is None:
@@ -457,7 +492,7 @@ def guard_output0(vs: Any, clip: Any, job: dict[str, Any]) -> Any:
 
     def selector(n: int, f: Any) -> Any:
         del n
-        _check_frame(f, clip, job)
+        _check_frame(vs, f, clip, job)
         return f
 
     return vs.core.std.ModifyFrame(clip=clip, clips=clip, selector=selector)
@@ -511,7 +546,7 @@ def validate_outputs(
     output0 = _get_output_tuple(vs, 0)
     clip = output0.clip
     _check_node_static(vs, clip, job)
-    matrix, transfer, primaries, range_name = _sentinel_signature(clip, job)
+    matrix, transfer, primaries, range_name = _sentinel_signature(vs, clip, job)
     vui = X264Vui(
         colormatrix=X264_MATRIX[matrix],
         colorprim=X264_PRIMARIES[primaries],

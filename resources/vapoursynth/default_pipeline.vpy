@@ -142,12 +142,12 @@ if output["final_rotate_180"]:
     clip = core.std.Turn180(clip)
 
 colour_codes = {"709": 1, "170m": 6}
-range_codes = {"limited": 1, "full": 0}
+range_codes = {"limited": 0, "full": 1}
 clip = core.std.SetFrameProps(
     clip,
     _Matrix=colour_codes[output["matrix"]],
     _Transfer=colour_codes[output["transfer"]],
     _Primaries=colour_codes[output["primaries"]],
-    _ColorRange=range_codes[output["range"]],
+    _Range=range_codes[output["range"]],
 )
 clip.set_output(0)
