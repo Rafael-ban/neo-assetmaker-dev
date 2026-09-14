@@ -1,0 +1,787 @@
+{
+  "schema": 1,
+  "asset_id": "media-tools-r79-v1",
+  "runtime_version": 79,
+  "sources": [
+    {
+      "id": "canonical-r79-runtime",
+      "description": "U1 已采用的 VapourSynth R79 运行时文件；路径、大小和 SHA-256 取自切换后已验证清单。",
+      "evidence": [
+        {
+          "kind": "official-portable-archive",
+          "url": "https://github.com/vapoursynth/vapoursynth/releases/download/R79/VapourSynth64-Portable-R79.zip",
+          "size": 23160674,
+          "sha256": "625B3410D903943107291592E90D6F521F829EBB8291D952EE91B8D674BBB153"
+        },
+        {
+          "kind": "official-wheel-member",
+          "path": "wheel/vapoursynth-79-cp312-abi3-win_amd64.whl",
+          "size": 15157546,
+          "sha256": "643D9708DF7E98807A66D4E8804E2E9A1380AF22BEA2873387D8AF103E69AA5B"
+        },
+        {
+          "kind": "validated-after-switch",
+          "path": "artifacts/u1-r79/asset-switch/switch-20260911-01/after-manifest.json",
+          "sha256": "893066AF2F1A1D62B3CB2B07B0533E3D9423EB4E078A4E76F12ED8ECDD191816"
+        }
+      ]
+    },
+    {
+      "id": "root-media-tool-or-static-import-dependency",
+      "description": "U1 最终方案保留的根媒体工具或静态导入依赖；最终字节值取自切换后已验证清单。",
+      "evidence": [
+        {
+          "kind": "source-classification",
+          "path": "artifacts/u1-r79/asset-audit/final-stage-plan.json",
+          "sha256": "058BB4B83AA31EC89B0E1E3ECBB0F5D7E7A8A08DB56AA81160041E8AD8A397F6",
+          "classification_status": "proposed_only"
+        },
+        {
+          "kind": "validated-after-switch",
+          "path": "artifacts/u1-r79/asset-switch/switch-20260911-01/after-manifest.json",
+          "sha256": "893066AF2F1A1D62B3CB2B07B0533E3D9423EB4E078A4E76F12ED8ECDD191816"
+        }
+      ]
+    },
+    {
+      "id": "conservative-non-vs-supplement",
+      "description": "U1 最终方案保守保留的非 VapourSynth 补充文件；来源分类不是重新哈希证据，最终字节值取自切换后已验证清单。",
+      "evidence": [
+        {
+          "kind": "source-classification",
+          "path": "artifacts/u1-r79/asset-audit/final-stage-plan.json",
+          "sha256": "058BB4B83AA31EC89B0E1E3ECBB0F5D7E7A8A08DB56AA81160041E8AD8A397F6",
+          "classification_status": "proposed_only",
+          "source_hashes_recomputed": false
+        },
+        {
+          "kind": "validated-after-switch",
+          "path": "artifacts/u1-r79/asset-switch/switch-20260911-01/after-manifest.json",
+          "sha256": "893066AF2F1A1D62B3CB2B07B0533E3D9423EB4E078A4E76F12ED8ECDD191816"
+        }
+      ]
+    }
+  ],
+  "files": [
+    {
+      "path": "7z.dll",
+      "size": 1906176,
+      "sha256": "5BD20FB38499D95C39594F41D4781B6181B3304B7F1F4D06B0182F514E7EAA74",
+      "source_id": "conservative-non-vs-supplement"
+    },
+    {
+      "path": "7z.exe",
+      "size": 575488,
+      "sha256": "4CD7D776C686427226A151789D2D61F0B2ED2C392148CC4E69C0238362FAFECF",
+      "source_id": "conservative-non-vs-supplement"
+    },
+    {
+      "path": "Changelog.txt",
+      "size": 74343,
+      "sha256": "41B392A2E684EEB905ED1B9095DE7895E1DA407789AA735FE7E5AD9ECE427372",
+      "source_id": "conservative-non-vs-supplement"
+    },
+    {
+      "path": "LICENSE.txt",
+      "size": 26932,
+      "sha256": "9B183E7F0356C398CC0A65C4A2D2CD56F2149A8E244264C4D26AC59E9DADA3E8",
+      "source_id": "conservative-non-vs-supplement"
+    },
+    {
+      "path": "OpenSVCDecoder.dll",
+      "size": 366080,
+      "sha256": "37823FE403498CCB4C87245A30210F36390DCE3410B945EC5EAE66C5732D6A7C",
+      "source_id": "root-media-tool-or-static-import-dependency"
+    },
+    {
+      "path": "ReadMe.txt",
+      "size": 8083,
+      "sha256": "57D6BB7EAAA592586D76D4F3CFA112183C44AB6F871AB40BBBB494386735480F",
+      "source_id": "conservative-non-vs-supplement"
+    },
+    {
+      "path": "SDL2.dll",
+      "size": 2231296,
+      "sha256": "74889602F25135DB1489529DC0A5170F65FC756886B744AA6A414529B8ABD3D9",
+      "source_id": "conservative-non-vs-supplement"
+    },
+    {
+      "path": "avcodec-60.dll",
+      "size": 74749952,
+      "sha256": "B0499E553431CB4CD3BE97BEB92400491CBAA0C1075609788B429F17878FC29E",
+      "source_id": "root-media-tool-or-static-import-dependency"
+    },
+    {
+      "path": "avdevice-60.dll",
+      "size": 4606464,
+      "sha256": "323FE325E7B76C9123868F90920150A69550B0308E7C909FC1BD579CCCEF66C4",
+      "source_id": "root-media-tool-or-static-import-dependency"
+    },
+    {
+      "path": "avfilter-9.dll",
+      "size": 25419776,
+      "sha256": "330785A2E07FE1D6D8FC9E554D7F82B024EF3AC75208DED9AE63CB0C0F8912C5",
+      "source_id": "root-media-tool-or-static-import-dependency"
+    },
+    {
+      "path": "avformat-60.dll",
+      "size": 17308160,
+      "sha256": "77465CEC953B257DEEC08F1472B057D9B0F98200952B09AB9F2698D52F19D04D",
+      "source_id": "root-media-tool-or-static-import-dependency"
+    },
+    {
+      "path": "avutil-58.dll",
+      "size": 2299392,
+      "sha256": "FB65DEBBD7CFCB9A7E68BF904DAF95C4A885C6EF2B05301E894CDAC446A42A18",
+      "source_id": "root-media-tool-or-static-import-dependency"
+    },
+    {
+      "path": "concrt140.dll",
+      "size": 321696,
+      "sha256": "B2FAF3B85B23C840B654E57D5497A0AD31ACD02FB01856CAD4725A1715D5F78E",
+      "source_id": "conservative-non-vs-supplement"
+    },
+    {
+      "path": "gf_ohevcdec.dll",
+      "size": 31744,
+      "sha256": "D37DF65D2BB60382DD3004FA79AE5A9045EA406CC9F521C22FC210C218441588",
+      "source_id": "conservative-non-vs-supplement"
+    },
+    {
+      "path": "gm_caca_out.dll",
+      "size": 23040,
+      "sha256": "C870E9C2A3A5ED603C5844CFDA097B4C4170107B6B2F1013C95B676D699DC69D",
+      "source_id": "conservative-non-vs-supplement"
+    },
+    {
+      "path": "gm_dx_hw.dll",
+      "size": 73728,
+      "sha256": "23895CC1AE1E63E9C935F4E8BB72DD8AD12F81388EB1C9C673E4E70CA5F81AD5",
+      "source_id": "conservative-non-vs-supplement"
+    },
+    {
+      "path": "gm_ft_font.dll",
+      "size": 468992,
+      "sha256": "1B5CC34AA1F98BBE020CD403EA51BF3A4ED15222D04E92763383318A2E6BD332",
+      "source_id": "conservative-non-vs-supplement"
+    },
+    {
+      "path": "gm_sdl_out.dll",
+      "size": 38400,
+      "sha256": "BEF85C296DAC0369517C12E99A7579D0188A3C8BE7374634C904A4A188A6B0CF",
+      "source_id": "conservative-non-vs-supplement"
+    },
+    {
+      "path": "gm_validator.dll",
+      "size": 31744,
+      "sha256": "219035DC57075179BD604A6CFE7A2ED3CD7A7309B84BC0EF8DBAC268C637FF38",
+      "source_id": "conservative-non-vs-supplement"
+    },
+    {
+      "path": "gm_wav_out.dll",
+      "size": 16896,
+      "sha256": "DABD4F42DEFFB2987C82FE667E0A2D917C631506B3CB3F0D1630A6526397AB90",
+      "source_id": "conservative-non-vs-supplement"
+    },
+    {
+      "path": "gpac.exe",
+      "size": 225792,
+      "sha256": "62452C659806A01CBFD74C9866B1FFE020C63CF77EBBDD60A9A688E41CECBD3E",
+      "source_id": "conservative-non-vs-supplement"
+    },
+    {
+      "path": "gpac.ico",
+      "size": 15086,
+      "sha256": "3E566A692E9CF3853200A7A510141E17EA224E64662D2ACEA81CE2F0FD5F186E",
+      "source_id": "conservative-non-vs-supplement"
+    },
+    {
+      "path": "libcaca.dll",
+      "size": 782848,
+      "sha256": "3019EB4684C03305DB5F233D81B425B5E4AE8CFF2D66C7A6E06A443E0011D04A",
+      "source_id": "conservative-non-vs-supplement"
+    },
+    {
+      "path": "libcrypto-3.dll",
+      "size": 5231472,
+      "sha256": "CCFFFDDCD3DEFB8D899026298AF9AF43BC186130F8483D77E97C93233D5F27D7",
+      "source_id": "conservative-non-vs-supplement"
+    },
+    {
+      "path": "libcryptoMD.dll",
+      "size": 2393600,
+      "sha256": "A1C6125AF7F4D48C1E635B1B7CF55FAD3D142CCDE7E71C820911FCD1CEEE1B29",
+      "source_id": "root-media-tool-or-static-import-dependency"
+    },
+    {
+      "path": "libcurl-x64.dll",
+      "size": 3169896,
+      "sha256": "E1EC73F4A000CD98C3184B6D8E4819BFC4DA670A0CBD33A8BB35678B273EA795",
+      "source_id": "root-media-tool-or-static-import-dependency"
+    },
+    {
+      "path": "libgpac.dll",
+      "size": 12466688,
+      "sha256": "2BEF162F85E17E6600A02BE779C1B6DF7E0C1E5B32823BC7A533743EE0033A55",
+      "source_id": "root-media-tool-or-static-import-dependency"
+    },
+    {
+      "path": "libssl-3.dll",
+      "size": 794992,
+      "sha256": "007142039F04D04E0ED607BDA53DE095E5BC6A8A10D26ECEDDE94EA7D2D7EEFE",
+      "source_id": "conservative-non-vs-supplement"
+    },
+    {
+      "path": "libsslMD.dll",
+      "size": 490496,
+      "sha256": "3D404648C0D10995F2541A29D465A01944F6C7CBAAE6BC6B9ECAEC531938CAC5",
+      "source_id": "root-media-tool-or-static-import-dependency"
+    },
+    {
+      "path": "libx264-142.dll",
+      "size": 1008128,
+      "sha256": "FF275E7421621DE8415E2BD2330C65E33910FD65128E13EB2F2C8895082FF56D",
+      "source_id": "conservative-non-vs-supplement"
+    },
+    {
+      "path": "mp4box.exe",
+      "size": 434176,
+      "sha256": "0387B8838F2F1EB5C4F3C5D504620F04F51180DD0981EC51C42D19C1612CCC43",
+      "source_id": "root-media-tool-or-static-import-dependency"
+    },
+    {
+      "path": "msvcp140.dll",
+      "size": 553552,
+      "sha256": "DEF46AA6A8F72F27BAFAC0C43334419486A4D1DCDB6C479A8EF7034B3E1FA4CB",
+      "source_id": "conservative-non-vs-supplement"
+    },
+    {
+      "path": "msvcp140_1.dll",
+      "size": 35488,
+      "sha256": "2DD670F874562FBDCA5B022DF1943D70A57BA91FDE559280E3A1DAEBE4DB2380",
+      "source_id": "conservative-non-vs-supplement"
+    },
+    {
+      "path": "msvcp140_2.dll",
+      "size": 278608,
+      "sha256": "1D60DA3AC2B06482912CA852FA7047436E6E474B4CFFFA3BF77F4598CFBF454C",
+      "source_id": "conservative-non-vs-supplement"
+    },
+    {
+      "path": "msvcp140_atomic_wait.dll",
+      "size": 48800,
+      "sha256": "E7963645E0D1DB08E300614D4C5FA7194BD8173E9AB7A5558859E6B232ED3241",
+      "source_id": "conservative-non-vs-supplement"
+    },
+    {
+      "path": "msvcp140_codecvt_ids.dll",
+      "size": 31392,
+      "sha256": "AE8D922B00CDD93E3EBECC37BEB46C800F383EBDEB9F9E5B84E04A72428B6FB3",
+      "source_id": "conservative-non-vs-supplement"
+    },
+    {
+      "path": "openhevc-1.dll",
+      "size": 2427904,
+      "sha256": "B951D572D7CB75DC821A888757922F09B3A531A0DC896A6AF42C76CB7E4A134B",
+      "source_id": "conservative-non-vs-supplement"
+    },
+    {
+      "path": "postproc-57.dll",
+      "size": 90112,
+      "sha256": "00A5E6DE4E4A0A1BD58D8CC7D82CCD4056839F2258D67177CEFAD9B5A3E7DDAD",
+      "source_id": "root-media-tool-or-static-import-dependency"
+    },
+    {
+      "path": "runtime/Lib/site-packages/vapoursynth-79.dist-info/METADATA",
+      "size": 2070,
+      "sha256": "41CF0C62B3766502F7A3D93D4BAD5F0B0B67758298B305C90AB1180D93E0BCAC",
+      "source_id": "canonical-r79-runtime"
+    },
+    {
+      "path": "runtime/Lib/site-packages/vapoursynth-79.dist-info/RECORD",
+      "size": 2626,
+      "sha256": "0CB05A741D982CFD9C0D0B10C55376232CF88E38CDEDC46D1E89F021FDDFAED7",
+      "source_id": "canonical-r79-runtime"
+    },
+    {
+      "path": "runtime/Lib/site-packages/vapoursynth-79.dist-info/WHEEL",
+      "size": 86,
+      "sha256": "659B40DD81A050152DE28DAD688BE3D8ADA5AD6D47B111FC6B41C4AA595A0814",
+      "source_id": "canonical-r79-runtime"
+    },
+    {
+      "path": "runtime/Lib/site-packages/vapoursynth-79.dist-info/entry_points.txt",
+      "size": 83,
+      "sha256": "26F3A2242395D8F2E4BC0795BE87A2C05DEA238F27387014CA9023ACDB7B33FA",
+      "source_id": "canonical-r79-runtime"
+    },
+    {
+      "path": "runtime/Lib/site-packages/vapoursynth-79.dist-info/licenses/COPYING.LESSER",
+      "size": 27028,
+      "sha256": "92A759EC0FEBDE4750821736BBDE642A3B835C0604FC81BEE62F9E428F86981F",
+      "source_id": "canonical-r79-runtime"
+    },
+    {
+      "path": "runtime/Lib/site-packages/vapoursynth/__init__.py",
+      "size": 1677,
+      "sha256": "CA517623CCD5C82FF4D1C4C4D9B00EE0E9ECF176FEC0448911CF0E847D2055C1",
+      "source_id": "canonical-r79-runtime"
+    },
+    {
+      "path": "runtime/Lib/site-packages/vapoursynth/__main__.py",
+      "size": 84,
+      "sha256": "A2F9FCBFA43BE79E692FFC019ED1FC1A24903DF82E83CF67827E876F7C95FE97",
+      "source_id": "canonical-r79-runtime"
+    },
+    {
+      "path": "runtime/Lib/site-packages/vapoursynth/_cli.py",
+      "size": 4196,
+      "sha256": "9B05F5FA5A398A6BA663EA6EF16E352DB6B7EB16DF130EBD79C613E1081F4BC7",
+      "source_id": "canonical-r79-runtime"
+    },
+    {
+      "path": "runtime/Lib/site-packages/vapoursynth/_shell.py",
+      "size": 8349,
+      "sha256": "36DEE2A930CC54E6B90A8F9EB04F24CEDDC133F6F6747604F34B869543B0AF6E",
+      "source_id": "canonical-r79-runtime"
+    },
+    {
+      "path": "runtime/Lib/site-packages/vapoursynth/_utils.py",
+      "size": 16795,
+      "sha256": "4875D47FB54F58ADBE2EB410C2AFA0305BBCC7A3B0869AA20C8E1C9CE0AD5FCD",
+      "source_id": "canonical-r79-runtime"
+    },
+    {
+      "path": "runtime/Lib/site-packages/vapoursynth/include/VSConstants4.h",
+      "size": 2992,
+      "sha256": "AC6C48D6615FD6ADB6E283B7549F4E8C182A04EC5F54D8C49A7450259D73F65F",
+      "source_id": "canonical-r79-runtime"
+    },
+    {
+      "path": "runtime/Lib/site-packages/vapoursynth/include/VSHelper4.h",
+      "size": 8506,
+      "sha256": "73BFDCCEE359B2A07E5FE30DC95017991378DDDC854F82F48BEFC976EF2AFA3A",
+      "source_id": "canonical-r79-runtime"
+    },
+    {
+      "path": "runtime/Lib/site-packages/vapoursynth/include/VSScript4.h",
+      "size": 5447,
+      "sha256": "E8A30BFE5422BB1BC04BC7CAB65044F02AC3FEB62D8ED022E569AB6B317478BF",
+      "source_id": "canonical-r79-runtime"
+    },
+    {
+      "path": "runtime/Lib/site-packages/vapoursynth/include/VapourSynth4.h",
+      "size": 31729,
+      "sha256": "BA486DA1599CFA3358188760FBD5095E0DC1D19C39CD56BC0F368FB8904BC80B",
+      "source_id": "canonical-r79-runtime"
+    },
+    {
+      "path": "runtime/Lib/site-packages/vapoursynth/libvapoursynth.dll",
+      "size": 1278464,
+      "sha256": "4F340DCB1E71F4540B1756719C44D8A3DB8E75352661BA43B33F6BDB7DE4ED2C",
+      "source_id": "canonical-r79-runtime"
+    },
+    {
+      "path": "runtime/Lib/site-packages/vapoursynth/libvapoursynth.pdb",
+      "size": 9728000,
+      "sha256": "6A3461C5153ADEC415B7CEC16E1709EE3D88800688A17664A91FF5EFDD76ED79",
+      "source_id": "canonical-r79-runtime"
+    },
+    {
+      "path": "runtime/Lib/site-packages/vapoursynth/libvapoursynthfilters.dll",
+      "size": 2509312,
+      "sha256": "2058402A20F6E7F64CC7D2B9E8964DC19BA910E548B73E4B1924DF866533EA25",
+      "source_id": "canonical-r79-runtime"
+    },
+    {
+      "path": "runtime/Lib/site-packages/vapoursynth/libvapoursynthfilters.pdb",
+      "size": 13578240,
+      "sha256": "28EFC577C65AC590C51A51EAC8F4C88549E8CE0D6E664A5E67CEC64897F6D04C",
+      "source_id": "canonical-r79-runtime"
+    },
+    {
+      "path": "runtime/Lib/site-packages/vapoursynth/libvapoursynthfilters_avx2.dll",
+      "size": 2583040,
+      "sha256": "752091D078D465861A6DF50AD1EAE1BD478E09E1D13AA4EF92A92D03161BC1AC",
+      "source_id": "canonical-r79-runtime"
+    },
+    {
+      "path": "runtime/Lib/site-packages/vapoursynth/libvapoursynthfilters_avx2.pdb",
+      "size": 13512704,
+      "sha256": "CB3F8278D6D0184A9F8445BDAC813CF8B763239F996362B8D1EC1CCFFB929B51",
+      "source_id": "canonical-r79-runtime"
+    },
+    {
+      "path": "runtime/Lib/site-packages/vapoursynth/libvapoursynthfilters_zn4.dll",
+      "size": 2891264,
+      "sha256": "7C72C195F0B37A841D92A284495040235E50C51143D11B6D9A6A160962E6D93C",
+      "source_id": "canonical-r79-runtime"
+    },
+    {
+      "path": "runtime/Lib/site-packages/vapoursynth/libvapoursynthfilters_zn4.pdb",
+      "size": 13705216,
+      "sha256": "D13426B933D4BC1D6444FC34D771A4BD6DC6198D20CC167855A00557F1BB09DB",
+      "source_id": "canonical-r79-runtime"
+    },
+    {
+      "path": "runtime/Lib/site-packages/vapoursynth/pkgconfig/vapoursynth.pc",
+      "size": 162,
+      "sha256": "7501051B4D98381946F76C00B1C37FED02612860620DB357448F4733407ED60E",
+      "source_id": "canonical-r79-runtime"
+    },
+    {
+      "path": "runtime/Lib/site-packages/vapoursynth/plugins/avscompat.dll",
+      "size": 243712,
+      "sha256": "908BE62561B77482EFA2577758E16DC752E881D40CC66A6F5C1A75D92E282BD3",
+      "source_id": "canonical-r79-runtime"
+    },
+    {
+      "path": "runtime/Lib/site-packages/vapoursynth/vapoursynth.pyd",
+      "size": 693760,
+      "sha256": "D7E531BF0C3BC1F459F6DE11EE38DB738B6A37B262944DABB6A48FC244E1CCEF",
+      "source_id": "canonical-r79-runtime"
+    },
+    {
+      "path": "runtime/Lib/site-packages/vapoursynth/vapoursynth.pyi",
+      "size": 38657,
+      "sha256": "FB3AF018CD0A90604B20E81FF8BB00FAF1472D18ED974E867590BA8FF69B6625",
+      "source_id": "canonical-r79-runtime"
+    },
+    {
+      "path": "runtime/Lib/site-packages/vapoursynth/vspipe.exe",
+      "size": 360448,
+      "sha256": "6A7E48D103F18AE2C552DE89D643560DAB11EA8FCCAAED894766ADAB4A05E5DC",
+      "source_id": "canonical-r79-runtime"
+    },
+    {
+      "path": "runtime/Lib/site-packages/vapoursynth/vsscript.dll",
+      "size": 69120,
+      "sha256": "41FAC3764DB8F6C7412C743734E7462EF68AF42722DC41F5DE931F8822E22A30",
+      "source_id": "canonical-r79-runtime"
+    },
+    {
+      "path": "runtime/Lib/site-packages/vapoursynth/vsscript.pdb",
+      "size": 1540096,
+      "sha256": "A92088736CAC716874959EEBDA1BD07F63E28A18192C264353DDC5585DB190EC",
+      "source_id": "canonical-r79-runtime"
+    },
+    {
+      "path": "runtime/Lib/site-packages/vapoursynth/vsvfw.dll",
+      "size": 195072,
+      "sha256": "C121CFC6F2DAC1D57219369A951A1AD09E3D85EF1AC03E2ACF5EC306B2B18C75",
+      "source_id": "canonical-r79-runtime"
+    },
+    {
+      "path": "runtime/_asyncio.pyd",
+      "size": 74096,
+      "sha256": "C77DE90CAD749087A0C5DC5E19D78D24F6EF44E7E5AC19B8420CFC0CEA62395D",
+      "source_id": "canonical-r79-runtime"
+    },
+    {
+      "path": "runtime/_bz2.pyd",
+      "size": 86896,
+      "sha256": "65F610646D10D5BABEA080E060D244B546EC52C54012E5E937DC72DCC2E2E7BC",
+      "source_id": "canonical-r79-runtime"
+    },
+    {
+      "path": "runtime/_ctypes.pyd",
+      "size": 127480,
+      "sha256": "0E56107A891100535F2DA79D85A5AE65FF1227B4765BD108F8593AC1A1110D81",
+      "source_id": "canonical-r79-runtime"
+    },
+    {
+      "path": "runtime/_decimal.pyd",
+      "size": 262000,
+      "sha256": "AEACFEAD2BEFCC0768063A037BB64BD32109AE09CB144E5F571B04DD7965DB9D",
+      "source_id": "canonical-r79-runtime"
+    },
+    {
+      "path": "runtime/_elementtree.pyd",
+      "size": 135160,
+      "sha256": "5009A9A53C03EF8387443B5CF6CE08E5C3A79727466A0B931C5BBCA915BF89CA",
+      "source_id": "canonical-r79-runtime"
+    },
+    {
+      "path": "runtime/_hashlib.pyd",
+      "size": 68976,
+      "sha256": "03D233DBACE599168EAFFEC823DE6ED7BEEC8C2A4EBFE9B8A3D8E042A59AF3BA",
+      "source_id": "canonical-r79-runtime"
+    },
+    {
+      "path": "runtime/_lzma.pyd",
+      "size": 161136,
+      "sha256": "E3DEECC1F59A3B811C608861DECD84DE1E8DF8BAFD5E2B39188861318C5A38CF",
+      "source_id": "canonical-r79-runtime"
+    },
+    {
+      "path": "runtime/_msi.pyd",
+      "size": 46584,
+      "sha256": "B49332BAE154EBDD8C3D5E7DDFDDE336D9C47F91BA028DC67BAFB2420B3DBB5C",
+      "source_id": "canonical-r79-runtime"
+    },
+    {
+      "path": "runtime/_multiprocessing.pyd",
+      "size": 37368,
+      "sha256": "2C636DF7059CB0DD7E978DD735C7C5C8DDB09CF94754CF9E232296B96C5C545A",
+      "source_id": "canonical-r79-runtime"
+    },
+    {
+      "path": "runtime/_overlapped.pyd",
+      "size": 57336,
+      "sha256": "662126FF80C3A1B4CEDF74074029C12AE4743E6D3B37376E39AC70AACB7D4D3C",
+      "source_id": "canonical-r79-runtime"
+    },
+    {
+      "path": "runtime/_queue.pyd",
+      "size": 33784,
+      "sha256": "48E76E0AD63F6932B4A77B5819F41C1E7595636CA8D9E824F0943A14B8BB5035",
+      "source_id": "canonical-r79-runtime"
+    },
+    {
+      "path": "runtime/_socket.pyd",
+      "size": 85496,
+      "sha256": "3EFA4636CF9E350856F6927D67A4C2564BF9BD2758A00BBF17D3AECE5B60016D",
+      "source_id": "canonical-r79-runtime"
+    },
+    {
+      "path": "runtime/_sqlite3.pyd",
+      "size": 126184,
+      "sha256": "64B51DF2805C58B023A875E8AE3BE7AC7F61EF664F32CA6C90F6315DA47EF0BC",
+      "source_id": "canonical-r79-runtime"
+    },
+    {
+      "path": "runtime/_ssl.pyd",
+      "size": 179432,
+      "sha256": "0BC527D2DBC50009F43B2ED5D5982C4F63F4B647647FFA9EDA612DCDA80F6040",
+      "source_id": "canonical-r79-runtime"
+    },
+    {
+      "path": "runtime/_uuid.pyd",
+      "size": 27128,
+      "sha256": "ACCE4F281D7FFB2DEC0997527FAF25B1DF62AD7BD3032C568DDCF65C90EDC867",
+      "source_id": "canonical-r79-runtime"
+    },
+    {
+      "path": "runtime/_wmi.pyd",
+      "size": 40304,
+      "sha256": "A980F1E7A29842BD946863FC2693FBEB555A9DC0F9E1630DFED9A2FCDEF3ECE2",
+      "source_id": "canonical-r79-runtime"
+    },
+    {
+      "path": "runtime/_zoneinfo.pyd",
+      "size": 49656,
+      "sha256": "76F1439CDA82AB6976DF6BA505C4079444703F6D44D8B0259CE59C0FF4279FB4",
+      "source_id": "canonical-r79-runtime"
+    },
+    {
+      "path": "runtime/concrt140.dll",
+      "size": 321696,
+      "sha256": "B2FAF3B85B23C840B654E57D5497A0AD31ACD02FB01856CAD4725A1715D5F78E",
+      "source_id": "canonical-r79-runtime"
+    },
+    {
+      "path": "runtime/libcrypto-3.dll",
+      "size": 5231472,
+      "sha256": "CCFFFDDCD3DEFB8D899026298AF9AF43BC186130F8483D77E97C93233D5F27D7",
+      "source_id": "canonical-r79-runtime"
+    },
+    {
+      "path": "runtime/libffi-8.dll",
+      "size": 39696,
+      "sha256": "EFF52743773EB550FCC6CE3EFC37C85724502233B6B002A35496D828BD7B280A",
+      "source_id": "canonical-r79-runtime"
+    },
+    {
+      "path": "runtime/libssl-3.dll",
+      "size": 794992,
+      "sha256": "007142039F04D04E0ED607BDA53DE095E5BC6A8A10D26ECEDDE94EA7D2D7EEFE",
+      "source_id": "canonical-r79-runtime"
+    },
+    {
+      "path": "runtime/msvcp140.dll",
+      "size": 553552,
+      "sha256": "DEF46AA6A8F72F27BAFAC0C43334419486A4D1DCDB6C479A8EF7034B3E1FA4CB",
+      "source_id": "canonical-r79-runtime"
+    },
+    {
+      "path": "runtime/msvcp140_1.dll",
+      "size": 35488,
+      "sha256": "2DD670F874562FBDCA5B022DF1943D70A57BA91FDE559280E3A1DAEBE4DB2380",
+      "source_id": "canonical-r79-runtime"
+    },
+    {
+      "path": "runtime/msvcp140_2.dll",
+      "size": 278608,
+      "sha256": "1D60DA3AC2B06482912CA852FA7047436E6E474B4CFFFA3BF77F4598CFBF454C",
+      "source_id": "canonical-r79-runtime"
+    },
+    {
+      "path": "runtime/msvcp140_atomic_wait.dll",
+      "size": 48800,
+      "sha256": "E7963645E0D1DB08E300614D4C5FA7194BD8173E9AB7A5558859E6B232ED3241",
+      "source_id": "canonical-r79-runtime"
+    },
+    {
+      "path": "runtime/msvcp140_codecvt_ids.dll",
+      "size": 31392,
+      "sha256": "AE8D922B00CDD93E3EBECC37BEB46C800F383EBDEB9F9E5B84E04A72428B6FB3",
+      "source_id": "canonical-r79-runtime"
+    },
+    {
+      "path": "runtime/native-plugins/01-lsmas/LSMASHSource.dll",
+      "size": 27275264,
+      "sha256": "612942AC919B26AD9BB0929B415D97FF840D834A9D9EBEE00FC62A453C8606FC",
+      "source_id": "canonical-r79-runtime"
+    },
+    {
+      "path": "runtime/native-plugins/02-imwri/libimwri.dll",
+      "size": 25143808,
+      "sha256": "8970A12F7497C04D99C053F9BD2B7C1E28143FA407CCFD180AC6A1C728EA7C40",
+      "source_id": "canonical-r79-runtime"
+    },
+    {
+      "path": "runtime/pyexpat.pyd",
+      "size": 205304,
+      "sha256": "D615E193D1AFFCDBFE504E90D3621CBDCFF94BF72B79D899126534507FD6D27A",
+      "source_id": "canonical-r79-runtime"
+    },
+    {
+      "path": "runtime/python.cat",
+      "size": 574231,
+      "sha256": "5D85439736AE088D9680B391E2BCA55CA7E9CC5B41A12EBE8E2F554506C7E72E",
+      "source_id": "canonical-r79-runtime"
+    },
+    {
+      "path": "runtime/python.exe",
+      "size": 104952,
+      "sha256": "4D6F5F81A4BCA11191C4C7C6B43632694D0A4CE74E068619D8FDC161D469859A",
+      "source_id": "canonical-r79-runtime"
+    },
+    {
+      "path": "runtime/python3.dll",
+      "size": 70376,
+      "sha256": "FB975A606E7FBF74F64260E3F60C3490B4F74A183C0926FD6ED1AC4C52AC7B1C",
+      "source_id": "canonical-r79-runtime"
+    },
+    {
+      "path": "runtime/python312._pth",
+      "size": 111,
+      "sha256": "C7CF2A1C7CD4DFFB0F24E2E0A58F605CC5E8C09CF1AC410012B56CA9018CA430",
+      "source_id": "canonical-r79-runtime"
+    },
+    {
+      "path": "runtime/python312.dll",
+      "size": 6945272,
+      "sha256": "9A0E3435AAA680D868150F87AB3E388AD2EEBC22F87E036155C7B4EDA8CD2120",
+      "source_id": "canonical-r79-runtime"
+    },
+    {
+      "path": "runtime/python312.zip",
+      "size": 3835482,
+      "sha256": "FB131C0EF7E35CC5250A74C8CD18744BF4115FB8163710711F3758D7DF3D1F88",
+      "source_id": "canonical-r79-runtime"
+    },
+    {
+      "path": "runtime/pythonw.exe",
+      "size": 104304,
+      "sha256": "D72294FB338BC2FC8896D25A7395A4DB466425427E1559E77185D5135A830681",
+      "source_id": "canonical-r79-runtime"
+    },
+    {
+      "path": "runtime/select.pyd",
+      "size": 33136,
+      "sha256": "D4D7181B11DB0BD22A6CD5CDA6F8583D1F5C77615FD0A6CA33350619D6E0438A",
+      "source_id": "canonical-r79-runtime"
+    },
+    {
+      "path": "runtime/sqlite3.dll",
+      "size": 1583608,
+      "sha256": "8DAA45684BF6688FCA28D956B2E8942F2FA98F656675CE68E6D61DD869848A7A",
+      "source_id": "canonical-r79-runtime"
+    },
+    {
+      "path": "runtime/unicodedata.pyd",
+      "size": 1140592,
+      "sha256": "208EE1CD3CBAD0828433CA7246B05BE2B1FF5569983D27D296C0B38888585488",
+      "source_id": "canonical-r79-runtime"
+    },
+    {
+      "path": "runtime/vccorlib140.dll",
+      "size": 350880,
+      "sha256": "6B8D8A76C3E6664293407553650E60B94DF9AAAFC7C92057EA83032BD228E44F",
+      "source_id": "canonical-r79-runtime"
+    },
+    {
+      "path": "runtime/vcruntime140.dll",
+      "size": 120400,
+      "sha256": "052AD6A20D375957E82AA6A3C441EA548D89BE0981516CA7EB306E063D5027F4",
+      "source_id": "canonical-r79-runtime"
+    },
+    {
+      "path": "runtime/vcruntime140_1.dll",
+      "size": 49776,
+      "sha256": "6A99BC0128E0C7D6CBBF615FCC26909565E17D4CA3451B97F8987F9C6ACBC6C8",
+      "source_id": "canonical-r79-runtime"
+    },
+    {
+      "path": "runtime/vcruntime140_threads.dll",
+      "size": 37456,
+      "sha256": "A6222020B500A9A86B36E040C2DBD0E459716DB1BF2810A11CD7512EA9B8D89B",
+      "source_id": "canonical-r79-runtime"
+    },
+    {
+      "path": "runtime/winsound.pyd",
+      "size": 31736,
+      "sha256": "100E8D676777603C7258DAF9B2F23EF001F09F1596D8708DE359326FFF72BDDD",
+      "source_id": "canonical-r79-runtime"
+    },
+    {
+      "path": "swresample-4.dll",
+      "size": 642560,
+      "sha256": "B9494E359F286D66A6B71D8361FBDA786460488EEE75EC94CA167E965F31076B",
+      "source_id": "root-media-tool-or-static-import-dependency"
+    },
+    {
+      "path": "swscale-7.dll",
+      "size": 644096,
+      "sha256": "A8B72DE03FDE0A9CD1738C668BB509B39EAFCD4190877CC07276F9C2EB6180B3",
+      "source_id": "root-media-tool-or-static-import-dependency"
+    },
+    {
+      "path": "vccorlib140.dll",
+      "size": 350880,
+      "sha256": "6B8D8A76C3E6664293407553650E60B94DF9AAAFC7C92057EA83032BD228E44F",
+      "source_id": "conservative-non-vs-supplement"
+    },
+    {
+      "path": "vcruntime140.dll",
+      "size": 120400,
+      "sha256": "052AD6A20D375957E82AA6A3C441EA548D89BE0981516CA7EB306E063D5027F4",
+      "source_id": "root-media-tool-or-static-import-dependency"
+    },
+    {
+      "path": "vcruntime140_1.dll",
+      "size": 49776,
+      "sha256": "6A99BC0128E0C7D6CBBF615FCC26909565E17D4CA3451B97F8987F9C6ACBC6C8",
+      "source_id": "conservative-non-vs-supplement"
+    },
+    {
+      "path": "vcruntime140_threads.dll",
+      "size": 37456,
+      "sha256": "A6222020B500A9A86B36E040C2DBD0E459716DB1BF2810A11CD7512EA9B8D89B",
+      "source_id": "conservative-non-vs-supplement"
+    },
+    {
+      "path": "x264-7mod.exe",
+      "size": 20608512,
+      "sha256": "CA622E7A1ED7EFD0953D8DBB9EB08672CA45D80CE962D63D637B79462A7DE3ED",
+      "source_id": "root-media-tool-or-static-import-dependency"
+    },
+    {
+      "path": "x264.exe",
+      "size": 20608512,
+      "sha256": "CA622E7A1ED7EFD0953D8DBB9EB08672CA45D80CE962D63D637B79462A7DE3ED",
+      "source_id": "conservative-non-vs-supplement"
+    }
+  ]
+}

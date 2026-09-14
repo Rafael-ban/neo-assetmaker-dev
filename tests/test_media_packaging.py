@@ -293,15 +293,38 @@ class MediaPackagingTests(unittest.TestCase):
                 self.assertNotIn(removed_token, self.build_source)
 
     def test_build_script_keeps_media_tool_candidates(self):
-        expected_tokens = (
-            "VSPipe.exe",
-            "x264-7mod.exe",
-            "mp4box.exe",
-            "lsmash",
+        from media_distribution import load_manifest
+
+        manifest = load_manifest(
+            Path("resources/packaging/media-tools-r79-v1.json")
         )
-        for expected_token in expected_tokens:
-            with self.subTest(expected_token=expected_token):
-                self.assertIn(expected_token, self.build_source)
+        paths = {record.path.casefold() for record in manifest.records}
+        self.assertIn("runtime/lib/site-packages/vapoursynth/vspipe.exe", paths)
+        self.assertIn("x264-7mod.exe", paths)
+        self.assertIn("mp4box.exe", paths)
+        self.assertIn("runtime/native-plugins/01-lsmas/lsmashsource.dll", paths)
+        self.assertIn("runtime/native-plugins/02-imwri/libimwri.dll", paths)
+        self.assertNotIn("mpv.exe", paths)
+
+    def test_build_overrides_cxfreeze_msvc_runtime_exclusions(self):
+        """R79 清单中的 VC 运行库必须到达冻结目录的原始位置。"""
+        import build
+
+        expected = {
+            "concrt140.dll",
+            "msvcp140.dll",
+            "msvcp140_1.dll",
+            "msvcp140_2.dll",
+            "msvcp140_atomic_wait.dll",
+            "msvcp140_codecvt_ids.dll",
+            "vccorlib140.dll",
+            "vcruntime140.dll",
+            "vcruntime140_1.dll",
+            "vcruntime140_threads.dll",
+        }
+
+        self.assertEqual(set(build.MSVC_RUNTIME_DLLS), expected)
+        self.assertIn('"bin_includes": MSVC_RUNTIME_DLLS', self.build_source)
 
     def test_contract_manifest_has_existing_absolute_sources(self):
         from build import _collect_vs_contract_include_files
@@ -403,11 +426,12 @@ class MediaPackagingTests(unittest.TestCase):
         self.assertIn("SyncVSWorkerProcess", workflow)
         self.assertIn("--self-test", workflow)
         for artifact in (
-            "ArknightsPassMaker/tools/media/vapoursynth.pyd",
-            "ArknightsPassMaker/tools/media/vapoursynth.dll",
-            "ArknightsPassMaker/tools/media/portable.vs",
-            "ArknightsPassMaker/tools/media/vs-plugins/LSMASHSource.dll",
-            "ArknightsPassMaker/tools/media/vs-plugins/libimwri.dll",
+            "ArknightsPassMaker/tools/media/runtime/Lib/site-packages/vapoursynth/vapoursynth.pyd",
+            "ArknightsPassMaker/tools/media/runtime/Lib/site-packages/vapoursynth/libvapoursynth.dll",
+            "ArknightsPassMaker/tools/media/runtime/Lib/site-packages/vapoursynth/vspipe.exe",
+            "ArknightsPassMaker/tools/media/runtime/native-plugins/01-lsmas/LSMASHSource.dll",
+            "ArknightsPassMaker/tools/media/runtime/native-plugins/02-imwri/libimwri.dll",
+            "ArknightsPassMaker/resources/packaging/media-tools-r79-v1.json",
             "ArknightsPassMaker/resources/vapoursynth/python/assetmaker_vs/job_api.py",
             "ArknightsPassMaker/resources/vapoursynth/python/assetmaker_vs/display.py",
             "ArknightsPassMaker/resources/vapoursynth/python/assetmaker_vs/runtime_fingerprint.py",
@@ -421,6 +445,80 @@ class MediaPackagingTests(unittest.TestCase):
         self.assertIn("len(message) > 65_536", workflow)
         self.assertIn("$retiredArtifacts", workflow)
         self.assertIn("旧 VS 文件被分发", workflow)
+
+    def test_ci_cache_hit_still_verifies_and_extracts_r79_archive(self):
+        workflow = Path(".github/workflows/build-app.yml").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("media_tools_url:", workflow)
+        self.assertIn("media_tools_sha256:", workflow)
+        self.assertIn("MEDIA_TOOLS_R79_URL", workflow)
+        self.assertIn("MEDIA_TOOLS_R79_SHA256", workflow)
+        self.assertIn("media-tools-r79-v1.zip", workflow)
+        self.assertNotIn("media-tools-v1.0.7z", workflow)
+        gate_index = workflow.index(
+            "- name: Validate R79 media tools configuration"
+        )
+        cache_index = workflow.index("- name: Cache media tools")
+        self.assertLess(gate_index, cache_index)
+        self.assertIn(
+            "hashFiles('resources/packaging/media-tools-r79-v1.json')",
+            workflow,
+        )
+        self.assertIn("media_distribution.py verify-archive", workflow)
+        self.assertIn("media_distribution.py extract-archive", workflow)
+        extract_block = workflow[
+            workflow.index("- name: Extract media tools") :
+            workflow.index("- name: Run Python tests")
+        ]
+        self.assertNotIn("cache-hit", extract_block)
+        self.assertLess(
+            extract_block.index("verify-archive"),
+            extract_block.index("extract-archive"),
+        )
+        self.assertIn("$env:MEDIA_TOOLS_SHA256", extract_block)
+
+    def test_portable_archive_refuses_existing_zip_and_temporary_file(self):
+        from build import create_portable_archive, portable_archive_name
+
+        for occupied in ("archive", "temporary"):
+            with self.subTest(occupied=occupied), tempfile.TemporaryDirectory() as temp:
+                root = Path(temp)
+                frozen = root / "ArknightsPassMaker"
+                frozen.mkdir()
+                (frozen / "app.exe").write_bytes(b"app")
+                output = root / "dist"
+                output.mkdir()
+                archive = output / portable_archive_name("9.9.9-preserve")
+                temporary = archive.with_suffix(".zip.tmp")
+                target = archive if occupied == "archive" else temporary
+                target.write_bytes(b"old-user-output")
+
+                with self.assertRaises(FileExistsError):
+                    create_portable_archive(
+                        build_dir=frozen,
+                        dist_dir=output,
+                        version="9.9.9-preserve",
+                    )
+
+                self.assertEqual(target.read_bytes(), b"old-user-output")
+
+    def test_portable_archive_rejects_version_path_escape(self):
+        from build import create_portable_archive
+
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            frozen = root / "ArknightsPassMaker"
+            frozen.mkdir()
+            (frozen / "app.exe").write_bytes(b"app")
+
+            with self.assertRaises(ValueError):
+                create_portable_archive(
+                    build_dir=frozen,
+                    dist_dir=root / "dist",
+                    version="../../escape",
+                )
 
     def test_portable_archive_contains_the_complete_frozen_tree(self):
         from build import create_portable_archive

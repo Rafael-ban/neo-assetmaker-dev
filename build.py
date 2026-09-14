@@ -22,7 +22,21 @@ OBFUSCATION_DIR = os.path.join(".tmp", "pyarmor-src")
 # dynamic Qt/plugin patterns that are fragile under source-level obfuscation.
 OBFUSCATABLE_ENTRIES = ["main.py", "core", "config", "utils", "_mext"]
 MEDIA_TOOL_DIR = os.path.join("tools", "media")
-MEDIA_TOOL_SOURCE_DIRS = ("", MEDIA_TOOL_DIR)
+MEDIA_MANIFEST_RELATIVE = Path(
+    "resources/packaging/media-tools-r79-v1.json"
+)
+MSVC_RUNTIME_DLLS = (
+    "concrt140.dll",
+    "msvcp140.dll",
+    "msvcp140_1.dll",
+    "msvcp140_2.dll",
+    "msvcp140_atomic_wait.dll",
+    "msvcp140_codecvt_ids.dll",
+    "vccorlib140.dll",
+    "vcruntime140.dll",
+    "vcruntime140_1.dll",
+    "vcruntime140_threads.dll",
+)
 PYCACHE_SOURCE_ROOTS = (
     Path("core"),
     Path("config"),
@@ -32,13 +46,6 @@ PYCACHE_SOURCE_ROOTS = (
     Path("tests"),
     Path("resources/vapoursynth/python"),
 )
-MEDIA_TOOL_CANDIDATES = [
-    ("VSPipe.exe", os.path.join(MEDIA_TOOL_DIR, "VSPipe.exe")),
-    ("x264-7mod.exe", os.path.join(MEDIA_TOOL_DIR, "x264-7mod.exe")),
-    ("mp4box.exe", os.path.join(MEDIA_TOOL_DIR, "mp4box.exe")),
-    ("lsmash-muxer.exe", os.path.join(MEDIA_TOOL_DIR, "lsmash-muxer.exe")),
-    ("muxer.exe", os.path.join(MEDIA_TOOL_DIR, "muxer.exe")),
-]
 VS_CONTRACT_FILES = (
     "config/vs_runtime.json",
     "schemas/vs_runtime.schema.json",
@@ -448,30 +455,44 @@ def _pyarmor_runtime_packages(source_root):
     return result
 
 
-def _collect_media_tool_include_files():
-    """Return optional media tools and their sibling runtime files."""
-    include_files = []
-    if os.path.isdir(MEDIA_TOOL_DIR):
-        for root, dirs, files in os.walk(MEDIA_TOOL_DIR):
-            dirs[:] = [d for d in dirs if d != "__pycache__"]
-            for filename in files:
-                if filename.endswith((".pyc", ".pyo")):
-                    continue
-                source_path = os.path.join(root, filename)
-                target_path = os.path.relpath(source_path, ".")
-                include_files.append((source_path, target_path))
-        if include_files:
-            print(f"  Including media tool runtime tree: {MEDIA_TOOL_DIR}")
-            return include_files
+def _collect_media_tool_include_files(
+    project_root=None,
+    manifest_path=None,
+):
+    """严格验证清单后返回同序的媒体源文件与冻结目标。"""
+    from media_distribution import load_manifest, validate_media_tree
 
-    for filename, target_path in MEDIA_TOOL_CANDIDATES:
-        for source_dir in MEDIA_TOOL_SOURCE_DIRS:
-            source_path = os.path.join(source_dir, filename) if source_dir else filename
-            if os.path.exists(source_path):
-                include_files.append((source_path, target_path))
-                print(f"  Including media tool: {source_path} -> {target_path}")
-                break
+    root = Path(project_root or Path(__file__).resolve().parent).absolute()
+    selected_manifest = Path(
+        manifest_path or root / MEDIA_MANIFEST_RELATIVE
+    ).absolute()
+    manifest = load_manifest(selected_manifest)
+    verification = validate_media_tree(root, manifest)
+    include_files = [
+        (str(source), f"tools/media/{record.path}")
+        for source, record in zip(
+            verification.files,
+            manifest.records,
+            strict=True,
+        )
+    ]
+    print(
+        "  Including validated R79 media tree: "
+        f"{verification.file_count} files, {verification.total_bytes} bytes"
+    )
     return include_files
+
+
+def _verify_frozen_media_tool_tree(build_output, manifest_path):
+    """在 cx_Freeze 返回后按 R79 清单校验冻结媒体树。"""
+    from media_distribution import load_manifest, validate_media_tree
+
+    verification = validate_media_tree(build_output, load_manifest(manifest_path))
+    print(
+        "  Verified frozen R79 media tree: "
+        f"{verification.file_count} files, {verification.total_bytes} bytes"
+    )
+    return verification
 
 
 def _collect_vs_contract_include_files(project_root):
@@ -531,12 +552,22 @@ def run_cxfreeze(skip_flasher=False, source_root=None):
     # 确保项目根目录在 Python 路径中（防御性措施，正常应通过 uv sync --group dev 的 editable install 实现）
     project_root = os.path.dirname(os.path.abspath(__file__))
     source_root = os.path.abspath(source_root or project_root)
+    build_output = Path(BUILD_DIR)
+    if not build_output.is_absolute():
+        build_output = Path(project_root) / build_output
+    if os.path.lexists(build_output):
+        print(
+            "  FATAL: build output already exists and will not be overwritten: "
+            f"{build_output}"
+        )
+        return False
     try:
         vs_contract_include_files = _collect_vs_contract_include_files(
             project_root
         )
         vs_worker_support_files = _collect_vs_worker_support_files(project_root)
-    except FileNotFoundError as exc:
+        media_tool_include_files = _collect_media_tool_include_files(project_root)
+    except (OSError, RuntimeError, ValueError) as exc:
         print(f"  FATAL: {exc}")
         return False
     for path in (project_root, source_root):
@@ -724,7 +755,7 @@ def run_cxfreeze(skip_flasher=False, source_root=None):
     for runtime_name, runtime_path in pyarmor_runtimes:
         include_files.append((runtime_path, runtime_name))
         print(f"  Including PyArmor runtime: {runtime_path}")
-    include_files.extend(_collect_media_tool_include_files())
+    include_files.extend(media_tool_include_files)
 
     # 添加 Rust 模拟器
     simulator_exe = os.path.join(
@@ -764,6 +795,7 @@ def run_cxfreeze(skip_flasher=False, source_root=None):
         "packages": packages,
         "includes": includes,
         "excludes": excludes,
+        "bin_includes": MSVC_RUNTIME_DLLS,
         "include_files": include_files,
         "optimize": 2,
         "build_exe": BUILD_DIR,
@@ -791,6 +823,10 @@ def run_cxfreeze(skip_flasher=False, source_root=None):
                 for spec in _executable_specs(source_root, project_root, base)
             ],
             script_args=["build"],
+        )
+        _verify_frozen_media_tool_tree(
+            build_output,
+            Path(project_root) / MEDIA_MANIFEST_RELATIVE,
         )
         license_file = os.path.join(BUILD_DIR, "frozen_application_license.txt")
         if os.path.exists(license_file):
@@ -837,6 +873,122 @@ def portable_archive_name(version: str = VERSION) -> str:
     return f"{PROJECT_NAME}-v{version}-windows-portable.zip"
 
 
+def _validate_portable_version(version):
+    if not isinstance(version, str) or not version:
+        raise ValueError("Portable version must be a non-empty string")
+    if (
+        version in {".", ".."}
+        or any(character in version for character in "/\\:")
+        or version[-1] in {".", " "}
+        or any(ord(character) < 32 for character in version)
+    ):
+        raise ValueError(f"Unsafe portable version: {version!r}")
+    return version
+
+
+def _require_safe_portable_node(path, expected_kind):
+    path = Path(path)
+    try:
+        result = path.lstat()
+    except FileNotFoundError:
+        raise
+    except (OSError, ValueError) as exc:
+        raise OSError(f"Portable path is unreadable: {path}") from exc
+    if stat.S_ISLNK(result.st_mode):
+        raise OSError(f"Portable path is reparse-backed: {path}")
+    try:
+        attributes = result.st_file_attributes
+    except (AttributeError, OSError) as exc:
+        raise OSError(f"Portable path attributes are unreadable: {path}") from exc
+    if attributes & stat.FILE_ATTRIBUTE_REPARSE_POINT:
+        raise OSError(f"Portable path is reparse-backed: {path}")
+    if expected_kind == "directory" and not stat.S_ISDIR(result.st_mode):
+        raise NotADirectoryError(f"Portable path is not a directory: {path}")
+    if expected_kind == "file" and not stat.S_ISREG(result.st_mode):
+        raise OSError(f"Portable path is not an ordinary file: {path}")
+    return result
+
+
+def _validate_portable_ancestors(path, require_target):
+    """从路径根逐级校验目录，返回首个缺失节点起的路径链。"""
+    target = Path(path)
+    missing = []
+    for directory in (*reversed(target.parents), target):
+        if missing:
+            missing.append(directory)
+            continue
+        try:
+            _require_safe_portable_node(directory, "directory")
+        except FileNotFoundError:
+            missing.append(directory)
+    if missing and require_target:
+        raise FileNotFoundError(f"Portable directory not found: {target}")
+    return missing
+
+
+def _ensure_safe_portable_output_directory(path):
+    missing = _validate_portable_ancestors(path, require_target=False)
+    for directory in missing:
+        directory.mkdir()
+        _require_safe_portable_node(directory, "directory")
+
+
+def _portable_output_exists(path):
+    try:
+        _require_safe_portable_node(path, None)
+    except FileNotFoundError:
+        return False
+    return True
+
+
+def _preflight_portable_outputs(dist_dir=DIST_DIR, version=VERSION):
+    selected_version = _validate_portable_version(version)
+    output_dir = Path(os.path.abspath(os.fspath(dist_dir)))
+    if _validate_portable_ancestors(output_dir, require_target=False):
+        return
+
+    archive_path = output_dir / portable_archive_name(selected_version)
+    temporary_path = archive_path.with_suffix(".zip.tmp")
+    for output_path in (archive_path, temporary_path):
+        if _portable_output_exists(output_path):
+            raise FileExistsError(
+                "Portable output already exists and will not be overwritten: "
+                f"{output_path}"
+            )
+
+
+def _collect_safe_portable_files(source_root):
+    _validate_portable_ancestors(source_root, require_target=True)
+    files = []
+    pending = [source_root]
+    while pending:
+        directory = pending.pop()
+        try:
+            with os.scandir(directory) as entries:
+                children = sorted(
+                    (Path(entry.path) for entry in entries),
+                    key=lambda path: path.name.encode("utf-8"),
+                )
+        except OSError as exc:
+            raise OSError(f"Cannot enumerate portable source {directory}: {exc}") from exc
+        for child in children:
+            child_stat = _require_safe_portable_node(child, None)
+            if stat.S_ISDIR(child_stat.st_mode):
+                pending.append(child)
+            elif stat.S_ISREG(child_stat.st_mode):
+                files.append(child)
+            else:
+                raise OSError(f"Unsupported portable source node: {child}")
+    return tuple(
+        sorted(
+            files,
+            key=lambda path: path.relative_to(source_root).as_posix().encode(
+                "utf-8"
+            ),
+        )
+    )
+
+
 def create_portable_archive(
     build_dir=BUILD_DIR,
     dist_dir=DIST_DIR,
@@ -846,34 +998,45 @@ def create_portable_archive(
 
     The archive retains the top-level build directory.  Extracting it therefore
     never scatters DLLs and resources into the caller's current directory.
-    A temporary sibling is atomically replaced only after ZipFile closes.
+    A new temporary sibling is renamed only after ZipFile closes. Existing
+    final or temporary outputs are never removed or overwritten.
     """
-    source_root = Path(build_dir)
-    if not source_root.is_dir():
-        raise FileNotFoundError(f"Portable build directory not found: {source_root}")
+    selected_version = _validate_portable_version(version)
+    source_root = Path(os.path.abspath(os.fspath(build_dir)))
+    source_files = _collect_safe_portable_files(source_root)
 
-    output_dir = Path(dist_dir)
-    output_dir.mkdir(parents=True, exist_ok=True)
-    archive_path = output_dir / portable_archive_name(version)
+    output_dir = Path(os.path.abspath(os.fspath(dist_dir)))
+    _ensure_safe_portable_output_directory(output_dir)
+    archive_path = output_dir / portable_archive_name(selected_version)
     temporary_path = archive_path.with_suffix(".zip.tmp")
-    temporary_path.unlink(missing_ok=True)
+    for output_path in (archive_path, temporary_path):
+        if _portable_output_exists(output_path):
+            raise FileExistsError(
+                "Portable output already exists and will not be overwritten: "
+                f"{output_path}"
+            )
 
     try:
         with ZipFile(
             temporary_path,
-            mode="w",
+            mode="x",
             compression=ZIP_DEFLATED,
             compresslevel=6,
         ) as archive:
-            for source_path in sorted(source_root.rglob("*")):
-                if source_path.is_file():
-                    archive.write(
-                        source_path,
-                        source_path.relative_to(source_root.parent).as_posix(),
-                    )
-        temporary_path.replace(archive_path)
+            for source_path in source_files:
+                _require_safe_portable_node(source_path, "file")
+                archive.write(
+                    source_path,
+                    source_path.relative_to(source_root.parent).as_posix(),
+                )
+        if _portable_output_exists(archive_path):
+            raise FileExistsError(
+                "Portable output appeared during creation and was preserved: "
+                f"{archive_path}"
+            )
+        temporary_path.rename(archive_path)
     except Exception:
-        temporary_path.unlink(missing_ok=True)
+        # 保留本轮临时输出，既不清理诊断证据，也不触碰历史文件。
         raise
 
     size_mb = archive_path.stat().st_size / 1024 / 1024
@@ -935,6 +1098,13 @@ def main():
 
     if args.clean:
         clean_build()
+
+    if not args.no_portable:
+        try:
+            _preflight_portable_outputs(DIST_DIR, VERSION)
+        except OSError as exc:
+            print(f"Portable archive preflight failed: {exc}")
+            sys.exit(1)
 
     source_root = None
     if args.obfuscate:

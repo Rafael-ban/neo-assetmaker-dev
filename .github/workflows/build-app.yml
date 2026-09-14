@@ -31,6 +31,14 @@ on:
         type: string
         default: ""
         description: '非空时在构建前同步版本号到各配置文件'
+      media_tools_url:
+        type: string
+        default: ""
+        description: 'R79 媒体工具 ZIP 下载地址；为空时读取仓库变量 MEDIA_TOOLS_R79_URL'
+      media_tools_sha256:
+        type: string
+        default: ""
+        description: 'R79 媒体工具 ZIP SHA-256；为空时读取仓库变量 MEDIA_TOOLS_R79_SHA256'
 
 permissions:
   contents: read
@@ -41,6 +49,11 @@ jobs:
     timeout-minutes: 90
     outputs:
       artifact_run_id: ${{ steps.expose-run-id.outputs.artifact_run_id }}
+    env:
+      MEDIA_TOOLS_ARCHIVE: media-tools-r79-v1.zip
+      MEDIA_TOOLS_MANIFEST: resources/packaging/media-tools-r79-v1.json
+      MEDIA_TOOLS_URL: ${{ inputs.media_tools_url != '' && inputs.media_tools_url || vars.MEDIA_TOOLS_R79_URL }}
+      MEDIA_TOOLS_SHA256: ${{ inputs.media_tools_sha256 != '' && inputs.media_tools_sha256 || vars.MEDIA_TOOLS_R79_SHA256 }}
 
     steps:
       - name: Checkout code
@@ -49,6 +62,26 @@ jobs:
           # 常规 CI 使用 --skip-flasher，不需要拉取体积较大的 flasher 子模块。
           # Release 会显式传入 false，因此仍会取得完整发布内容。
           submodules: ${{ inputs.skip_flasher == false }}
+
+      - name: Validate R79 media tools configuration
+        shell: pwsh
+        run: |
+          $parsedUrl = $null
+          $urlValid = (
+            [Uri]::TryCreate(
+              $env:MEDIA_TOOLS_URL,
+              [UriKind]::Absolute,
+              [ref]$parsedUrl
+            ) -and $parsedUrl.Scheme -in @("http", "https")
+          )
+          $shaValid = $env:MEDIA_TOOLS_SHA256 -match '^[0-9A-Fa-f]{64}$'
+          if (-not $urlValid -or -not $shaValid) {
+            Write-Error (
+              "R79工具包尚未部署：请传入 media_tools_url/media_tools_sha256 " +
+              "或配置仓库变量 MEDIA_TOOLS_R79_URL/MEDIA_TOOLS_R79_SHA256"
+            )
+            exit 1
+          }
 
       # ========== 可选：版本同步（仅 release 时传入） ==========
 
@@ -141,73 +174,54 @@ jobs:
         uses: actions/cache@v4
         id: cache-media-tools
         with:
-          path: media-tools-v1.0.7z
-          key: media-tools-v1.0.7z
+          path: media-tools-r79-v1.zip
+          key: media-tools-r79-v1-${{ hashFiles('resources/packaging/media-tools-r79-v1.json') }}-${{ env.MEDIA_TOOLS_SHA256 }}
 
       - name: Download media tools on cache miss
         if: steps.cache-media-tools.outputs.cache-hit != 'true'
         shell: pwsh
         run: |
-          Write-Host "Cache miss — downloading media tools from repository release..."
-          $repo = "${{ github.repository }}"
-          $tag = "media-tools-v1.0"
-          $asset = "media-tools-v1.0.7z"
-          $url = "https://github.com/$repo/releases/download/$tag/$asset"
-
-          Write-Host "Downloading from: $url"
+          Write-Host "Cache miss — downloading configured R79 media tools..."
           try {
-            Invoke-WebRequest -Uri $url -OutFile media-tools-v1.0.7z -MaximumRetryCount 3
-            $fileSize = (Get-Item media-tools-v1.0.7z).Length / 1MB
+            Invoke-WebRequest `
+              -Uri $env:MEDIA_TOOLS_URL `
+              -OutFile $env:MEDIA_TOOLS_ARCHIVE `
+              -MaximumRetryCount 3
+            $fileSize = (Get-Item $env:MEDIA_TOOLS_ARCHIVE).Length / 1MB
             Write-Host "✓ Downloaded successfully: $($fileSize.ToString('F2')) MB"
           } catch {
             Write-Error "Failed to download media tools: $_"
-            Write-Host "URL attempted: $url"
-            Write-Host ""
-            Write-Host "请先创建 release 并上传文件："
-            Write-Host "1. 访问 https://github.com/$repo/releases/new"
-            Write-Host "2. Tag: media-tools-v1.0"
-            Write-Host "3. 上传 media-tools-v1.0.7z"
             exit 1
           }
 
       - name: Extract media tools
         shell: pwsh
         run: |
-          if (-not (Test-Path "media-tools-v1.0.7z")) {
+          if (-not (Test-Path -LiteralPath $env:MEDIA_TOOLS_ARCHIVE -PathType Leaf)) {
             Write-Error "Archive not found after cache restore/download"
             exit 1
           }
-
-          Write-Host "Extracting media tools..."
-          7z x media-tools-v1.0.7z -y
-
-          # Verify critical binaries exist
-          # Preview + export both run through VapourSynth now. The plugin
-          # autoload anchors on the directory of the loaded VapourSynth.dll and
-          # is gated by the `portable.vs` marker, so a missing marker or plugin
-          # degrades SILENTLY to "no plugins" at runtime — fail the build here.
-          $requiredTools = @(
-            "VSPipe.exe", "x264-7mod.exe",
-            "vapoursynth.pyd", "vapoursynth.dll", "portable.vs",
-            "vs-plugins/LSMASHSource.dll", "vs-plugins/libimwri.dll"
-          )
-          foreach ($tool in $requiredTools) {
-            $path = "tools/media/$tool"
-            if (-not (Test-Path $path)) {
-              Write-Error "Required tool not found: $path"
-              exit 1
-            }
-            Write-Host "✓ Found: $path"
+          uv run --no-sync python media_distribution.py verify-archive `
+            --archive $env:MEDIA_TOOLS_ARCHIVE `
+            --manifest $env:MEDIA_TOOLS_MANIFEST `
+            --sha256 $env:MEDIA_TOOLS_SHA256
+          if ($LASTEXITCODE -ne 0) {
+            exit $LASTEXITCODE
           }
-
-          $totalSize = (Get-ChildItem tools/media -Recurse | Measure-Object Length -Sum).Sum / 1MB
-          Write-Host "Media tools extracted successfully ($($totalSize.ToString('F2')) MB)"
+          uv run --no-sync python media_distribution.py extract-archive `
+            --archive $env:MEDIA_TOOLS_ARCHIVE `
+            --app-dir . `
+            --manifest $env:MEDIA_TOOLS_MANIFEST `
+            --sha256 $env:MEDIA_TOOLS_SHA256
+          if ($LASTEXITCODE -ne 0) {
+            exit $LASTEXITCODE
+          }
 
       # M3 worker tests intentionally do not skip without the portable runtime.
       - name: Run Python tests
         shell: bash
         run: |
-          uv run --no-sync python -m compileall main.py config core gui utils _mext build.py tests resources/vapoursynth/python
+          uv run --no-sync python -m compileall main.py config core gui utils _mext build.py media_distribution.py tests resources/vapoursynth/python
           uv run --no-sync python -m unittest discover -s tests -p "test_*.py"
 
       - name: Install Inno Setup
@@ -235,11 +249,12 @@ jobs:
           $requiredArtifacts = @(
             "ArknightsPassMaker/vs_worker.exe",
             "ArknightsPassMaker/config/vs_runtime.json",
-            "ArknightsPassMaker/tools/media/vapoursynth.pyd",
-            "ArknightsPassMaker/tools/media/vapoursynth.dll",
-            "ArknightsPassMaker/tools/media/portable.vs",
-            "ArknightsPassMaker/tools/media/vs-plugins/LSMASHSource.dll",
-            "ArknightsPassMaker/tools/media/vs-plugins/libimwri.dll",
+            "ArknightsPassMaker/tools/media/runtime/Lib/site-packages/vapoursynth/vapoursynth.pyd",
+            "ArknightsPassMaker/tools/media/runtime/Lib/site-packages/vapoursynth/libvapoursynth.dll",
+            "ArknightsPassMaker/tools/media/runtime/Lib/site-packages/vapoursynth/vspipe.exe",
+            "ArknightsPassMaker/tools/media/runtime/native-plugins/01-lsmas/LSMASHSource.dll",
+            "ArknightsPassMaker/tools/media/runtime/native-plugins/02-imwri/libimwri.dll",
+            "ArknightsPassMaker/resources/packaging/media-tools-r79-v1.json",
             "ArknightsPassMaker/resources/vapoursynth/assetmaker_runner.vpy",
             "ArknightsPassMaker/resources/vapoursynth/default_pipeline.vpy",
             "ArknightsPassMaker/resources/vapoursynth/python/assetmaker_vs/__init__.py",
@@ -258,6 +273,12 @@ jobs:
               Write-Error "Required frozen artifact not found: $artifact"
               exit 1
             }
+          }
+          uv run --no-sync python media_distribution.py verify-tree `
+            --app-dir ArknightsPassMaker `
+            --manifest ArknightsPassMaker/resources/packaging/media-tools-r79-v1.json
+          if ($LASTEXITCODE -ne 0) {
+            exit $LASTEXITCODE
           }
           $retiredArtifacts = @(
             "ArknightsPassMaker/config/vsconfig.json",
@@ -313,11 +334,17 @@ jobs:
           }
           $portableSmoke = Join-Path $env:RUNNER_TEMP "portable-smoke-$([guid]::NewGuid())"
           Expand-Archive -LiteralPath $archives[0].FullName -DestinationPath $portableSmoke
+          $portableApp = Join-Path $portableSmoke "ArknightsPassMaker"
+          $portableManifest = Join-Path `
+            $portableApp `
+            "resources/packaging/media-tools-r79-v1.json"
           $requiredPortableArtifacts = @(
             "ArknightsPassMaker/ArknightsPassMaker.exe",
             "ArknightsPassMaker/vs_worker.exe",
             "ArknightsPassMaker/config/vs_runtime.json",
-            "ArknightsPassMaker/tools/media/portable.vs",
+            "ArknightsPassMaker/tools/media/runtime/Lib/site-packages/vapoursynth/vapoursynth.pyd",
+            "ArknightsPassMaker/tools/media/runtime/Lib/site-packages/vapoursynth/vspipe.exe",
+            "ArknightsPassMaker/resources/packaging/media-tools-r79-v1.json",
             "ArknightsPassMaker/resources/vapoursynth/default_pipeline.vpy"
           )
           foreach ($artifact in $requiredPortableArtifacts) {
@@ -325,6 +352,12 @@ jobs:
               Write-Error "Required portable artifact not found: $artifact"
               exit 1
             }
+          }
+          uv run --no-sync python media_distribution.py verify-tree `
+            --app-dir $portableApp `
+            --manifest $portableManifest
+          if ($LASTEXITCODE -ne 0) {
+            exit $LASTEXITCODE
           }
           Write-Host "Portable archive extraction smoke test OK"
 
