@@ -552,7 +552,7 @@ class R79NativeFixtureDeterministicTests(unittest.TestCase):
         from tests.test_vs_runtime_layout import _build_r79_fixture
 
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
+            root = Path(temporary).resolve()
             self.assertIsNone(_resolve_r79_test_layout(root))
             (root / "tools" / "media").mkdir(parents=True)
             (root / "tools" / "media" / "vapoursynth.pyd").write_bytes(b"R73")
@@ -649,7 +649,7 @@ class NativePluginPortableIntegrationTests(unittest.TestCase):
             self.assertTrue(required.is_file(), required)
 
         with tempfile.TemporaryDirectory() as temporary:
-            app_root = Path(temporary) / "独立 R79 应用"
+            app_root = (Path(temporary) / "独立 R79 应用").resolve()
             layout = _copy_r79_application_fixture(app_root)
             first = app_root / "插件 中文 一"
             second = app_root / "插件 空格 二"
@@ -740,7 +740,7 @@ class NativePluginPortableIntegrationTests(unittest.TestCase):
     def test_product_loader_rejects_bundled_plugin_copied_to_another_directory(self):
         """完整 bundle 先加载后，异路径同 identity 必须精确冲突。"""
         with tempfile.TemporaryDirectory() as temporary:
-            app_root = Path(temporary) / "冲突 R79 应用"
+            app_root = (Path(temporary) / "冲突 R79 应用").resolve()
             layout = _copy_r79_application_fixture(app_root)
             extra = app_root / "额外 中文 空格"
             extra.mkdir()

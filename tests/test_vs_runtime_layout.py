@@ -137,7 +137,7 @@ class RuntimeLayoutTests(unittest.TestCase):
         """错误实现会继续返回 flat 路径或漏掉非最小启动资产。"""
         _error, resolve_runtime_layout = _runtime_layout_api()
         with tempfile.TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir)
+            root = Path(temp_dir).resolve()
             runtime = _build_r79_fixture(root)
 
             layout = resolve_runtime_layout(root)
@@ -300,7 +300,7 @@ class R79ConsumerWiringTests(unittest.TestCase):
         from core.media_tools import MediaToolchain
 
         with tempfile.TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir)
+            root = Path(temp_dir).resolve()
             runtime = _build_r79_fixture(root)
             media = root / "tools" / "media"
             (media / "x264-7mod.exe").write_bytes(b"x264")
@@ -334,7 +334,7 @@ class R79ConsumerWiringTests(unittest.TestCase):
         )
 
         with tempfile.TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir)
+            root = Path(temp_dir).resolve()
             runtime_root = _build_r79_fixture(root)
             package = runtime_root / "Lib" / "site-packages" / "vapoursynth"
             configured = root / "配置 插件"
@@ -447,7 +447,7 @@ class R79ConsumerWiringTests(unittest.TestCase):
                 return []
 
         with tempfile.TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir)
+            root = Path(temp_dir).resolve()
             runtime_root = _build_r79_fixture(root)
             package = runtime_root / "Lib" / "site-packages" / "vapoursynth"
             configured = (root / "用户原生一", root / "用户原生二")
