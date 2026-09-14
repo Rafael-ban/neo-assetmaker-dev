@@ -44,7 +44,14 @@
 
 CI 需要媒体包 URL 与 ZIP SHA-256：通过 `media_tools_url/media_tools_sha256`
 输入或 `MEDIA_TOOLS_R79_URL/MEDIA_TOOLS_R79_SHA256` 仓库变量提供。代码已配置
-此入口，不代表远程资产及变量已部署。本次未核验远程配置。
+此入口不代表仓库变量已部署。
+
+2026-09-15 已核对 [R79 媒体包发布页](https://github.com/Rafael-ban/neo-assetmaker-dev/releases/tag/media-tools-r79-v1)：
+附件大小 127,806,386 字节，GitHub 返回的 SHA-256 与本地包一致：
+`50f86a516fbfc97812e2c6ea500ba1a06937d4cda5e2bc211c071309a6ce7dd4`。
+CI 下载地址应指向该发布页中的 `media-tools-r79-v1.zip` 附件。未认证请求读取
+Actions 变量返回 401，故变量配置尚未核实；最近成功 Build 对应旧提交 `894e85d`，
+不能作为 R79 构建通过的证据。
 
 后续验收仍需：在目标目录部署完整 R79 包、生成保留的冻结产物、运行 frozen
 worker/VSPipe，并用真实素材验证预览、导出、编码回读及便携包解压后的行为。
