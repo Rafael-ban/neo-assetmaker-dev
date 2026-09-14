@@ -6,7 +6,7 @@
 
 ## 当前合同快照
 
-- 当前产品基线使用 **VapourSynth R73 / API R4.1**；内置入口是
+- 当前源码要求 **VapourSynth R79 / API R4.2**；内置入口是
   `resources/vapoursynth/default_pipeline.vpy`。
 - worker 直接执行已确认的用户脚本；预览与导出共享 `executor`、脚本头、
   `job_api` 和 `contract`。只有 VSPipe 导出端执行固定的
@@ -15,8 +15,13 @@
   trim、crop、色彩转换、补边和最终旋转的设备编码输出。
 - 当前 360×640 profile 的内容画布是 360×640，编码画布是 384×640。
   二者不同是输出合同，不是参数丢失。
-- R79 兼容性仍属于后续候选验证。本库若提到 R79 固定 tag，只表示静态源码
-  边界；在候选运行时、插件、打包与真实媒体探针完成前，不代表本项目已兼容。
+- R79 布局、Range 兼容、原生插件及清单化分发已进入 `master`（`cc4c586`）。
+  已有定向测试和临时冻结媒体树校验；完整冻结版预览/导出验收仍待完成。
+- 媒体二进制不受 Git 管理。合并源码不会部署 R79；每个工作目录都须单独核对
+  `tools/media/runtime`。实际部署状态与证据范围见 [08](08-version-upgrade-notes.md)。
+- 本库保留的 R73 固定 tag、像素样本和性能结果均为迁移前历史基线，不能当成
+  R79 实测结果。当前 Range 和插件布局以 [01](01-colour-range-props.md)、
+  [05](05-plugin-autoload-portable.md) 及当前源码为准。
 
 ## 快速路由
 

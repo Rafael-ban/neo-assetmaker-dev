@@ -6,9 +6,12 @@
 worker/VSPipe 执行器和 output contract；宿主不会把每个裁剪、旋转或时间参数拼成
 Python 源码，也不会在 GUI 父进程执行 VapourSynth。
 
-R73 官方构图模型仍是 Python 创建 `VideoNode` 并用 `set_output()` 注册输出；固定
+历史 R73 官方构图模型是 Python 创建 `VideoNode` 并用 `set_output()` 注册输出；固定
 版本参考：
 `https://github.com/vapoursynth/vapoursynth/blob/R73/doc/pythonreference.rst`。
+
+此来源保留作历史对照。当前源码要求 R79，脚本以随当前版本分发的默认模板和
+contract 为准，尤其是 `_Range` 的写法；见 [01](01-colour-range-props.md)。
 
 ## 从内置模板开始
 

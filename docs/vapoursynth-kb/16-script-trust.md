@@ -9,8 +9,9 @@ worker 提供 VS/Qt 生命周期和崩溃隔离，不是权限沙箱。脚本头
 bundle hash、job hash、runtime fingerprint 与 trust prompt 解决的是接口、身份和
 用户确认，不是恶意代码隔离。
 
-`portable.vs` 只选择当前 R73 的便携 plugin 布局。marker 存在不代表 DLL 完整、
-来源可信、CPU 兼容或用户脚本安全。
+历史 `portable.vs` 只选择 R73 的便携 plugin 布局。当前 R79 由固定 runtime
+布局、分发清单和 fingerprint 核对文件身份；这些机制也不代表 CPU 兼容或用户
+脚本安全。部署状态见 [08](08-version-upgrade-notes.md)。
 
 ## 三种脚本来源
 

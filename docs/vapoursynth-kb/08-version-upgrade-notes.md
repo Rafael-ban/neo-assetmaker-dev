@@ -1,78 +1,78 @@
-# 08 · R73 基线与 R79 升级门禁
+# 08 · R79 运行时、R73 历史基线与验收边界
 
-**结论：当前已验收的是 R73 源码工作树，不是 R79，也不是已安装应用或冻结包。
-R79 升级必须被当作 runtime、binding、插件、分发、色彩合同和双执行路径的迁移，
-不能只替换 `vapoursynth.dll` 或 `VSPipe.exe`。**
+**当前源码要求 VapourSynth R79 / API R4.2，迁移代码已合入 master 的
+`cc4c586`。媒体二进制不纳入 Git，源码提交、工作目录实际部署、冻结产物和
+已安装应用必须分别核对。**
 
-## 当前 R73 身份
+## 当前运行时合同
 
-- `tools/media/vapoursynth-73.dist-info/METADATA`：`Version: 73`。
-- `tools/media/VSPipe.exe --version`：Core R73、API R4.1，并保留 API R3.6。
-- binding wheel 为 `cp312-abi3`，所以项目的 Python 下限是 3.12；`abi3` 表示从
-  cp312 起向前兼容，不表示能在 Python 3.11 向后运行。
-- 默认入口是 `resources/vapoursynth/default_pipeline.vpy`；worker 与 VSPipe 各自
-  建 core，但共享 executor/header/job API/output contract。
-- runtime 配置中的 core 值 `0` 表示保留进程首次捕获的 VapourSynth 原生值；
-  内置脚本随后显式设置 `core.max_cache_size=16000` MB。cache 阈值不是进程 RSS
-  硬上限，也不是所有用户脚本都必然采用 16000。
+- `assetmaker_vs.runtime_layout.resolve_runtime_layout()` 从应用根唯一解析
+  `tools/media/runtime/`，要求 `vapoursynth-79.dist-info/METADATA` 为版本 79。
+- binding/core/VSPipe 位于 `runtime/Lib/site-packages/vapoursynth/`，分别为
+  `vapoursynth.pyd`、`libvapoursynth.dll`、`vspipe.exe`；VSScript 与嵌入式 Python
+  保持完整层级，不能只复制 DLL 或 EXE。
+- 内置插件在包的 `plugins/`；随包 native 插件在
+  `runtime/native-plugins/01-lsmas/` 与 `02-imwri/`，由共享策略显式加载。
+- R73 平铺文件及新旧混合布局会被拒绝；`portable.vs` 不再是当前部署依据。
+- Python 下限仍为 3.12；worker 与 VSPipe 共享 helper、runtime 配置和文件身份，
+  GUI 父进程不加载 VapourSynth。
+- 默认脚本写 `_Range`，合同有界接受 `vs.Range` 与普通整数；物理旧键和映射
+  风险见 [01 色彩范围](01-colour-range-props.md)。
 
-## 当前验收边界（2026-09-09）
+## 已有证据及实际部署（2026-09-15 核对）
 
-产品 BASE `351025b3223ca8a55270b79ca2245e5a5b54d123` 的 R73 证据为：
+| 对象 | 已确认的状态 | 边界 |
+|---|---|---|
+| master 源码 | 已包含 R79 布局、Range、插件及分发改动，迁移提交为 `cc4c586` | 不是二进制部署证据 |
+| 保留工作树 `.codex_tmp/preview-crop-r79` | 已部署 R79，metadata 为 79；此前 VSPipe 报 Core R79 / API R4.2 / R3.6 | 该目录的证据不自动覆盖主目录 |
+| 主目录 `tools/media` | 本次核对仍有 `vapoursynth-73.dist-info`，缺少 R79 metadata | 合并只更新源码，尚须单独部署 R79 |
+| 分发与构建定向测试 | 上一轮 71 项通过 | 不是全量 R79 回归或 GUI 验收 |
+| 临时 cx_Freeze 媒体树 | 120 文件、343,699,939 字节按清单校验通过，包含此前缺失的 20 个 VC 运行库文件 | 临时产物已清理；未完成冻结版真实预览/导出 smoke |
 
-- compileall exit 0；完整测试 719 项，0 failure / 0 error / 0 skipped，OK；
-- 真实 worker 生命周期、worker/VSPipe output 0 plane parity、多目录 native 插件、
-  图片循环、旋转/crop、实际编码与色彩 VUI 均有非 skip 证据；
-- F4 性能样本只测“鼠标输入到 QLabel Paint 开始分派”，不代表绘制完成、物理
-  显示或 VapourSynth 解码 FPS。新侧连续拖动 n=24/场景，P95 为播放
-  0.294075 ms、暂停 0.320925 ms；完整分布与限制见 F4 session3 报告。
+迁移提交可定位为：`ae1654c`（运行时布局与双端身份）、`521c538`（Range）、
+`2ca3195`（插件与帧探测夹具）、`cc4c586`（分发与冻结媒体树）。这些提交及
+定向探针不能被概括为“所有 R79 产品场景均已验收”。
 
-这些结果证明当前源树的 R73 验收，不证明 cx_Freeze 产物已构建，也不更新用户正在
-运行的 `ArknightsPassMaker`。R79 候选验证尚未开始。
+## 分发与后续验收
 
-## 为什么 R79 不是 DLL 单换
+当前包名为 `media-tools-r79-v1.zip`，替代 `media-tools-v1.0.7z`；旧包可用于
+历史回滚，但不是当前构建输入。完整媒体包由
+`resources/packaging/media-tools-r79-v1.json` 固定路径、大小、SHA-256。
+`media_distribution.py` 支持创建、验证、解压归档及验证部署树；
+`build.py` 在冻结前后校验媒体树，并显式包含 VC 运行库以避免 cx_Freeze
+默认排除规则漏件。
 
-固定 tag 静态入口：
+CI 需要媒体包 URL 与 ZIP SHA-256：通过 `media_tools_url/media_tools_sha256`
+输入或 `MEDIA_TOOLS_R79_URL/MEDIA_TOOLS_R79_SHA256` 仓库变量提供。代码已配置
+此入口，不代表远程资产及变量已部署。本次未核验远程配置。
 
-- `https://github.com/vapoursynth/vapoursynth/blob/R79/include/VSConstants4.h`
-- `https://github.com/vapoursynth/vapoursynth/blob/R79/src/cython/vsconstants.pxd`
-- `https://github.com/vapoursynth/vapoursynth/blob/R79/src/cython/vapoursynth.pyx`
-- `https://github.com/vapoursynth/vapoursynth/blob/R79/src/core/vsapi.cpp`
+后续验收仍需：在目标目录部署完整 R79 包、生成保留的冻结产物、运行 frozen
+worker/VSPipe，并用真实素材验证预览、导出、编码回读及便携包解压后的行为。
+已安装的应用版本需独立核对，不能由源码合并推定。
 
-静态源码已经提示 API 4.2 `_Range`、Python `Range(IntEnum)`、旧键 remap、autoload
-与分发布局等迁移面，但真实候选行为仍需运行时证据。AVFS 从 R74 起是独立组件；
-R79 不会把它重新变成核心内置功能。AVFS 面向把 `.vpy` 暴露给外部应用，不替代
-本项目的按帧 worker→mmap→Qt 预览链。
+## 当前复核命令
 
-## U 阶段最低验收门
-
-1. **候选身份**：记录 binding/core/API/VSPipe 版本、Python tag、全部 DLL/插件
-   SHA-256；证明 worker 与 VSPipe 使用同一候选根。
-2. **分发与插件**：实测 `portable.vs`、`vs-plugins`、可选 `vs-coreplugins`、CPU
-   变体/manifest、多个配置 native 目录的加载顺序、冲突诊断和 plugin source。
-3. **Range**：分别探测 `_Range`/`_ColorRange` 的普通整数或枚举类型、数值语义、
-   旧键读写映射、双键冲突、lsmas/imwri/resize 实际行为；再决定是否修改合同。
-4. **图与像素**：默认脚本顺序、output 0/1、Bicubic、AddBorders、viewport、
-   frame props 与真实编码回读逐项对照 R73，不把 golden 漂移当作可直接重抓的噪声。
-5. **资源与生命周期**：验证 core 默认基线、0 语义、脚本覆盖、Future/frame close、
-   cancel ACK、worker restart/退休以及 VSPipe stderr/stdout。
-6. **构建**：完成 source tests 后再运行 cx_Freeze，核对 frozen worker、VSPipe、
-   helper、marker/plugin 文件和真实便携包 smoke；源码绿色不能代替冻结产物。
-
-若候选没有解决明确产品需求，或任一门禁无法稳定通过，应保留 R73，而不是因版本号
-更新降低现有合同。
-
-## 当前可运行的 R73 基线命令
+以下命令在已部署 R79 的应用根执行；主目录未部署前会失败，这是预期的诊断：
 
 ```powershell
-uv run python -m compileall main.py config core gui utils _mext build.py tests `
-  resources/vapoursynth/python
-uv run python -m unittest discover -s tests -p "test_*.py"
-tools\media\VSPipe.exe --version
+Get-Content tools\media\runtime\Lib\site-packages\vapoursynth-79.dist-info\METADATA
+tools\media\runtime\Lib\site-packages\vapoursynth\vspipe.exe --version
+uv run python media_distribution.py verify-tree --app-dir . --manifest resources/packaging/media-tools-r79-v1.json
+uv run python -m unittest tests.test_media_distribution tests.test_build_safety tests.test_media_packaging
 ```
 
-完整测试可能包含真实媒体；必须同时记录 skip 计数与工具身份。打包只在明确进入
-冻结验收时运行 `uv run python build.py ...`，不要把它混入 K1 文档冻结。
+真实媒体回归须记录实际工具根、版本、素材和 skip 计数；按变更风险选择测试，
+不要把跳过真实媒体的绿色结果算作验收。
+
+## R73 历史基线（2026-09-09，非当前验收）
+
+产品 BASE `351025b3223ca8a55270b79ca2245e5a5b54d123` 当时的 R73 / API R4.1
+报告记录了 compileall 成功和 719 项完整测试（0 failure / 0 error / 0 skipped）。
+这些数量仅属于该旧提交和旧运行时，不迁移为 R79 测试数量。
+
+旧 F4 样本测量“鼠标输入到 QLabel Paint 开始分派”，播放/暂停 P95 分别为
+0.294075 / 0.320925 ms；不是绘制完成、物理呈现或解码 FPS，也不是 R79 性能结论。
+其余章节保留的 R73 固定版本来源和探针用于历史对照。
 
 ## 相关
 

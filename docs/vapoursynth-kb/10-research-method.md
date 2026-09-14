@@ -20,13 +20,13 @@
 
 ## 固定版本而不是滚动网页
 
-当前 R73 结论优先引用：
+R73 历史基线引用（不能作为当前运行时证明）：
 
 ```text
 https://github.com/vapoursynth/vapoursynth/blob/R73/...
 ```
 
-R79 静态边界引用：
+当前 R79 的上游语义应核对固定版本来源，并结合本项目源码及运行时证据：
 
 ```text
 https://github.com/vapoursynth/vapoursynth/blob/R79/...
@@ -52,11 +52,13 @@ rg --files resources/vapoursynth core/vs_runtime tests
 ### 2. 固定运行时身份
 
 ```powershell
-tools\media\VSPipe.exe --version
-Get-Content tools\media\vapoursynth-73.dist-info\METADATA
+tools\media\runtime\Lib\site-packages\vapoursynth\vspipe.exe --version
+Get-Content tools\media\runtime\Lib\site-packages\vapoursynth-79.dist-info\METADATA
+uv run python media_distribution.py verify-tree --app-dir . --manifest resources/packaging/media-tools-r79-v1.json
 ```
 
-升级候选还要保存 core/binding/VSPipe、portable 文件、插件 DLL、CPU 变体/manifest
+切换源码不会部署被 Git 忽略的媒体文件；先确认命令所在目录有完整 R79 包。
+升级时还要保存 core/binding/VSPipe、portable 文件、插件 DLL、CPU 变体/manifest
 和 helper 的 SHA-256，并证明 worker 与 VSPipe 都从该根启动。
 
 ### 3. 先跑纯合同，再跑真实媒体
@@ -97,9 +99,9 @@ hash、工具版本与是否实际产生/回读编码结果。
 
 ## 当前未闭合项
 
-- R79 候选尚未执行，因此 Range 枚举/旧键映射、autoload、CPU manifest、插件输出
-  和冻结包行为均不能标“已验证”。
-- R73 `max_cache_size` 不是 RSS 硬上限；需用进程级内存观测验证真实压力。
+- R79 已有 Range、布局、插件相关实现与定向证据，临时冻结媒体树也已校验。
+  完整冻结版真实预览/导出和目标目录部署仍需完成，详见 [08](08-version-upgrade-notes.md)。
+- `max_cache_size` 不是 RSS 硬上限；需用进程级内存观测验证真实压力。
 - native 插件直接写 OS fd1 可能污染 Y4M；Python `sys.stdout` 重定向不覆盖它。
 - `.lwi` 的损坏恢复和跨进程并发需要独立压力测试，不能靠论坛意见闭合。
 

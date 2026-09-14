@@ -4,7 +4,10 @@
 按 stride 把 RGB24 有效像素复制并重排为连续 BGR24，再写入具名 mmap；宿主核对
 request/epoch/slot generation 后复制成 numpy，最后由 Qt queued signal 交给 GUI。**
 
-## R73 API 边界
+## R73 历史 API 来源
+
+以下固定版本引用保留作历史对照。当前源码要求 R79，已有验证及尚未覆盖的
+产品验收见 [08](08-version-upgrade-notes.md)。
 
 固定 tag：
 

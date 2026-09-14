@@ -45,20 +45,44 @@ uv sync --no-install-project
 uv run python main.py
 ```
 
-首次运行前，请将媒体工具包解压到 `tools/media/`。至少应包含：
+当前源码要求 **VapourSynth R79 / API R4.2**。首次运行前须部署与
+`resources/packaging/media-tools-r79-v1.json` 匹配的完整媒体工具包；关键路径如下
+（仅为布局摘要，完整清单含 120 个文件）：
 
 ```text
 tools/media/
-├── VSPipe.exe
 ├── x264-7mod.exe
-├── mp4box.exe 或 lsmash-muxer.exe
-├── vapoursynth.pyd / vapoursynth.dll / portable.vs
-└── vs-plugins/
-    ├── LSMASHSource.dll
-    └── libimwri.dll
+├── mp4box.exe
+└── runtime/
+    ├── python.exe / python312.dll / python312.zip / python312._pth
+    ├── Lib/site-packages/
+    │   ├── vapoursynth-79.dist-info/
+    │   └── vapoursynth/
+    │       ├── __init__.py / vapoursynth.pyd / libvapoursynth.dll
+    │       ├── vspipe.exe / vsscript.dll / libvapoursynthfilters*.dll
+    │       └── plugins/avscompat.dll
+    └── native-plugins/
+        ├── 01-lsmas/LSMASHSource.dll
+        └── 02-imwri/libimwri.dll
 ```
 
-`portable.vs` 与 `vs-plugins/` 不是可选装饰文件：VapourSynth 便携运行时通过它们定位插件，缺失时插件加载可能退化为“没有可用插件”。GitHub Actions 会在构建前检查这些文件。
+`tools/media/` 的二进制不纳入 Git，切分支或合并源码不会更新它们。旧 R73 的平铺
+`vapoursynth.dll`、`portable.vs`、`vs-plugins/` 不适用于当前布局；旧布局及新旧混合
+布局会被拒绝。已有旧工具目录时，应先备份并移出目标位置，再部署完整 R79 包。
+
+当前媒体包为 `media-tools-r79-v1.zip`，替代旧 `media-tools-v1.0.7z`；不能直接
+重命名旧包。下载来源须同时提供可信的 ZIP SHA-256。
+`media_distribution.py extract-archive` 接受 `--archive`、`--sha256`、`--manifest`
+与 `--app-dir`，目标应用根下的 `tools/media` 必须尚不存在。部署后在应用根验证：
+
+```powershell
+uv run python media_distribution.py verify-tree --app-dir . --manifest resources/packaging/media-tools-r79-v1.json
+tools\media\runtime\Lib\site-packages\vapoursynth\vspipe.exe --version
+```
+
+清单校验覆盖路径、大小和 SHA-256。构建前和 cx_Freeze 返回后均会校验媒体树；
+文件完整性通过仍需要冻结版实际预览、导出验收。迁移状态见
+[R79 运行时与验收边界](docs/vapoursynth-kb/08-version-upgrade-notes.md)。
 
 ## 基本使用
 
@@ -194,7 +218,7 @@ cd ..
 
 - [`build.yml`](.github/workflows/build.yml)：push、Pull Request 或手动触发的 CI 入口。常规 CI 仍执行 Rust、全量 Python、cx_Freeze 与 worker 自测，但跳过 Inno Setup、绿色 ZIP 和 artifact 上传，以缩短反馈时间。
 - 手动运行 `Build` 工作流时，默认会同时构建并上传**安装版 EXE 与绿色免安装 ZIP**；可取消“package artifacts”仅执行快速构建验证。
-- [`build-app.yml`](.github/workflows/build-app.yml)：Windows 可复用构建流程。Release/手动产物构建会校验绿色 ZIP 可解压且包含主程序、worker、运行时配置、`portable.vs` 和内置 `.vpy`。
+- [`build-app.yml`](.github/workflows/build-app.yml)：Windows 可复用构建流程。需要传入 `media_tools_url/media_tools_sha256` 或设置仓库变量 `MEDIA_TOOLS_R79_URL/MEDIA_TOOLS_R79_SHA256`；缓存命中仍验证并解压媒体包。Release/手动产物构建校验绿色 ZIP 中的主程序、worker、运行时配置、R79 媒体布局、分发清单和内置 `.vpy`。
 - [`release.yml`](.github/workflows/release.yml)：当 `docs/CHANGELOG.md` 顶部版本变化时创建发布，同时附加安装版、绿色免安装版和同时覆盖二者的 `SHA256SUMS`。CI 与 Release 不启用需要付费许可证的 PyArmor；`--obfuscate` 仅保留为本地可选构建参数。版本必须同时匹配 `pyproject.toml`、`config/constants.py`、`installer.iss` 与 `simulator/Cargo.toml`。
 
 修改 `docs/CHANGELOG.md` 顶部版本后推送会触发自动 Release；未准备发布时不要这样做。

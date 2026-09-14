@@ -31,8 +31,8 @@ worker/runner 在执行前验证 namespace、属性可调用性与 `plugin_path`
 不仅检查 `hasattr(core, namespace)`，还检查：
 
 1. `core.<namespace>.<function>` 确实 callable；
-2. plugin 的 `plugin_path` 位于便携内置 `vs-plugins`、可选 `vs-coreplugins` 或
-   runtime 明确配置的 native 根；
+2. plugin 的 `plugin_path` 位于 R79 包的 `plugins/`、随包 `runtime/native-plugins/`
+   中的具体插件目录或 runtime 明确配置的 native 根；
 3. 多目录加载期间没有可证明的 identity/namespace 冲突或候选加载失败。
 
 真正的内置 plugin 可能没有文件路径，此时允许 `plugin_path=None`。不要用“没有
@@ -57,7 +57,8 @@ plugin_path”推导插件缺失，也不要把 Python module 目录当成 nativ
 
 ## 不要从“可替代”跳到“应替代”
 
-- `lsmas` 当前真实视频、索引和编码链在 R73 验收通过；替换 source plugin 会改变
+- `lsmas` 的 R73 真实视频、索引和编码报告是历史基线；当前 R79 证据范围见
+  [08](08-version-upgrade-notes.md)。替换 source plugin 会改变
   解码帧、时间轴、色彩 props 和缓存行为，必须有具体产品收益。
 - `imwri` 当前负责图片首帧；候选必须覆盖当前格式、色彩、异常语义和
   `virtual_frame_count` 流程。视频 source 的候选不能自动视为图片 source 替代。

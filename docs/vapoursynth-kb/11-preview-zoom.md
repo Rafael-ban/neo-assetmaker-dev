@@ -54,7 +54,7 @@ display = core.resize.Point(window, width=fit_width, height=fit_height)
 不是当前实现，也不应复用历史机器上的毫秒数字作为当前性能结论。
 
 `pan` 是归一化窗口中心，left/top 会夹在有效范围。由于 CropAbs 发生在 RGB24，
-宽高和偏移不做无条件偶数对齐；奇数 RGB 中心与一像素窗口已有真实 R73 子进程
+宽高和偏移不做无条件偶数对齐；奇数 RGB 中心与一像素窗口的历史证据包含真实 R73 子进程
 用例，不能为“将来或许改回 YUV”而人为偏移当前视口。
 
 ## 与 crop 和导出的边界

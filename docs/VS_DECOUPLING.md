@@ -15,6 +15,11 @@
 
 ## 运行边界
 
+当前代码要求 R79，worker 与 VSPipe 从同一应用根的 `tools/media/runtime/`
+解析运行时，拒绝旧 R73 平铺或混合布局。媒体文件不纳入 Git，合并源码后仍须
+单独部署并按清单校验；布局及已验证范围见
+[R79 运行时与验收边界](vapoursynth-kb/08-version-upgrade-notes.md)。
+
 ```text
 编辑器 UI
   └─ RenderJob（UTF-8 JSON，按 epoch 冻结）

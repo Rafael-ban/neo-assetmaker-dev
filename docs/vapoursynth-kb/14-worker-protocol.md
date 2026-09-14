@@ -108,7 +108,8 @@ uv run python -m unittest -v `
   tests.test_vs_frame_probe
 ```
 
-真实媒体类若没有实际工具会 skip；报告必须区分纯协议、替身 worker 与真实 R73。
+真实媒体类若没有实际工具会 skip；报告必须区分纯协议、替身 worker 与真实 R79。
+旧 R73 运行结果仅作历史基线，不能继承为当前验收。
 
 ## 相关
 

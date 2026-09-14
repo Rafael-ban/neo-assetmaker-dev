@@ -48,7 +48,7 @@ worker 首次建 core 后捕获 `num_threads`、`max_cache_size` 等原生基线
 - 内置默认脚本随后显式设置 `core.max_cache_size=16000` MB。
 
 该值控制 VS cache 策略，不等于进程总内存限额；frame、numpy/mmap、插件内部缓存、
-索引和 Python 对象都可能位于其外。R73 对长周期缓存的实际行为也必须用进程级 RSS/
+索引和 Python 对象都可能位于其外。当前运行时对长周期缓存的实际行为须用进程级 RSS/
 commit 与请求模式测量，不能把 16000 写成“最多占 16 GB”。
 
 脚本可修改 core 资源，因此 graph 退休和下一次执行前的基线恢复是合同的一部分。
@@ -57,14 +57,13 @@ commit 与请求模式测量，不能把 16000 写成“最多占 16 GB”。
 
 ## 4. 插件“加载过”不等于 requirement 可用
 
-R73 `LoadAllPlugins` 会跳过失败项。项目通过临时 log handler 捕获可识别的加载失败
+不能将 `LoadAllPlugins` 返回等同于所有插件可用。项目通过临时 log handler 捕获可识别的加载失败
 和冲突，再用 `core.plugins()`、callable 与 `plugin_path` 验证脚本头 requirement。
 即便如此，相邻依赖 DLL 没有 plugin entry point 时可能不产生同类 warning；完整
 判断还需要真实调用和媒体读取。
 
-`portable.vs` 只说明 R73 进入便携布局；它不证明 DLL 完整、CPU 指令兼容、依赖
-存在或 namespace 来源正确。R79 必须重新验证分发/manifest，而不是沿用 marker
-存在性。
+历史 `portable.vs` 只选择 R73 便携布局。当前 R79 通过 runtime 布局和媒体清单
+核对分发；文件完整性也不能单独证明 CPU 指令兼容、插件实际调用成功或脚本安全。
 
 ## 5. 子采样约束按当前 clip 格式计算
 
@@ -82,8 +81,9 @@ YUV crop 对齐会让 VapourSynth 直接拒绝图，不会可靠地静默取整�
 三者必须一致但职责不同。只改 `_ColorRange` 或 `_Matrix` 不会修正已经按错误语义
 生成的像素，只改 x264 flag 也不会重算 YUV。
 
-R73 output contract 同时接受有界的 `_Range` 与 `_ColorRange` 普通整数并拒绝冲突；
-R79 的枚举/旧键映射尚未实测，不能用 `int(value)` 把未知类型强行放行。
+R79 output contract 有界接受精确 `vs.Range` 类型和普通整数，拒绝真实 FrameProps
+中的物理旧 `_ColorRange` 键；普通映射的双键须语义一致。详见
+[01](01-colour-range-props.md)，不能用 `int(value)` 把未知类型强行放行。
 
 ## 7. worker 是故障隔离，不是安全沙箱
 

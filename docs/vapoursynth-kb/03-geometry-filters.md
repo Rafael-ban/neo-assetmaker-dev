@@ -4,7 +4,10 @@
 rotation → 图片 Loop → output 1 → timeline trim → crop → matrix 补标 →
 resize/YUV420P8 → AddBorders → 可选最终 180° → frame props → output 0。**
 
-## R73 官方边界
+## R73 历史来源
+
+本节保留迁移前的固定版本依据；当前默认图以下文源码为准，R79 的实际验收
+范围见 [08](08-version-upgrade-notes.md)。旧版本引用不是 R79 运行时证据。
 
 固定 tag 文档：
 

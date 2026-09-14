@@ -4,7 +4,9 @@
 导出链是 VSPipe 的 Y4M stdout → x264-7mod stdin → 外部 MP4 muxer。它与 worker
 是两条执行路径，但共享冻结 runtime、用户脚本、job API 和输出合同。**
 
-## R73 官方 CLI 边界
+## R73 历史 CLI 来源
+
+本节为旧版本来源；当前项目要求 R79，实际命令构造和运行路径见后两节。
 
 固定 tag：
 `https://github.com/vapoursynth/vapoursynth/blob/R73/doc/output.rst`。
@@ -50,12 +52,12 @@ shell 拆分；`tests.test_vspipe_render_request` 对这些路径字符有定向
 
 ## 两端一致性与边界
 
-- VSPipe 环境只接受 `app_dir/tools/media/VSPipe.exe`，并携带冻结 runtime JSON、
+- VSPipe 环境只接受 `app_dir/tools/media/runtime/Lib/site-packages/vapoursynth/vspipe.exe`，并携带冻结 runtime JSON、
   fingerprint、Python module 目录和空的隐式 native autoload 环境。
 - runner 在读取 job 前后、执行用户脚本前后复核 job SHA-256，并在输出注册前运行
   相同的 header/requirement/output contract。
-- worker/VSPipe plane parity 由 `tests.test_worker_vspipe_parity` 的真实 R73 用例
-  覆盖；这不等于两进程共享同一个 VS core。
+- worker/VSPipe plane parity 的测试入口是 `tests.test_worker_vspipe_parity`；报告须
+  标记实际运行时和 skip 数，旧 R73 结果不能直接作为 R79 验收。两进程各建 VS core。
 
 ## 相关
 

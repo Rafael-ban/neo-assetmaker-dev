@@ -4,7 +4,10 @@
 一帧，而是在 RenderJob 边界拒绝 `end_frame <= start_frame`。图片先按
 `virtual_frame_count` 建立完整编辑时间轴，再对 output 0 做半开区间 trim。**
 
-## R73 官方语义
+## R73 历史来源
+
+以下固定版本来源保留用于迁移对照；当前源码要求 R79，其部署与验收范围见
+[08](08-version-upgrade-notes.md)，不将本节旧版本引用当作 R79 实测。
 
 固定 tag：
 

@@ -1,18 +1,20 @@
 # 05 · 便携运行时与 native/Python 插件目录
 
-**结论：R73 自带插件仍由 `portable.vs` 锚定的便携布局提供；用户配置的多个
-native 目录则在 worker/runner 导入 binding 后按顺序逐目录调用
+**结论：当前 R79 使用 `tools/media/runtime/` 完整布局；随包及用户配置的多个
+native 目录在 worker/runner 导入 binding 后按顺序逐目录调用
 `LoadAllPlugins`。Python module 目录只参与用户脚本 import，绝不能与 native DLL
 目录混用。**
 
-## R73 `portable.vs` 的版本化事实
+## 当前 R79 分发布局
 
-当前 `tools/media` 是 R73 便携包：`vapoursynth.dll` 在自身目录识别零字节
-`portable.vs` 标记，并从相邻 `vs-plugins/` 自动加载 `lsmas`、`imwri` 等插件。
-这是当前二进制与实际探针证实的 R73 行为，不应泛化成所有 VapourSynth 版本的
-永久合同；R79 必须重新验证分发目录、CPU 变体 manifest 与 autoload 行为。
+`assetmaker_vs.runtime_layout` 统一解析包、core filters、VSScript、嵌入式 Python
+与插件路径。包内 `plugins/` 和随包 native 目录职责不同；后者与用户目录由
+`assetmaker_vs.native_plugins` 统一加载和诊断。
 
-R73 固定 tag 的 `std.LoadAllPlugins` 文档：
+历史 R73 平铺布局依赖 `portable.vs` 与 `vs-plugins/`。当前代码拒绝这些旧
+文件与 R79 混用；marker 存在不再是当前运行时可用的判断依据。
+
+历史 R73 固定 tag 的 `std.LoadAllPlugins` 文档：
 `https://github.com/vapoursynth/vapoursynth/blob/R73/doc/functions/general/loadallplugins.rst`。
 它会尝试加载目录中的插件，但失败项可被静默跳过，因此“调用没有抛异常”不能证明
 每个 DLL 已注册。
@@ -20,29 +22,30 @@ R73 固定 tag 的 `std.LoadAllPlugins` 文档：
 当前 CI 与冻结产物必须包含：
 
 ```text
-tools/media/vapoursynth.pyd
-tools/media/vapoursynth.dll
-tools/media/portable.vs
-tools/media/vs-plugins/LSMASHSource.dll
-tools/media/vs-plugins/libimwri.dll
+tools/media/runtime/Lib/site-packages/vapoursynth/vapoursynth.pyd
+tools/media/runtime/Lib/site-packages/vapoursynth/libvapoursynth.dll
+tools/media/runtime/Lib/site-packages/vapoursynth/vspipe.exe
+tools/media/runtime/Lib/site-packages/vapoursynth/plugins/avscompat.dll
+tools/media/runtime/native-plugins/01-lsmas/LSMASHSource.dll
+tools/media/runtime/native-plugins/02-imwri/libimwri.dll
 ```
 
-缺少 marker 或插件不能靠启动成功来放行；`.github/workflows/build-app.yml` 对源工具
-和冻结树分别做硬校验。
+以上仅列关键文件。`resources/packaging/media-tools-r79-v1.json` 固定完整
+120 个文件的路径、大小与 SHA-256；构建在冻结前后都校验媒体树。
 
 ## binding 只在 worker/VSPipe 进程加载
 
 `core.vs_runtime.vs_loader` 的 worker 路径：
 
-1. 要求 Python 3.12+ 与 `tools/media/vapoursynth.pyd`；
+1. 要求 Python 3.12+，解析并完整预检 R79 runtime 布局；
 2. 清空 `VAPOURSYNTH_EXTRA_PLUGIN_PATH`，避免未冻结的隐式 native autoload；
-3. 用 `os.add_dll_directory(media_dir)` 与 `spec_from_file_location()` 显式加载 binding；
-4. 记录 R73 便携目录已加载的 plugin source，并处理配置的额外 native 目录；
+3. 为 VS 包、runtime 和 native 目录注册 DLL 搜索路径，从包 `__init__.py` 显式加载 binding；
+4. 按随包 `01-lsmas`、`02-imwri`、用户配置目录的顺序处理 native 插件，记录 plugin source；
 5. 捕获首次 core 资源基线，供每次脚本执行前恢复。
 
 GUI 父进程不导入 VapourSynth，也不存在父进程 prewarm。不要把 `tools/media` 插入
-`sys.path`：该目录同时携带嵌入式 Python 扩展，可能遮蔽宿主模块。也不要把 R73
-wheel 随意装入 venv 后仍期待相邻的 `portable.vs`/`vs-plugins` 自动生效。
+`sys.path`，也不要通过随意在 venv 安装 wheel 绕开固定布局、metadata 和文件身份
+校验。运行时部署说明见 [08](08-version-upgrade-notes.md)。
 
 ## 多目录 native 策略
 
@@ -50,14 +53,14 @@ wheel 随意装入 venv 后仍期待相邻的 `portable.vs`/`vs-plugins` 自动�
 
 - 每个目录先解析为存在的绝对目录，按 Windows 路径语义保序去重；
 - 按配置顺序逐目录 `core.std.LoadAllPlugins(path=...)`；
-- 临时安装 R73 log handler，识别候选 DLL 加载失败、API 不兼容、plugin identity
+- 临时安装 core log handler，识别候选 DLL 加载失败、API 不兼容、plugin identity
   或 namespace 冲突，并给出候选/既有来源；
 - 用 `core.plugins()`、callable 和 `plugin_path` 核对脚本头的每项
   `assetmaker-requires` 是否真实可用且来自内置或已配置根。
 
 空目录或只含依赖 DLL 的目录可以合法存在；最终 requirement 校验才决定脚本能否
-运行。内置 `vs-coreplugins/` 在旧包里可以不存在；若存在，会成为许可 source root
-并纳入 runtime fingerprint。
+运行。当前内置 source root 是 VS 包的 `plugins/`；旧包的 `vs-coreplugins/`
+不属于当前 R79 支持布局。runtime fingerprint 覆盖规范运行时文件及配置身份。
 
 ## Python module 目录是另一条链
 
@@ -70,7 +73,7 @@ worker 与固定 VSPipe runner 共享上述 native policy；VSPipe 环境同样�
 
 ## 相关
 
-- [08 版本升级](08-version-upgrade-notes.md) — R79 分发/插件候选门禁
+- [08 版本升级](08-version-upgrade-notes.md) — R79 分发与验收边界
 - [09 插件生态](09-plugin-ecosystem.md) — 生产 requirement 与 namespace
 - [13 用户 VPY ABI](13-user-vpy-abi.md) — 脚本头和两类插件目录
-- [16 脚本信任](16-script-trust.md) — `portable.vs` 不是完整信任证明
+- [16 脚本信任](16-script-trust.md) — 文件身份不等于安全沙箱

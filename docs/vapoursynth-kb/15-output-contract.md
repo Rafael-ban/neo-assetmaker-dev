@@ -9,7 +9,7 @@
 | output 0 | final 预览、导出预检、VSPipe→x264 | 必需的设备编码 clip |
 | output 1 | compatible 编辑器的 editor surface | 仅 `assetmaker-editor-output: 1` 时必需 |
 
-R73 官方 `set_output()`/`get_output()` 参考：
+历史 R73 官方 `set_output()`/`get_output()` 参考（保留用于对照）：
 `https://github.com/vapoursynth/vapoursynth/blob/R73/doc/pythonreference.rst`。
 当前 binding 的 `get_output()` 返回 `VideoOutputTuple`；项目拒绝非 `VideoNode`、带
 alpha 或非零 `alt_output`，不会从脚本全局变量猜哪个 clip 应导出。
@@ -39,21 +39,22 @@ profile 几何示例：
 360 profile 的右侧 24 像素由默认脚本在 resize 后 AddBorders；contract 只接受最终
 384×640。看到 384 而不是 360 不是参数错误。
 
-## R73 色彩与 VUI
+## 当前 R79 色彩与 VUI
 
-当前 profile 要求 `matrix/transfer/primaries=170m`、`range=limited`。R73 contract：
+当前 profile 要求 `matrix/transfer/primaries=170m`、`range=limited`。当前 contract：
 
 - `_Matrix/_Transfer/_Primaries` 必须是受支持的普通整数 code；
-- `_ColorRange=1` 表示 limited，`0` 表示 full；
-- 兼容 `_Range=0` limited、`1` full；
-- 两个 range 键并存时语义必须一致；非普通整数、未知 code 或冲突均拒绝。
+- 默认脚本写 `_Range`：普通整数 `0` limited、`1` full；
+- 有界接受精确 `vs.Range` 类型的 `RANGE_LIMITED/RANGE_FULL`；拒绝其他枚举、bool、float；
+- 真实 `vs.FrameProps` 中若存在物理 `_ColorRange`，无论是否与 `_Range` 并存都拒绝；
+- 普通映射的兼容 `_ColorRange` 整数为 `1` limited、`0` full，双键须语义一致。
 
 sentinel 校验产出 `X264Vui`，导出命令据此明确传
 `--colormatrix/--colorprim/--transfer/--range`。因此像素转换、frame props 与码流
 VUI 是三层一致性，不可只修其中一层。
 
-R79 可能返回 `Range(IntEnum)` 并重映射旧键，但 K1 没有真实候选证据；当前不放宽
-普通整数检查，也不以 `int()` 吞掉未知类型。
+R79 旧键兼容访问可能遮蔽物理属性，不能证明旧值正确。具体拒绝条件和
+验证入口见 [01 色彩范围](01-colour-range-props.md)，不以 `int()` 吞掉未知类型。
 
 ## 逐帧 guard
 

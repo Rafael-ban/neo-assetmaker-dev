@@ -4,7 +4,10 @@
 frame props 是对结果的元数据描述。写属性不等于转换像素，做了像素转换也不保证
 编码器会自动写出相同标签。**
 
-## R73 官方语义
+## R73 历史语义与探针
+
+以下来源和像素样本保留作历史对照，不代表 R79 实测；当前 R79 的 Range
+合同见 [01](01-colour-range-props.md)，部署及验收范围见 [08](08-version-upgrade-notes.md)。
 
 固定 tag：
 `https://github.com/vapoursynth/vapoursynth/blob/R73/doc/functions/video/resize.rst`。
@@ -50,7 +53,7 @@ clip = core.resize.Bicubic(
 - Bicubic 把实际裁剪结果转换到内容画布和 YUV420P8，输出 matrix/range 来自
   profile；当前 360×640 profile 为 `170m`、`limited`。
 - 补边与可选最终 180° 完成后，脚本再写 `_Matrix`、`_Transfer`、
-  `_Primaries`、`_ColorRange`。这是输出标签，不会再次改变像素。
+  `_Primaries`、`_Range`。这是输出标签，不会再次改变像素。
 - VSPipe 的 Y4M 接 x264；编码器参数还需与这些输出标签一致。当前 x264 使用
   `smpte170m` 与 `--range tv`。
 
@@ -69,6 +72,6 @@ profile 由 `assetmaker_vs.job_api` 固定，而不是可随意拼接的旧全�
 
 ## 相关
 
-- [01 色彩范围](01-colour-range-props.md) — R73 两个 range 键的相反编码
+- [01 色彩范围](01-colour-range-props.md) — 当前 R79 Range 合同与旧键兼容
 - [03 几何](03-geometry-filters.md) — crop、resize、AddBorders 的实际顺序
 - [15 输出契约](15-output-contract.md) — output 0 的几何/色彩验收
