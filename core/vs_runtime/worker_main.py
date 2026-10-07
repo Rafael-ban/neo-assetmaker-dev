@@ -620,7 +620,6 @@ class WorkerServer:
                     "脚本 bundle 在执行前发生变化",
                     code="worker.bundle_mismatch",
                 )
-            self._assert_runtime_unchanged(message["runtime_fingerprint"])
             from resources.vapoursynth.python.assetmaker_vs.job_api import (
                 load_job,
             )
@@ -628,10 +627,6 @@ class WorkerServer:
                 parse_script_header,
                 validate_invocation,
             )
-
-            # helper import 可能跨越文件更新；在读取 job/header 前再次核验，
-            # 后续还会在 VS 与全部执行 helper 就绪后做最终核验。
-            self._assert_runtime_unchanged(message["runtime_fingerprint"])
 
             self._assert_snapshot_job_identity(snapshot, message["job_sha256"])
             job = load_job(snapshot.job_path)
@@ -1382,12 +1377,9 @@ def run_worker(
         generation_staging=generation_staging,
     )
     log_writer = _install_structured_stdout(writer)
-    try:
-        server._assert_runtime_unchanged(server.runtime_fingerprint)
-    except ProtocolError as error:
-        _SafeLogSink(writer)(_safe_text(error, "worker runtime changed"))
-        log_writer.flush()
-        return FATAL_RUNTIME_CHANGED_EXIT
+    # RuntimeSnapshot initialization has already fingerprinted the runtime
+    # before constructing this server. A load verifies again after
+    # VapourSynth and all execution helpers are ready, before user code runs.
     decoder = MessageDecoder()
     read1 = getattr(input_stream, "read1", None)
     while True:

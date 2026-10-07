@@ -1329,14 +1329,21 @@ class VideoPreviewWidget(QWidget):
         dpr = self.video_label.devicePixelRatioF()
         logical = self.video_label.size()
         physical = QSize(round(logical.width() * dpr), round(logical.height() * dpr))
+        # VS has already fitted the frame to the viewport and applied zoom.
+        # Scaling a 1% frame back to the full label makes zoom-out invisible.
+        target = QSize(min(w, physical.width()), min(h, physical.height())) if (
+            self._vs_active
+        ) else physical
         pixmap = QPixmap.fromImage(qimage.copy()).scaled(
-            physical,
+            target,
             Qt.AspectRatioMode.KeepAspectRatio,
             Qt.TransformationMode.SmoothTransformation,
         )
         pixmap.setDevicePixelRatio(dpr)
         self.video_label.setPixmap(pixmap)
-        self._update_display_geometry(self.video_label, w, h)
+        self._update_display_geometry(
+            self.video_label, w, h, fit_to_widget=not self._vs_active
+        )
         self.frame_changed.emit(self.current_frame_index)
         self._update_info_label()
 
@@ -1373,7 +1380,10 @@ class VideoPreviewWidget(QWidget):
             self._display_frame(self.current_frame)
         self._update_info_label()
 
-    def _update_display_geometry(self, widget: QWidget, media_w: int, media_h: int):
+    def _update_display_geometry(
+        self, widget: QWidget, media_w: int, media_h: int, *,
+        fit_to_widget: bool = True,
+    ):
         if media_w <= 0 or media_h <= 0:
             self.display_scale = 1.0
             self.display_offset_x = 0
@@ -1381,6 +1391,8 @@ class VideoPreviewWidget(QWidget):
             return
         area = widget.size()
         scale = min(area.width() / media_w, area.height() / media_h)
+        if not fit_to_widget:
+            scale = min(scale, 1.0 / widget.devicePixelRatioF())
         shown_w = int(media_w * scale)
         shown_h = int(media_h * scale)
         self.display_scale = scale if scale > 0 else 1.0
@@ -1435,7 +1447,11 @@ class VideoPreviewWidget(QWidget):
         self.current_frame_index = low + (
             self._play_origin_frame - low + elapsed_frames
         ) % span
-        self._request_current_frame(coalesce=True)
+        # Keep the frame already in flight eligible for display. If rendering
+        # takes longer than a tick, replacing its request ID every tick would
+        # discard every returned frame while the frame counter keeps moving.
+        if self._latest_display_request_id is None:
+            self._request_current_frame(coalesce=True)
         self.frame_changed.emit(self.current_frame_index)
         self._update_info_label()
         self._schedule_next_playback_tick(elapsed_frames + 1)
@@ -1778,7 +1794,7 @@ class VideoPreviewWidget(QWidget):
         return (
             not self._preview_mode
             and self.supports_editor_capability("crop")
-            and self._zoom_factor <= 1.0
+            and self._zoom_factor == 1.0
             and self.video_width > 0
             and self.video_height > 0
         )
