@@ -6,6 +6,9 @@ import math
 from typing import Any
 
 
+DISPLAY_DITHER = "error_diffusion"  # YUV/高位深转为 Qt 的 RGB24 时使用
+
+
 def _positive_dimension(value: Any, field: str) -> int:
     if type(value) is not int or value <= 0:
         raise ValueError(f"{field} 必须是正整数")
@@ -40,14 +43,25 @@ def to_display_clip(
     import vapoursynth as vs
 
     core = vs.core
-    rgb = core.resize.Bicubic(clip, format=vs.RGB24)
+    # 已标记的输入属性优先；空白 RGB 测试帧等无标签源按 sRGB 解释。
+    input_transfer = "srgb" if clip.format.color_family == vs.RGB else "709"
+    rgb = core.resize.Bicubic(
+        clip,
+        format=vs.RGB24,
+        transfer_in_s=input_transfer,
+        primaries_in_s="709",
+        transfer_s="srgb",
+        primaries_s="709",
+        range_s="full",
+        dither_type=DISPLAY_DITHER,
+    )
     fit = min(viewport_width / rgb.width, viewport_height / rgb.height)
     fit_width = max(1, min(viewport_width, round(rgb.width * fit)))
     fit_height = max(1, min(viewport_height, round(rgb.height * fit)))
     if zoom_factor <= 1.0:
         output_width = max(1, round(fit_width * zoom_factor))
         output_height = max(1, round(fit_height * zoom_factor))
-        return core.resize.Bicubic(
+        return core.resize.Spline36(
             rgb,
             width=output_width,
             height=output_height,
@@ -70,6 +84,7 @@ def to_display_clip(
         left=left,
         top=top,
     )
+    # 放大时保留像素检查所需的最近邻行为。
     return core.resize.Point(window, width=fit_width, height=fit_height)
 
 

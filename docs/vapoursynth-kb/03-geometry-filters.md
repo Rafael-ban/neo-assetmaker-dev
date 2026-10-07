@@ -48,7 +48,7 @@ y_step = 1 << clip.format.subsampling_h
 这比无条件“取偶数”准确：YUV420P8 通常两个步长都是 2，但 RGB 或 4:4:4 可为 1，
 其他格式也必须服从自己的 subsampling。
 
-`CropAbs` 后，Bicubic 先生成 profile 的内容画布。例如 `360x640` profile 先得到
+`CropAbs` 和自定义处理阶段后，Spline36 生成 profile 的内容画布。例如 `360x640` profile 先得到
 360×640 YUV420P8，再由 `AddBorders(right=24)` 得到 384×640 编码画布。补边发生
 在颜色转换之后，因此其约束按 YUV420P8 计算。
 

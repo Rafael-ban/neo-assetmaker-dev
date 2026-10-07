@@ -15,8 +15,9 @@ frame props 是对结果的元数据描述。写属性不等于转换像素，�
 - 转到 YUV 时必须指定输出 matrix；项目通过 `matrix_s` 明确给出。
 - `matrix_in`、`transfer_in`、`primaries_in`、`range_in` 的 `_in` 形式只在对应
   输入 frame prop 未设置时作为兜底；已有输入属性优先。
-- Bicubic 的 `filter_param_a`/`filter_param_b` 分别是 b/c；项目未覆盖默认值。
-- `dither_type="error_diffusion"` 不保证确定性；当前脚本不显式选择它。
+- Bicubic 的 `filter_param_a`/`filter_param_b` 分别是 b/c。
+- 当前默认链已改为 Spline36，并显式选择 `dither_type="error_diffusion"`；
+  不应跨不同缩放几何要求逐字节相等。
 
 R73 探针用 `Y=16` 的 YUV420P8 单帧验证了输入优先级：
 
@@ -30,28 +31,27 @@ _ColorRange=1 + range_in_s=full    -> RGB R=0
 
 ## 当前默认脚本的真实顺序
 
-`resources/vapoursynth/default_pipeline.vpy` 在 trim/crop 后执行：
+`resources/vapoursynth/default_pipeline.vpy` 在取源后补充缺失的颜色标签，
+在 trim/crop 与 `process_source()` 后执行：
 
 ```python
-if source["kind"] == "video":
-    source_matrix = first_frame.props.get("_Matrix", 2)
-    if source_matrix == 2:
-        clip = core.std.SetFrameProps(clip, _Matrix=heuristic)
-
-clip = core.resize.Bicubic(
+clip = core.resize.Spline36(
     clip,
     width=output["display_width"],
     height=output["display_height"],
     format=vs.YUV420P8,
     matrix_s=output["matrix"],
+    transfer_s=RESIZE_TRANSFER_NAMES[output["transfer"]],
+    primaries_s=output["primaries"],
     range_s=output["range"],
+    dither_type="error_diffusion",
 )
 ```
 
-- 视频仅在 `_Matrix` 缺失/unspecified（代码 2）时按源高补 709 或 170m；已有
-  matrix 不覆盖。图片由 `imwri.Read` 以 RGB 输入。
-- Bicubic 把实际裁剪结果转换到内容画布和 YUV420P8，输出 matrix/range 来自
-  profile；当前 360×640 profile 为 `170m`、`limited`。
+- YUV 缺失/unspecified 的颜色标签按原始源高补 709 或 170m；已有标签保留。
+  图片由 `imwri.Read` 以 RGB 输入，缺失标签时按 sRGB/709/full 解释。
+- Spline36 把裁剪结果转换到内容画布和 YUV420P8，matrix/transfer/primaries/range
+  来自 profile。设备合同中的 transfer `170m` 在 resize 中名为 `601`，数值同为 6。
 - 补边与可选最终 180° 完成后，脚本再写 `_Matrix`、`_Transfer`、
   `_Primaries`、`_Range`。这是输出标签，不会再次改变像素。
 - VSPipe 的 Y4M 接 x264；编码器参数还需与这些输出标签一致。当前 x264 使用

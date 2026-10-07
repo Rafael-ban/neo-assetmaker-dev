@@ -217,11 +217,17 @@ jobs:
             exit $LASTEXITCODE
           }
 
+      - name: Install locked VapourSynth plugins
+        shell: pwsh
+        run: |
+          uv run --no-sync python plugin_distribution.py sync --app-dir .
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
       # M3 worker tests intentionally do not skip without the portable runtime.
       - name: Run Python tests
         shell: bash
         run: |
-          uv run --no-sync python -m compileall main.py config core gui utils _mext build.py media_distribution.py tests resources/vapoursynth/python
+          uv run --no-sync python -m compileall main.py config core gui utils _mext build.py media_distribution.py plugin_distribution.py tests resources/vapoursynth/python
           uv run --no-sync python -m unittest discover -s tests -p "test_*.py"
 
       - name: Install Inno Setup
@@ -360,6 +366,8 @@ jobs:
             exit $LASTEXITCODE
           }
           Write-Host "Portable archive extraction smoke test OK"
+          uv run --no-sync python plugin_distribution.py verify --app-dir $portableApp
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Debug exe outputs
         shell: pwsh

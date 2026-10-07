@@ -1,0 +1,1371 @@
+{
+  "schema_version": 1,
+  "target": "win64",
+  "install_root": "tools/vs-plugins",
+  "bundled_namespaces": [
+    "std",
+    "resize",
+    "text",
+    "avs",
+    "lsmas",
+    "imwri"
+  ],
+  "packages": [
+    {
+      "id": "akarin",
+      "version": "v0.96",
+      "source": "https://github.com/vapoursynth/vsrepo/blob/master/local/akarin.json",
+      "url": "https://github.com/AkarinVS/vapoursynth-plugin/releases/download/v0.96/akarin-release-lexpr-amd64-v0.96g3.7z",
+      "archive_sha256": null,
+      "files": [
+        {
+          "path": "akarin.dll",
+          "member": "akarin.dll",
+          "sha256": "d86a2aa5a6a95447bdf084481b2b6734a3be4886a5a85e0d6295233bb9aa57dc"
+        }
+      ],
+      "dependencies": [],
+      "namespaces": [
+        "akarin"
+      ],
+      "adjacent_from": []
+    },
+    {
+      "id": "anime4kcpp",
+      "version": "v3.2.0",
+      "source": "https://github.com/vapoursynth/vsrepo/blob/master/local/anime4kcpp.json",
+      "url": "https://github.com/TianZerL/Anime4KCPP/releases/download/v3.2.0/Anime4KCPP-Filter-AVS-VS-v3.2.0-x86-x64-MSVC.zip",
+      "archive_sha256": null,
+      "files": [
+        {
+          "path": "ac_filter_avs_vs.dll",
+          "member": "x64/ac_filter_avs_vs.dll",
+          "sha256": "23a2c6a9c618191f11f0bf520f829f3ef7857ed14dda216e0ebcacabfe1a25f0"
+        }
+      ],
+      "dependencies": [],
+      "namespaces": [
+        "anime4kcpp"
+      ],
+      "adjacent_from": []
+    },
+    {
+      "id": "bilateral",
+      "version": "r3",
+      "source": "https://github.com/vapoursynth/vsrepo/blob/master/local/bilateral.json",
+      "url": "https://github.com/HomeOfVapourSynthEvolution/VapourSynth-Bilateral/releases/download/r3/Bilateral-r3.7z",
+      "archive_sha256": null,
+      "files": [
+        {
+          "path": "Bilateral.dll",
+          "member": "x64/Bilateral.dll",
+          "sha256": "a9ea5ebd604611701fc988262f078a697f3110f9b8fb5ec748aa0957cad5e0a0"
+        }
+      ],
+      "dependencies": [],
+      "namespaces": [
+        "bilateral"
+      ],
+      "adjacent_from": []
+    },
+    {
+      "id": "bilateralgpu",
+      "version": "r14",
+      "source": "https://github.com/vapoursynth/vsrepo/blob/master/local/bilateralgpu.json",
+      "url": "https://github.com/WolframRhodium/VapourSynth-BilateralGPU/releases/download/r14/VapourSynth-BilateralGPU-r14.7z",
+      "archive_sha256": null,
+      "files": [
+        {
+          "path": "BilateralGPU.dll",
+          "member": "VapourSynth-BilateralGPU-r14/BilateralGPU.dll",
+          "sha256": "3f39eb1cdd4fb1384ea90b75981670bfcf8848dffe9ebcb553650ce3b9ef5866"
+        }
+      ],
+      "dependencies": [],
+      "namespaces": [
+        "bilateralgpu"
+      ],
+      "adjacent_from": []
+    },
+    {
+      "id": "bm3d",
+      "version": "r8",
+      "source": "https://github.com/vapoursynth/vsrepo/blob/master/local/bm3d.json",
+      "url": "https://github.com/HomeOfVapourSynthEvolution/VapourSynth-BM3D/releases/download/r8/BM3D-r8.7z",
+      "archive_sha256": null,
+      "files": [
+        {
+          "path": "BM3D.dll",
+          "member": "Win64/BM3D.dll",
+          "sha256": "1c3f970d062c16ae77fd7275db17d65caf7890653a62eebf568a4ae4154a5574"
+        }
+      ],
+      "dependencies": [
+        "fftw3_library"
+      ],
+      "namespaces": [
+        "bm3d"
+      ],
+      "adjacent_from": []
+    },
+    {
+      "id": "bm3dcpu",
+      "version": "R2.15",
+      "source": "https://github.com/vapoursynth/vsrepo/blob/master/local/bm3dcpu.json",
+      "url": "https://github.com/WolframRhodium/VapourSynth-BM3DCUDA/releases/download/R2.15/VapourSynth-BM3DCPU-R2.15.7z",
+      "archive_sha256": null,
+      "files": [
+        {
+          "path": "BM3DCPU-znver2.dll",
+          "member": "VapourSynth-BM3DCPU-R2.15/bm3dcpu-znver2.dll",
+          "sha256": "fb8cbf0a33fd80e2fc15b4b60f1b006b3c3f5e9698949dd930d683b49fe67fa1"
+        }
+      ],
+      "dependencies": [],
+      "namespaces": [
+        "bm3dcpu"
+      ],
+      "adjacent_from": []
+    },
+    {
+      "id": "bm3dcuda",
+      "version": "R2.15",
+      "source": "https://github.com/vapoursynth/vsrepo/blob/master/local/bm3dcuda.json",
+      "url": "https://github.com/WolframRhodium/VapourSynth-BM3DCUDA/releases/download/R2.15/VapourSynth-BM3DCUDA-R2.15.7z",
+      "archive_sha256": null,
+      "files": [
+        {
+          "path": "BM3DCUDA.dll",
+          "member": "VapourSynth-BM3DCUDA-R2.15/bm3dcuda.dll",
+          "sha256": "a1cce5fc1d16ddb7200107c66c9edc68ea35568ef62af2b24528cdb144465076"
+        }
+      ],
+      "dependencies": [],
+      "namespaces": [
+        "bm3dcuda"
+      ],
+      "adjacent_from": []
+    },
+    {
+      "id": "bm3dcuda_rtc",
+      "version": "R2.15",
+      "source": "https://github.com/vapoursynth/vsrepo/blob/master/local/bm3dcuda_rtc.json",
+      "url": "https://github.com/WolframRhodium/VapourSynth-BM3DCUDA/releases/download/R2.15/VapourSynth-BM3DCUDA_RTC-R2.15.7z",
+      "archive_sha256": null,
+      "files": [
+        {
+          "path": "bm3dcuda_rtc.dll",
+          "member": "VapourSynth-BM3DCUDA_RTC-R2.15/bm3dcuda_rtc.dll",
+          "sha256": "7bf2a70856306d7d2a4cf610e55cb6ba159e35d06cb660573a50721a14fa9827"
+        }
+      ],
+      "dependencies": [],
+      "namespaces": [
+        "bm3dcuda_rtc"
+      ],
+      "adjacent_from": []
+    },
+    {
+      "id": "bwdif",
+      "version": "r4.1",
+      "source": "https://github.com/vapoursynth/vsrepo/blob/master/local/bwdif.json",
+      "url": "https://github.com/HomeOfVapourSynthEvolution/VapourSynth-Bwdif/releases/download/r4.1/Bwdif-r4.1-win64.7z",
+      "archive_sha256": null,
+      "files": [
+        {
+          "path": "Bwdif.dll",
+          "member": "Bwdif.dll",
+          "sha256": "8b6f11af10bae0896b35a8dbed08fbcc8995bb8cfcc7c820f5d3f4f9b0b556f0"
+        }
+      ],
+      "dependencies": [],
+      "namespaces": [
+        "bwdif"
+      ],
+      "adjacent_from": []
+    },
+    {
+      "id": "cas",
+      "version": "r2",
+      "source": "https://github.com/vapoursynth/vsrepo/blob/master/local/cas.json",
+      "url": "https://github.com/HomeOfVapourSynthEvolution/VapourSynth-CAS/releases/download/r2/CAS-r2.7z",
+      "archive_sha256": null,
+      "files": [
+        {
+          "path": "CAS.dll",
+          "member": "plugins64/CAS.dll",
+          "sha256": "e6128294afdb5f0884c8f063c0da17e05999d4a7e977b3ff7cf1261eb616b0bc"
+        }
+      ],
+      "dependencies": [],
+      "namespaces": [
+        "cas"
+      ],
+      "adjacent_from": []
+    },
+    {
+      "id": "ctmf",
+      "version": "r5",
+      "source": "https://github.com/vapoursynth/vsrepo/blob/master/local/ctmf.json",
+      "url": "https://github.com/HomeOfVapourSynthEvolution/VapourSynth-CTMF/releases/download/r5/CTMF-r5.7z",
+      "archive_sha256": null,
+      "files": [
+        {
+          "path": "CTMF.dll",
+          "member": "plugins64/CTMF.dll",
+          "sha256": "c5f39058dbe041e67c12424bbbb85ba5866a9fc4143d08e5175ccd866a338a09"
+        }
+      ],
+      "dependencies": [],
+      "namespaces": [
+        "ctmf"
+      ],
+      "adjacent_from": []
+    },
+    {
+      "id": "d2v",
+      "version": "v1.3",
+      "source": "https://github.com/vapoursynth/vsrepo/blob/master/local/d2v.json",
+      "url": "https://github.com/dwbuiten/d2vsource/releases/download/v1.3/d2vsource-1.3-windows.zip",
+      "archive_sha256": null,
+      "files": [
+        {
+          "path": "d2vsource.dll",
+          "member": "win64/d2vsource.dll",
+          "sha256": "5a9629c5526a40b5f98a26b8c4173dc22b2471e8e7944f87bfae29345baf21c3"
+        }
+      ],
+      "dependencies": [],
+      "namespaces": [
+        "d2v"
+      ],
+      "adjacent_from": []
+    },
+    {
+      "id": "dctf",
+      "version": "r2",
+      "source": "https://github.com/vapoursynth/vsrepo/blob/master/local/dctf.json",
+      "url": "https://github.com/HomeOfVapourSynthEvolution/VapourSynth-DCTFilter/releases/download/r2/DCTFilter-r2.7z",
+      "archive_sha256": null,
+      "files": [
+        {
+          "path": "DCTFilter.dll",
+          "member": "Win64/DCTFilter.dll",
+          "sha256": "5f7af5eeb04f5d3e0755131f4a92db752473b43b64defb8d4dc68ed6886f906d"
+        }
+      ],
+      "dependencies": [
+        "fftw3_library"
+      ],
+      "namespaces": [
+        "dctf"
+      ],
+      "adjacent_from": []
+    },
+    {
+      "id": "deblock",
+      "version": "r7.1",
+      "source": "https://github.com/vapoursynth/vsrepo/blob/master/local/deblock.json",
+      "url": "https://github.com/HomeOfVapourSynthEvolution/VapourSynth-Deblock/releases/download/r7.1/Deblock-r7.1.7z",
+      "archive_sha256": null,
+      "files": [
+        {
+          "path": "Deblock.dll",
+          "member": "Deblock.dll",
+          "sha256": "4fa23e644d51cf601f2f719938c7752c45b1f5cd0d84dd2559bbf6f42ea8d771"
+        }
+      ],
+      "dependencies": [],
+      "namespaces": [
+        "deblock"
+      ],
+      "adjacent_from": []
+    },
+    {
+      "id": "descale",
+      "version": "r11",
+      "source": "https://github.com/vapoursynth/vsrepo/blob/master/local/descale.json",
+      "url": "https://github.com/Jaded-Encoding-Thaumaturgy/vapoursynth-descale/releases/download/r11/descale-win64.zip",
+      "archive_sha256": null,
+      "files": [
+        {
+          "path": "libdescale.dll",
+          "member": "libdescale.dll",
+          "sha256": "2de2b41300f2b35fe5203ac8402a6872115027993ec5083ef00937730010183d"
+        }
+      ],
+      "dependencies": [],
+      "namespaces": [
+        "descale"
+      ],
+      "adjacent_from": []
+    },
+    {
+      "id": "dfttest",
+      "version": "r7",
+      "source": "https://github.com/vapoursynth/vsrepo/blob/master/local/dfttest.json",
+      "url": "https://github.com/HomeOfVapourSynthEvolution/VapourSynth-DFTTest/releases/download/r7/DFTTest-r7.7z",
+      "archive_sha256": null,
+      "files": [
+        {
+          "path": "DFTTest.dll",
+          "member": "plugins64/DFTTest.dll",
+          "sha256": "c4e84c8448c7ee5fb97b530c52aecd1591a1bca57ddf0c12bde07e255a979013"
+        }
+      ],
+      "dependencies": [
+        "fftw3_library"
+      ],
+      "namespaces": [
+        "dfttest"
+      ],
+      "adjacent_from": []
+    },
+    {
+      "id": "dfttest2_cuda",
+      "version": "v10",
+      "source": "https://github.com/vapoursynth/vsrepo/blob/master/local/dfttest2_cuda.json",
+      "url": "https://github.com/AmusementClub/vs-dfttest2/releases/download/v10/vs-dfttest2-cuda-windows-v10.7z",
+      "archive_sha256": null,
+      "files": [
+        {
+          "path": "dfttest2_cuda.dll",
+          "member": "vs-dfttest2-cuda-windows-v10/dfttest2_cuda.dll",
+          "sha256": "fa5569350f9c4e5d4c4442ed7fd3802ab0a0d5c600d383f0fc2433e695a405cd"
+        },
+        {
+          "path": "dfttest2_nvrtc.dll",
+          "member": "vs-dfttest2-cuda-windows-v10/dfttest2_nvrtc.dll",
+          "sha256": "14ed08734804461be3db0ebcd20f4fccf4c75f032a4c2fb63a68a1de50f4059a"
+        }
+      ],
+      "dependencies": [
+        "dfttest2_cuda_runtime"
+      ],
+      "namespaces": [
+        "dfttest2_cuda",
+        "dfttest2_nvrtc"
+      ],
+      "adjacent_from": []
+    },
+    {
+      "id": "dfttest2_cuda_runtime",
+      "version": "v10",
+      "source": "https://github.com/vapoursynth/vsrepo/blob/master/local/dfttest2_cuda_runtime.json",
+      "url": "https://github.com/AmusementClub/vs-dfttest2/releases/download/v10/cufft-windows-v10.7z",
+      "archive_sha256": null,
+      "files": [
+        {
+          "path": "vsmlrt-cuda/cufft64_12.dll",
+          "member": "vsmlrt-cuda/cufft64_12.dll",
+          "sha256": "7b437a41a6e45803079aae38d794f5aa10012dcc2194884d9c29551bb369c768"
+        }
+      ],
+      "dependencies": [],
+      "namespaces": [],
+      "adjacent_from": []
+    },
+    {
+      "id": "dpid",
+      "version": "r6",
+      "source": "https://github.com/vapoursynth/vsrepo/blob/master/local/dpid.json",
+      "url": "https://github.com/WolframRhodium/VapourSynth-dpid/releases/download/r6/dpid.dll",
+      "archive_sha256": null,
+      "files": [
+        {
+          "path": "dpid.dll",
+          "member": "dpid.dll",
+          "sha256": "883ef75976ff83b1da53f24d79b40b5e17ee83f92b9b9103eaec8e06cd0ba72d"
+        }
+      ],
+      "dependencies": [],
+      "namespaces": [
+        "dpid"
+      ],
+      "adjacent_from": []
+    },
+    {
+      "id": "eedi2",
+      "version": "r7",
+      "source": "https://github.com/vapoursynth/vsrepo/blob/master/local/eedi2.json",
+      "url": "https://github.com/HomeOfVapourSynthEvolution/VapourSynth-EEDI2/releases/download/r7/EEDI2-r7.7z",
+      "archive_sha256": null,
+      "files": [
+        {
+          "path": "EEDI2.dll",
+          "member": "Win64/EEDI2.dll",
+          "sha256": "83d28a7cc93e748bfc5788a7fafabd2c488e15f294d6ce5ae97932c0086111f7"
+        }
+      ],
+      "dependencies": [],
+      "namespaces": [
+        "eedi2"
+      ],
+      "adjacent_from": []
+    },
+    {
+      "id": "eedi3",
+      "version": "R1",
+      "source": "https://github.com/vapoursynth/vsrepo/blob/master/local/eedi3.json",
+      "url": "https://github.com/vapoursynth/vs-eedi3-obsolete/releases/download/R1/eedi3-r1.7z",
+      "archive_sha256": null,
+      "files": [
+        {
+          "path": "EEDI3.dll",
+          "member": "win64/EEDI3.dll",
+          "sha256": "f101bf621ff582b5e269783be6b02329f84306f414f87a305c4d23878764fd88"
+        }
+      ],
+      "dependencies": [],
+      "namespaces": [
+        "eedi3"
+      ],
+      "adjacent_from": []
+    },
+    {
+      "id": "eedi3m",
+      "version": "r8",
+      "source": "https://github.com/vapoursynth/vsrepo/blob/master/local/eedi3m.json",
+      "url": "https://github.com/HomeOfVapourSynthEvolution/VapourSynth-EEDI3/releases/download/r8/EEDI3-r8.7z",
+      "archive_sha256": null,
+      "files": [
+        {
+          "path": "EEDI3m.dll",
+          "member": "EEDI3m.dll",
+          "sha256": "8fc1a433112707164c1a87d2c9e78709822b7ca89325f0d691d36337f6bf9051"
+        }
+      ],
+      "dependencies": [],
+      "namespaces": [
+        "eedi3m"
+      ],
+      "adjacent_from": []
+    },
+    {
+      "id": "eedi3vk",
+      "version": "R1.2",
+      "source": "https://github.com/vapoursynth/vsrepo/blob/master/local/eedi3vk.json",
+      "url": "https://github.com/Sunflower-Dolls/Vapoursynth-EEDI3VK/releases/download/R1.2/release-windows-amd64.zip",
+      "archive_sha256": null,
+      "files": [
+        {
+          "path": "libeedi3vk.dll",
+          "member": "release-windows-amd64/libeedi3vk.dll",
+          "sha256": "35f0db97cdff1ca2061a41c965ec373e6dcdf00b2b664884e8c7a205cf90ba0e"
+        }
+      ],
+      "dependencies": [],
+      "namespaces": [
+        "eedi3vk"
+      ],
+      "adjacent_from": []
+    },
+    {
+      "id": "ffms2",
+      "version": "5.0",
+      "source": "https://github.com/vapoursynth/vsrepo/blob/master/local/ffms2.json",
+      "url": "https://github.com/FFMS/ffms2/releases/download/5.0/ffms2-5.0-msvc.7z",
+      "archive_sha256": null,
+      "files": [
+        {
+          "path": "ffms2.dll",
+          "member": "ffms2-5.0-msvc/x64/ffms2.dll",
+          "sha256": "970d3f8d170fd13a2dd8a7e8a7f56b0ce5a1dc7eea79d1774bbb2c2cab47e3f0"
+        }
+      ],
+      "dependencies": [],
+      "namespaces": [
+        "ffms2"
+      ],
+      "adjacent_from": []
+    },
+    {
+      "id": "fft3dfilter",
+      "version": "R2",
+      "source": "https://github.com/vapoursynth/vsrepo/blob/master/local/fft3dfilter.json",
+      "url": "https://github.com/myrsloik/VapourSynth-FFT3DFilter/releases/download/R2/FFT3DFilter-r2.7z",
+      "archive_sha256": null,
+      "files": [
+        {
+          "path": "fft3dfilter.dll",
+          "member": "x64/fft3dfilter.dll",
+          "sha256": "6f4299318e8879d74b46b2516b95bf0dd170749a4ed42534a5d3c485eb2ab2ef"
+        }
+      ],
+      "dependencies": [
+        "fftw3_library"
+      ],
+      "namespaces": [
+        "fft3dfilter"
+      ],
+      "adjacent_from": []
+    },
+    {
+      "id": "fftw3_library",
+      "version": "3.3.10",
+      "source": "https://github.com/vapoursynth/vsrepo/blob/master/local/fftw3_library.json",
+      "url": "https://github.com/Vapoursynth-Plugins-Gitify/fftw3/releases/download/3.3.10/FFTW-3.3.10.zip",
+      "archive_sha256": null,
+      "files": [
+        {
+          "path": "libfftw3-3.dll",
+          "member": "FFTW-3.3.10/mingw64/libfftw3-3.dll",
+          "sha256": "6e5424ab1ab2690f8dc4756af16e9fa4a75bc7885d84d1cfeb7f254e55bac930"
+        },
+        {
+          "path": "libfftw3f-3.dll",
+          "member": "FFTW-3.3.10/mingw64/libfftw3f-3.dll",
+          "sha256": "8f35a79e1299edf403edb8f3269c833b79a81d2ef4b45ba378a66f47c19c957a"
+        }
+      ],
+      "dependencies": [],
+      "namespaces": [],
+      "adjacent_from": []
+    },
+    {
+      "id": "flux",
+      "version": "v2",
+      "source": "https://github.com/vapoursynth/vsrepo/blob/master/local/flux.json",
+      "url": "https://github.com/dubhatervapoursynth/vapoursynth-fluxsmooth/releases/download/v2/vapoursynth-fluxsmooth-v2-win64.7z",
+      "archive_sha256": null,
+      "files": [
+        {
+          "path": "libfluxsmooth.dll",
+          "member": "libfluxsmooth.dll",
+          "sha256": "c4a7e5cc6ee1feb6279d36377208337a4fc6fa7c3849f355893d505a37c0ed8a"
+        }
+      ],
+      "dependencies": [],
+      "namespaces": [
+        "flux"
+      ],
+      "adjacent_from": []
+    },
+    {
+      "id": "fmtc",
+      "version": "r30",
+      "source": "https://github.com/vapoursynth/vsrepo/blob/master/local/fmtc.json",
+      "url": "https://github.com/EleonoreMizo/fmtconv/releases/download/r30/fmtconv-r30.zip",
+      "archive_sha256": null,
+      "files": [
+        {
+          "path": "fmtconv.dll",
+          "member": "win64/fmtconv.dll",
+          "sha256": "ddbe77e0b09d745608202c9fbca2c70d0c26e0428b27b15b92dfd2cad87f1898"
+        }
+      ],
+      "dependencies": [],
+      "namespaces": [
+        "fmtc"
+      ],
+      "adjacent_from": []
+    },
+    {
+      "id": "grain",
+      "version": "r10",
+      "source": "https://github.com/vapoursynth/vsrepo/blob/master/local/grain.json",
+      "url": "https://github.com/HomeOfVapourSynthEvolution/VapourSynth-AddGrain/releases/download/r10/AddGrain-r10-win64.7z",
+      "archive_sha256": null,
+      "files": [
+        {
+          "path": "AddGrain.dll",
+          "member": "AddGrain.dll",
+          "sha256": "74f1fcb53e7a91efc015730a03a92cbed70485b68422805f441f43dd8a343a92"
+        }
+      ],
+      "dependencies": [],
+      "namespaces": [
+        "grain"
+      ],
+      "adjacent_from": []
+    },
+    {
+      "id": "hist",
+      "version": "v2",
+      "source": "https://github.com/vapoursynth/vsrepo/blob/master/local/hist.json",
+      "url": "https://github.com/dubhatervapoursynth/vapoursynth-histogram/releases/download/v2/vapoursynth-histogram-v2-win64.7z",
+      "archive_sha256": null,
+      "files": [
+        {
+          "path": "libhistogram.dll",
+          "member": "libhistogram.dll",
+          "sha256": "cedbae0e692727799c3b523a46bb4774c6aacbfb62c2c325aafaa4d048c5b8b0"
+        }
+      ],
+      "dependencies": [],
+      "namespaces": [
+        "hist"
+      ],
+      "adjacent_from": []
+    },
+    {
+      "id": "hqdn3d",
+      "version": "r2.0.1",
+      "source": "https://github.com/vapoursynth/vsrepo/blob/master/local/hqdn3d.json",
+      "url": "https://github.com/theChaosCoder/vapoursynth-hqdn3d/releases/download/r2.0.1/vapoursynth-hqdn3d-r2-win64.zip",
+      "archive_sha256": null,
+      "files": [
+        {
+          "path": "libhqdn3d.dll",
+          "member": "libhqdn3d.dll",
+          "sha256": "5ca3b982b13824488d7ee2ac606d6f0f013e94a974b1c3118dc92713d1efcc43"
+        }
+      ],
+      "dependencies": [],
+      "namespaces": [
+        "hqdn3d"
+      ],
+      "adjacent_from": []
+    },
+    {
+      "id": "knlm",
+      "version": "v1.1.1",
+      "source": "https://github.com/vapoursynth/vsrepo/blob/master/local/knlm.json",
+      "url": "https://github.com/Khanattila/KNLMeansCL/releases/download/v1.1.1/KNLMeansCL-v1.1.1.zip",
+      "archive_sha256": null,
+      "files": [
+        {
+          "path": "KNLMeansCL.dll",
+          "member": "x64/KNLMeansCL.dll",
+          "sha256": "bb60e8fa6cb531daa8d705a338c1188e202e38087f6c6c437fd2d4ee58477a42"
+        }
+      ],
+      "dependencies": [],
+      "namespaces": [
+        "knlm"
+      ],
+      "adjacent_from": []
+    },
+    {
+      "id": "median",
+      "version": "v4",
+      "source": "https://github.com/vapoursynth/vsrepo/blob/master/local/median.json",
+      "url": "https://github.com/dubhatervapoursynth/vapoursynth-median/releases/download/v4/vapoursynth-median-v4-win64.7z",
+      "archive_sha256": null,
+      "files": [
+        {
+          "path": "libmedian.dll",
+          "member": "libmedian.dll",
+          "sha256": "878c0b559eaf48ae11f15ba9907687396e52c8f8e41c303ddec1ec0268802bb6"
+        }
+      ],
+      "dependencies": [],
+      "namespaces": [
+        "median"
+      ],
+      "adjacent_from": []
+    },
+    {
+      "id": "misc",
+      "version": "R2",
+      "source": "https://github.com/vapoursynth/vsrepo/blob/master/local/misc.json",
+      "url": "https://github.com/vapoursynth/vs-miscfilters-obsolete/releases/download/R2/miscfilters-r2.7z",
+      "archive_sha256": null,
+      "files": [
+        {
+          "path": "MiscFilters.dll",
+          "member": "win64/MiscFilters.dll",
+          "sha256": "33d911c2f5fd59d33cabb9056348f821421fd18afc0754e8a29ebfe3a35047ab"
+        }
+      ],
+      "dependencies": [],
+      "namespaces": [
+        "misc"
+      ],
+      "adjacent_from": []
+    },
+    {
+      "id": "mpls",
+      "version": "r5",
+      "source": "https://github.com/vapoursynth/vsrepo/blob/master/local/mpls.json",
+      "url": "https://github.com/HomeOfVapourSynthEvolution/VapourSynth-ReadMpls/releases/download/r5/ReadMpls-r5-win64.7z",
+      "archive_sha256": null,
+      "files": [
+        {
+          "path": "ReadMpls.dll",
+          "member": "ReadMpls.dll",
+          "sha256": "7f4a1da088d889825bdb0197d0fb04f3f2aee4d5c01e2b49023a6857704bdbb1"
+        }
+      ],
+      "dependencies": [],
+      "namespaces": [
+        "mpls"
+      ],
+      "adjacent_from": []
+    },
+    {
+      "id": "msmoosh",
+      "version": "v1.1",
+      "source": "https://github.com/vapoursynth/vsrepo/blob/master/local/msmoosh.json",
+      "url": "https://github.com/dubhatervapoursynth/vapoursynth-msmoosh/releases/download/v1.1/vapoursynth-msmoosh-v1.1-win64.7z",
+      "archive_sha256": null,
+      "files": [
+        {
+          "path": "libmsmoosh.dll",
+          "member": "libmsmoosh.dll",
+          "sha256": "3cc2ced0470e7e4e1115484739f87a81cb02519779049bf84f769afd6acf9544"
+        }
+      ],
+      "dependencies": [],
+      "namespaces": [
+        "msmoosh"
+      ],
+      "adjacent_from": []
+    },
+    {
+      "id": "mv",
+      "version": "v24",
+      "source": "https://github.com/vapoursynth/vsrepo/blob/master/local/mv.json",
+      "url": "https://github.com/dubhatervapoursynth/vapoursynth-mvtools/releases/download/v24/vapoursynth-mvtools-v24-win64.7z",
+      "archive_sha256": null,
+      "files": [
+        {
+          "path": "libmvtools.dll",
+          "member": "libmvtools.dll",
+          "sha256": "530a2f003901a7c0749b0b3797c2a2d2c9b12a2b87c4ca4e9d4ec7937260f091"
+        }
+      ],
+      "dependencies": [
+        "fftw3_library"
+      ],
+      "namespaces": [
+        "mv"
+      ],
+      "adjacent_from": []
+    },
+    {
+      "id": "mvutensils",
+      "version": "9",
+      "source": "https://pypi.org/project/vapoursynth-mvutensils/9/",
+      "url": "https://files.pythonhosted.org/packages/90/f4/92dd31a72569d66f3e76d6d1d472ba4c27838604aea3b0702ccf99e13436/vapoursynth_mvutensils-9-py3-none-win_amd64.whl",
+      "archive_sha256": "67429ff16a6f403feb3279cc88fc2a8328be8f806aee28ac287a201385fc0c8e",
+      "files": [
+        {
+          "path": "mvutensils.dll",
+          "member": "vapoursynth/plugins/mvutensils/mvutensils.dll",
+          "sha256": "e06ba4d7b3f71a074854689d59325dcd5c7c31b49499aa459b24b770e2191b53"
+        }
+      ],
+      "dependencies": [],
+      "namespaces": [
+        "mvu"
+      ],
+      "adjacent_from": []
+    },
+    {
+      "id": "neo_f3kdb",
+      "version": "r10",
+      "source": "https://github.com/vapoursynth/vsrepo/blob/master/local/neo_f3kdb.json",
+      "url": "https://github.com/HomeOfAviSynthPlusEvolution/neo_f3kdb/releases/download/r10/neo_f3kdb_r10.7z",
+      "archive_sha256": null,
+      "files": [
+        {
+          "path": "neo-f3kdb.dll",
+          "member": "x64/neo-f3kdb.dll",
+          "sha256": "d998bb77655221949309235350bf811118c41c83f19f5de097a00bffe0afee32"
+        }
+      ],
+      "dependencies": [],
+      "namespaces": [
+        "neo_f3kdb"
+      ],
+      "adjacent_from": []
+    },
+    {
+      "id": "nnedi3",
+      "version": "v12",
+      "source": "https://github.com/vapoursynth/vsrepo/blob/master/local/nnedi3.json",
+      "url": "https://github.com/dubhatervapoursynth/vapoursynth-nnedi3/releases/download/v12/vapoursynth-nnedi3-v12-win64.7z",
+      "archive_sha256": null,
+      "files": [
+        {
+          "path": "libnnedi3.dll",
+          "member": "libnnedi3.dll",
+          "sha256": "9e3fa8cb07759aa8463a608fe4211ef4d8e2c398f3c4d41e593bdbf5c5440d61"
+        }
+      ],
+      "dependencies": [
+        "nnedi3_weights"
+      ],
+      "namespaces": [
+        "nnedi3"
+      ],
+      "adjacent_from": [
+        "nnedi3_weights"
+      ]
+    },
+    {
+      "id": "nnedi3_weights",
+      "version": "r1",
+      "source": "https://github.com/vapoursynth/vsrepo/blob/master/local/nnedi3_weights.json",
+      "url": "https://github.com/sekrit-twc/znedi3/releases/download/r1/znedi3_r1.7z",
+      "archive_sha256": null,
+      "files": [
+        {
+          "path": "nnedi3_weights.bin",
+          "member": "nnedi3_weights.bin",
+          "sha256": "27f382430435bb7613deb1c52f3c79c300c9869812cfe29079432a9c82251d42"
+        }
+      ],
+      "dependencies": [],
+      "namespaces": [],
+      "adjacent_from": []
+    },
+    {
+      "id": "nnedi3cl",
+      "version": "r8",
+      "source": "https://github.com/vapoursynth/vsrepo/blob/master/local/nnedi3cl.json",
+      "url": "https://github.com/HomeOfVapourSynthEvolution/VapourSynth-NNEDI3CL/releases/download/r8/NNEDI3CL-r8.7z",
+      "archive_sha256": null,
+      "files": [
+        {
+          "path": "NNEDI3CL.dll",
+          "member": "plugins64/NNEDI3CL.dll",
+          "sha256": "4dfb34d51d5b277973ccb2dfb922de702258cf6a1b9eb62de990dd1d72c04a2a"
+        }
+      ],
+      "dependencies": [
+        "nnedi3_weights"
+      ],
+      "namespaces": [
+        "nnedi3cl"
+      ],
+      "adjacent_from": [
+        "nnedi3_weights"
+      ]
+    },
+    {
+      "id": "retinex",
+      "version": "r4",
+      "source": "https://github.com/vapoursynth/vsrepo/blob/master/local/retinex.json",
+      "url": "https://github.com/HomeOfVapourSynthEvolution/VapourSynth-Retinex/releases/download/r4/Retinex-r4.7z",
+      "archive_sha256": null,
+      "files": [
+        {
+          "path": "Retinex.dll",
+          "member": "x64/Retinex.dll",
+          "sha256": "df27bc89d43cbf28b5cae220c4849c3cf973c30944357b6d3e29e4dcaa2955c6"
+        }
+      ],
+      "dependencies": [],
+      "namespaces": [
+        "retinex"
+      ],
+      "adjacent_from": []
+    },
+    {
+      "id": "rgvs",
+      "version": "R1",
+      "source": "https://github.com/vapoursynth/vsrepo/blob/master/local/rgvs.json",
+      "url": "https://github.com/vapoursynth/vs-removegrain/releases/download/R1/removegrain-r1.7z",
+      "archive_sha256": null,
+      "files": [
+        {
+          "path": "RemoveGrainVS.dll",
+          "member": "win64/RemoveGrainVS.dll",
+          "sha256": "eed537d5f0de88fc4d5acac1d3dde16b3c81524565fd1fe5e4322bd91117c3fe"
+        }
+      ],
+      "dependencies": [],
+      "namespaces": [
+        "rgvs"
+      ],
+      "adjacent_from": []
+    },
+    {
+      "id": "sangnom",
+      "version": "r42",
+      "source": "https://github.com/vapoursynth/vsrepo/blob/master/local/sangnom.json",
+      "url": "https://github.com/dubhatervapoursynth/vapoursynth-sangnom/releases/download/r42/vapoursynth-sangnom-r42-win64.7z",
+      "archive_sha256": null,
+      "files": [
+        {
+          "path": "libsangnom.dll",
+          "member": "libsangnom.dll",
+          "sha256": "eb656eb0c7c7b54f62138bda2342d3a4a77fd21df0eb29c991e157a8ae4d82aa"
+        }
+      ],
+      "dependencies": [],
+      "namespaces": [
+        "sangnom"
+      ],
+      "adjacent_from": []
+    },
+    {
+      "id": "sub",
+      "version": "R5",
+      "source": "https://github.com/vapoursynth/vsrepo/blob/master/local/sub.json",
+      "url": "https://github.com/vapoursynth/subtext/releases/download/R5/subtext-r5.7z",
+      "archive_sha256": null,
+      "files": [
+        {
+          "path": "SubText.dll",
+          "member": "win64/SubText.dll",
+          "sha256": "37ce1c6fafdb8788e44e9522ce47efb161c5cdcdc30352bc03104f86599cda80"
+        }
+      ],
+      "dependencies": [],
+      "namespaces": [
+        "sub"
+      ],
+      "adjacent_from": []
+    },
+    {
+      "id": "tcanny",
+      "version": "r14",
+      "source": "https://github.com/vapoursynth/vsrepo/blob/master/local/tcanny.json",
+      "url": "https://github.com/HomeOfVapourSynthEvolution/VapourSynth-TCanny/releases/download/r14/TCanny-r14-win64.7z",
+      "archive_sha256": null,
+      "files": [
+        {
+          "path": "TCanny.dll",
+          "member": "TCanny.dll",
+          "sha256": "372d0399d9806026e5e3631a957525364c5bf06fd43766f111505769ca0c1aca"
+        }
+      ],
+      "dependencies": [],
+      "namespaces": [
+        "tcanny"
+      ],
+      "adjacent_from": []
+    },
+    {
+      "id": "tdm",
+      "version": "r10",
+      "source": "https://github.com/vapoursynth/vsrepo/blob/master/local/tdm.json",
+      "url": "https://github.com/HomeOfVapourSynthEvolution/VapourSynth-TDeintMod/releases/download/r10/TDeintMod-r10.7z",
+      "archive_sha256": null,
+      "files": [
+        {
+          "path": "TDeintMod.dll",
+          "member": "Win64/TDeintMod.dll",
+          "sha256": "b00caef01d9a416273bb6cac02f76781361f84d5f18712deb5984d21c315578b"
+        }
+      ],
+      "dependencies": [],
+      "namespaces": [
+        "tdm"
+      ],
+      "adjacent_from": []
+    },
+    {
+      "id": "tivtc",
+      "version": "v2",
+      "source": "https://github.com/vapoursynth/vsrepo/blob/master/local/tivtc.json",
+      "url": "https://github.com/dubhatervapoursynth/vapoursynth-tivtc/releases/download/v2/vapoursynth-tivtc-v2-win64.7z",
+      "archive_sha256": null,
+      "files": [
+        {
+          "path": "libtivtc.dll",
+          "member": "libtivtc.dll",
+          "sha256": "407cb45c9303ce5e029155d06eaf9a21a410c974e3afea331b157cdab86c6da4"
+        }
+      ],
+      "dependencies": [],
+      "namespaces": [
+        "tivtc"
+      ],
+      "adjacent_from": []
+    },
+    {
+      "id": "tonemap",
+      "version": "R2",
+      "source": "https://github.com/vapoursynth/vsrepo/blob/master/local/tonemap.json",
+      "url": "https://github.com/ifb/vapoursynth-tonemap/releases/download/R2/tonemap-r2-win64.7z",
+      "archive_sha256": null,
+      "files": [
+        {
+          "path": "tonemap.dll",
+          "member": "tonemap.dll",
+          "sha256": "f93d2f5e46d9b45eb813478a0ed1babfc2a900c9f3f1afe47a13638bd953bee8"
+        }
+      ],
+      "dependencies": [],
+      "namespaces": [
+        "tonemap"
+      ],
+      "adjacent_from": []
+    },
+    {
+      "id": "ttmpsm",
+      "version": "r4.1",
+      "source": "https://github.com/vapoursynth/vsrepo/blob/master/local/ttmpsm.json",
+      "url": "https://github.com/HomeOfVapourSynthEvolution/VapourSynth-TTempSmooth/releases/download/r4.1/TTempSmooth-r4.1-win64.7z",
+      "archive_sha256": null,
+      "files": [
+        {
+          "path": "TTempSmooth.dll",
+          "member": "TTempSmooth.dll",
+          "sha256": "0e3b2b94528544de50f6eeb44f5e68461145240dd99c698400daf151a97b7923"
+        }
+      ],
+      "dependencies": [],
+      "namespaces": [
+        "ttmpsm"
+      ],
+      "adjacent_from": []
+    },
+    {
+      "id": "vivtc",
+      "version": "R1",
+      "source": "https://github.com/vapoursynth/vsrepo/blob/master/local/vivtc.json",
+      "url": "https://github.com/vapoursynth/vivtc/releases/download/R1/vivtc-r1.7z",
+      "archive_sha256": null,
+      "files": [
+        {
+          "path": "VIVTC.dll",
+          "member": "win64/VIVTC.dll",
+          "sha256": "53f52a50daac380729794ccaad0a596bec93001bd48a74f26405ecd8fcbd2f0d"
+        }
+      ],
+      "dependencies": [],
+      "namespaces": [
+        "vivtc"
+      ],
+      "adjacent_from": []
+    },
+    {
+      "id": "vmaf",
+      "version": "r10",
+      "source": "https://github.com/vapoursynth/vsrepo/blob/master/local/vmaf.json",
+      "url": "https://github.com/HomeOfVapourSynthEvolution/VapourSynth-VMAF/releases/download/r10/VMAF-r10-win64.7z",
+      "archive_sha256": null,
+      "files": [
+        {
+          "path": "VMAF.dll",
+          "member": "VMAF.dll",
+          "sha256": "413561ab967cea4038ad33c55e830f3e9ce00fe86fb1915253403f3d93340a83"
+        }
+      ],
+      "dependencies": [],
+      "namespaces": [
+        "vmaf"
+      ],
+      "adjacent_from": []
+    },
+    {
+      "id": "vsfm",
+      "version": "r5.2.6",
+      "source": "https://github.com/vapoursynth/vsrepo/blob/master/local/vsfm.json",
+      "url": "https://github.com/sorayuki/VSFilterMod/releases/download/r5.2.6/VSFilterMod_bin.zip",
+      "archive_sha256": null,
+      "files": [
+        {
+          "path": "VSFilterMod.dll",
+          "member": "x64/VSFilterMod.dll",
+          "sha256": "87a9c3c1ab7614eda22b8fb367840a87fd34c0c7fb92d7c4d3aa6bb0b2a6ee6b"
+        }
+      ],
+      "dependencies": [],
+      "namespaces": [
+        "vsfm"
+      ],
+      "adjacent_from": []
+    },
+    {
+      "id": "w2xnvk",
+      "version": "r5",
+      "source": "https://github.com/vapoursynth/vsrepo/blob/master/local/w2xnvk.json",
+      "url": "https://github.com/Nlzy/vapoursynth-waifu2x-ncnn-vulkan/releases/download/r5/vsw2xnvk-r5-win64.7z",
+      "archive_sha256": null,
+      "files": [
+        {
+          "path": "vsw2xnvk.dll",
+          "member": "vsw2xnvk.dll",
+          "sha256": "eb6aa1717aed59e92a413294a3cf8f606b064bf2f728ed4394b130ad15caea5e"
+        }
+      ],
+      "dependencies": [
+        "w2xnvk_models"
+      ],
+      "namespaces": [
+        "w2xnvk"
+      ],
+      "adjacent_from": [
+        "w2xnvk_models"
+      ]
+    },
+    {
+      "id": "w2xnvk_models",
+      "version": "r0.1",
+      "source": "https://github.com/vapoursynth/vsrepo/blob/master/local/w2xnvk_models.json",
+      "url": "https://github.com/Nlzy/vapoursynth-waifu2x-ncnn-vulkan/releases/download/r0.1/models.7z",
+      "archive_sha256": null,
+      "files": [
+        {
+          "path": "models-cunet/noise0_model.bin",
+          "member": "models-cunet/noise0_model.bin",
+          "sha256": "b15c356a36bcbf6fb8c2f1404ca016fd917d4e45426bcf41f7a3867022fdd7b0"
+        },
+        {
+          "path": "models-cunet/noise0_model.param",
+          "member": "models-cunet/noise0_model.param",
+          "sha256": "4513ef004281bd50cdbed325df500df9aec154e8495190f578f09414c75f10f9"
+        },
+        {
+          "path": "models-cunet/noise0_scale2.0x_model.bin",
+          "member": "models-cunet/noise0_scale2.0x_model.bin",
+          "sha256": "5329a9375c9cfb64a60a2903fd8ae6e2851d9b069556bf025dbab9d0216fb27c"
+        },
+        {
+          "path": "models-cunet/noise0_scale2.0x_model.param",
+          "member": "models-cunet/noise0_scale2.0x_model.param",
+          "sha256": "ccc3b2f1c9fad829ecdda40cac8dc853fcddf14917170efba888b256fbf9074a"
+        },
+        {
+          "path": "models-cunet/noise1_model.bin",
+          "member": "models-cunet/noise1_model.bin",
+          "sha256": "3407cb87c2503cbd69f8a6703b31bc4949a72080a3e1b1e536dba8bdbfad934f"
+        },
+        {
+          "path": "models-cunet/noise1_model.param",
+          "member": "models-cunet/noise1_model.param",
+          "sha256": "4513ef004281bd50cdbed325df500df9aec154e8495190f578f09414c75f10f9"
+        },
+        {
+          "path": "models-cunet/noise1_scale2.0x_model.bin",
+          "member": "models-cunet/noise1_scale2.0x_model.bin",
+          "sha256": "862c0e40f3df956ff57bd4d168c85dea5d375b614077fdddd3ac8cfdb9a686da"
+        },
+        {
+          "path": "models-cunet/noise1_scale2.0x_model.param",
+          "member": "models-cunet/noise1_scale2.0x_model.param",
+          "sha256": "ccc3b2f1c9fad829ecdda40cac8dc853fcddf14917170efba888b256fbf9074a"
+        },
+        {
+          "path": "models-cunet/noise2_model.bin",
+          "member": "models-cunet/noise2_model.bin",
+          "sha256": "b45d5febeb56166b7aff055cb0fbb87647dae528968f97d838dfd7ce0b7117f4"
+        },
+        {
+          "path": "models-cunet/noise2_model.param",
+          "member": "models-cunet/noise2_model.param",
+          "sha256": "4513ef004281bd50cdbed325df500df9aec154e8495190f578f09414c75f10f9"
+        },
+        {
+          "path": "models-cunet/noise2_scale2.0x_model.bin",
+          "member": "models-cunet/noise2_scale2.0x_model.bin",
+          "sha256": "5c836e6ae022636cdd5590fbb66dbca2a5fc20bbf8e628884c3612ef72d51858"
+        },
+        {
+          "path": "models-cunet/noise2_scale2.0x_model.param",
+          "member": "models-cunet/noise2_scale2.0x_model.param",
+          "sha256": "ccc3b2f1c9fad829ecdda40cac8dc853fcddf14917170efba888b256fbf9074a"
+        },
+        {
+          "path": "models-cunet/noise3_model.bin",
+          "member": "models-cunet/noise3_model.bin",
+          "sha256": "cd3d2440673d28d7a20aa6428a2a79e1c5e733f21de0a66785958f98d6994926"
+        },
+        {
+          "path": "models-cunet/noise3_model.param",
+          "member": "models-cunet/noise3_model.param",
+          "sha256": "4513ef004281bd50cdbed325df500df9aec154e8495190f578f09414c75f10f9"
+        },
+        {
+          "path": "models-cunet/noise3_scale2.0x_model.bin",
+          "member": "models-cunet/noise3_scale2.0x_model.bin",
+          "sha256": "f42c18610fecb14a40f75cca9b9276a6889689d5937a4f75f0c2b21bde7e49ed"
+        },
+        {
+          "path": "models-cunet/noise3_scale2.0x_model.param",
+          "member": "models-cunet/noise3_scale2.0x_model.param",
+          "sha256": "ccc3b2f1c9fad829ecdda40cac8dc853fcddf14917170efba888b256fbf9074a"
+        },
+        {
+          "path": "models-cunet/scale2.0x_model.bin",
+          "member": "models-cunet/scale2.0x_model.bin",
+          "sha256": "d82ed30207fd07e1c16726a9ca838ce44e6e25a105b0278c7ca681516ee0e18e"
+        },
+        {
+          "path": "models-cunet/scale2.0x_model.param",
+          "member": "models-cunet/scale2.0x_model.param",
+          "sha256": "ccc3b2f1c9fad829ecdda40cac8dc853fcddf14917170efba888b256fbf9074a"
+        },
+        {
+          "path": "models-upconv_7_anime_style_art_rgb/noise0_scale2.0x_model.bin",
+          "member": "models-upconv_7_anime_style_art_rgb/noise0_scale2.0x_model.bin",
+          "sha256": "e1d2c4d91be98e72c0d48d08626cbe7d879aa2b80f740133dcc0d860eabb4189"
+        },
+        {
+          "path": "models-upconv_7_anime_style_art_rgb/noise0_scale2.0x_model.param",
+          "member": "models-upconv_7_anime_style_art_rgb/noise0_scale2.0x_model.param",
+          "sha256": "413195ffde05b4d43807792c6c020c916cecdf25dcf002ee83f5e28d5cc246c6"
+        },
+        {
+          "path": "models-upconv_7_anime_style_art_rgb/noise1_scale2.0x_model.bin",
+          "member": "models-upconv_7_anime_style_art_rgb/noise1_scale2.0x_model.bin",
+          "sha256": "536fd7070b023463d30bd105f675acf301760dce539f2fb974bd06906045514f"
+        },
+        {
+          "path": "models-upconv_7_anime_style_art_rgb/noise1_scale2.0x_model.param",
+          "member": "models-upconv_7_anime_style_art_rgb/noise1_scale2.0x_model.param",
+          "sha256": "413195ffde05b4d43807792c6c020c916cecdf25dcf002ee83f5e28d5cc246c6"
+        },
+        {
+          "path": "models-upconv_7_anime_style_art_rgb/noise2_scale2.0x_model.bin",
+          "member": "models-upconv_7_anime_style_art_rgb/noise2_scale2.0x_model.bin",
+          "sha256": "435f9082425c4520d3586757411ac409b1d67e428ed37ec571feb06f823e245e"
+        },
+        {
+          "path": "models-upconv_7_anime_style_art_rgb/noise2_scale2.0x_model.param",
+          "member": "models-upconv_7_anime_style_art_rgb/noise2_scale2.0x_model.param",
+          "sha256": "413195ffde05b4d43807792c6c020c916cecdf25dcf002ee83f5e28d5cc246c6"
+        },
+        {
+          "path": "models-upconv_7_anime_style_art_rgb/noise3_scale2.0x_model.bin",
+          "member": "models-upconv_7_anime_style_art_rgb/noise3_scale2.0x_model.bin",
+          "sha256": "3e783a9117d4564fbd0cc376375b29d7eb05bd2e457f748898e82eefb1ace2f1"
+        },
+        {
+          "path": "models-upconv_7_anime_style_art_rgb/noise3_scale2.0x_model.param",
+          "member": "models-upconv_7_anime_style_art_rgb/noise3_scale2.0x_model.param",
+          "sha256": "413195ffde05b4d43807792c6c020c916cecdf25dcf002ee83f5e28d5cc246c6"
+        },
+        {
+          "path": "models-upconv_7_anime_style_art_rgb/scale2.0x_model.bin",
+          "member": "models-upconv_7_anime_style_art_rgb/scale2.0x_model.bin",
+          "sha256": "27d880903ff81390a3b4a900b67af3381c465279e34297546c9a58781855f7ef"
+        },
+        {
+          "path": "models-upconv_7_anime_style_art_rgb/scale2.0x_model.param",
+          "member": "models-upconv_7_anime_style_art_rgb/scale2.0x_model.param",
+          "sha256": "413195ffde05b4d43807792c6c020c916cecdf25dcf002ee83f5e28d5cc246c6"
+        },
+        {
+          "path": "models-upconv_7_photo/noise0_scale2.0x_model.bin",
+          "member": "models-upconv_7_photo/noise0_scale2.0x_model.bin",
+          "sha256": "fbfc8d57e4333748c9c6db2ec4d5454c98cd1c6aa53289f2989c3bdb4e84b673"
+        },
+        {
+          "path": "models-upconv_7_photo/noise0_scale2.0x_model.param",
+          "member": "models-upconv_7_photo/noise0_scale2.0x_model.param",
+          "sha256": "413195ffde05b4d43807792c6c020c916cecdf25dcf002ee83f5e28d5cc246c6"
+        },
+        {
+          "path": "models-upconv_7_photo/noise1_scale2.0x_model.bin",
+          "member": "models-upconv_7_photo/noise1_scale2.0x_model.bin",
+          "sha256": "9f8ce2c4df1ed862a7441e3b49ad965b8e34aaa6d87c1cad52a1768210fdfee6"
+        },
+        {
+          "path": "models-upconv_7_photo/noise1_scale2.0x_model.param",
+          "member": "models-upconv_7_photo/noise1_scale2.0x_model.param",
+          "sha256": "413195ffde05b4d43807792c6c020c916cecdf25dcf002ee83f5e28d5cc246c6"
+        },
+        {
+          "path": "models-upconv_7_photo/noise2_scale2.0x_model.bin",
+          "member": "models-upconv_7_photo/noise2_scale2.0x_model.bin",
+          "sha256": "432ca8f62ffc4873794a399ded70b17af23aa870b25e5ddba76f029b7ce14c2b"
+        },
+        {
+          "path": "models-upconv_7_photo/noise2_scale2.0x_model.param",
+          "member": "models-upconv_7_photo/noise2_scale2.0x_model.param",
+          "sha256": "413195ffde05b4d43807792c6c020c916cecdf25dcf002ee83f5e28d5cc246c6"
+        },
+        {
+          "path": "models-upconv_7_photo/noise3_scale2.0x_model.bin",
+          "member": "models-upconv_7_photo/noise3_scale2.0x_model.bin",
+          "sha256": "a24379eb4e954005da1804223f428e67340e3f0037e4f7b9f568f0d0f20e9f20"
+        },
+        {
+          "path": "models-upconv_7_photo/noise3_scale2.0x_model.param",
+          "member": "models-upconv_7_photo/noise3_scale2.0x_model.param",
+          "sha256": "413195ffde05b4d43807792c6c020c916cecdf25dcf002ee83f5e28d5cc246c6"
+        },
+        {
+          "path": "models-upconv_7_photo/scale2.0x_model.bin",
+          "member": "models-upconv_7_photo/scale2.0x_model.bin",
+          "sha256": "25a2bb25b29e43e63179aac216cd87690791243a436328506d4ef9fca88ee962"
+        },
+        {
+          "path": "models-upconv_7_photo/scale2.0x_model.param",
+          "member": "models-upconv_7_photo/scale2.0x_model.param",
+          "sha256": "413195ffde05b4d43807792c6c020c916cecdf25dcf002ee83f5e28d5cc246c6"
+        }
+      ],
+      "dependencies": [],
+      "namespaces": [],
+      "adjacent_from": []
+    },
+    {
+      "id": "warp",
+      "version": "v4",
+      "source": "https://github.com/vapoursynth/vsrepo/blob/master/local/warp.json",
+      "url": "https://github.com/dubhatervapoursynth/vapoursynth-awarpsharp2/releases/download/v4/vapoursynth-awarpsharp2-v4-win64.7z",
+      "archive_sha256": null,
+      "files": [
+        {
+          "path": "libawarpsharp2.dll",
+          "member": "libawarpsharp2.dll",
+          "sha256": "cea13e4ecf0d430e42a6455cb3a608d4eddd7f2c13f1215489604667b4bd8093"
+        }
+      ],
+      "dependencies": [],
+      "namespaces": [
+        "warp"
+      ],
+      "adjacent_from": []
+    },
+    {
+      "id": "xyvsf",
+      "version": "r3",
+      "source": "https://github.com/vapoursynth/vsrepo/blob/master/local/xyvsf.json",
+      "url": "https://github.com/HomeOfVapourSynthEvolution/xy-VSFilter/releases/download/r3/xy-VSFilter-r3.7z",
+      "archive_sha256": null,
+      "files": [
+        {
+          "path": "xy-VSFilter.dll",
+          "member": "plugins64/xy-VSFilter.dll",
+          "sha256": "c011c93c285f976f9446e52e66e4cd035be6956721c568b4a386a528f22380ce"
+        }
+      ],
+      "dependencies": [],
+      "namespaces": [
+        "xyvsf"
+      ],
+      "adjacent_from": []
+    },
+    {
+      "id": "yadifmod",
+      "version": "r10",
+      "source": "https://github.com/vapoursynth/vsrepo/blob/master/local/yadifmod.json",
+      "url": "https://github.com/HomeOfVapourSynthEvolution/VapourSynth-Yadifmod/releases/download/r10/Yadifmod-r10.7z",
+      "archive_sha256": null,
+      "files": [
+        {
+          "path": "Yadifmod.dll",
+          "member": "Win64/Yadifmod.dll",
+          "sha256": "62575a35d1182ade1d878469dafc5de0c568a39f523114a003c28554bf5401a1"
+        }
+      ],
+      "dependencies": [],
+      "namespaces": [
+        "yadifmod"
+      ],
+      "adjacent_from": []
+    },
+    {
+      "id": "znedi3",
+      "version": "r3.3",
+      "source": "https://github.com/vapoursynth/vsrepo/blob/master/local/znedi3.json",
+      "url": "https://github.com/sekrit-twc/znedi3/releases/download/r3.3/znedi3_r3.3.7z",
+      "archive_sha256": null,
+      "files": [
+        {
+          "path": "vsznedi3.dll",
+          "member": "vsznedi3.dll",
+          "sha256": "5c1dd6cc681bb1a812b0285349179e185f2f5962e816810e963af8a3b018a9aa"
+        }
+      ],
+      "dependencies": [
+        "nnedi3_weights"
+      ],
+      "namespaces": [
+        "znedi3"
+      ],
+      "adjacent_from": [
+        "nnedi3_weights"
+      ]
+    }
+  ]
+}

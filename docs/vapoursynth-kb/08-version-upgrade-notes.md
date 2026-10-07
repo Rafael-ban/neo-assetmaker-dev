@@ -50,12 +50,19 @@ CI 需要媒体包 URL 与 ZIP SHA-256：通过 `media_tools_url/media_tools_sha
 附件大小 127,806,386 字节，GitHub 返回的 SHA-256 与本地包一致：
 `50f86a516fbfc97812e2c6ea500ba1a06937d4cda5e2bc211c071309a6ce7dd4`。
 CI 下载地址应指向该发布页中的 `media-tools-r79-v1.zip` 附件。未认证请求读取
-Actions 变量返回 401，故变量配置尚未核实；最近成功 Build 对应旧提交 `894e85d`，
-不能作为 R79 构建通过的证据。
+Actions 变量当时返回 401。2026-10-08 补充核对：`e16aba0` 的
+[Build 34881717962](https://github.com/Rafael-ban/neo-assetmaker-dev/actions/runs/34881717962)
+已成功完成 R79 媒体下载、Python 测试、cx_Freeze 和冻结 worker 自检。该次运行
+跳过安装包、便携包验证及附件上传；不覆盖本次尚未推送的滤镜配置重构。
 
-后续验收仍需：在目标目录部署完整 R79 包、生成保留的冻结产物、运行 frozen
-worker/VSPipe，并用真实素材验证预览、导出、编码回读及便携包解压后的行为。
-已安装的应用版本需独立核对，不能由源码合并推定。
+本次工作树已部署完整 R79 基础包及独立扩展插件，实际枚举与教程的 62 个命名
+空间、306 个函数逐项匹配；加上原有 imwri，共 63 个命名空间、308 个函数。
+此部署不更改主目录 `D:\Project_Folder\neo-assetmaker-dev` 的二进制。
+锁定清单与安装方式见 [17 默认滤镜参数与扩展插件](17-filter-configuration.md)。
+
+2026-10-08 工作树已完成本地冻结/便携构建，解压产物的实际 worker 帧请求、
+VSPipe 平面一致性、编码和回读检查通过，具体测试边界见 [17](17-filter-configuration.md)。
+完整 GUI、目标设备及已安装应用仍需独立验收，不能由源码或本地验证包推定。
 
 ## 当前复核命令
 

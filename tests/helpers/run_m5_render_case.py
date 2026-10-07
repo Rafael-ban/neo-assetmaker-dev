@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import gc
 import hashlib
 import json
 import os
@@ -73,13 +74,14 @@ def _vspipe_plane_digests(toolchain, request, index: int) -> dict[str, str]:
 
 
 def _preview_export_contract() -> dict[str, object]:
-    import cv2
     import numpy as np
     from PIL import Image
 
     from core.media_pipeline import MediaEncoder
     from core.media_tools import MediaToolchain
+    from core.vs_runtime.vs_loader import load_vapoursynth
     from core.vs_runtime.worker_process import SyncVSWorkerProcess
+    from resources.vapoursynth.python.assetmaker_vs.display import to_display_clip
     from tests.helpers.m5_render_fixture import (
         build_default_render_session,
         preflight_encode_request,
@@ -145,13 +147,31 @@ def _preview_export_contract() -> dict[str, object]:
                 )
         output = root / "encoded.mp4"
         MediaEncoder(toolchain).encode_vpy_to_mp4(request, str(output), fps, vui=vui)
-        capture = cv2.VideoCapture(str(output))
+        vs = load_vapoursynth(ROOT, request.runtime)
+        encoded_clip = vs.core.lsmas.LWLibavSource(str(output))
+        if (
+            encoded_clip.fps_num * fps.denominator
+            != fps.numerator * encoded_clip.fps_den
+        ):
+            raise AssertionError("encoded FPS differs from frozen job")
+        display_clip = to_display_clip(
+            encoded_clip,
+            viewport=(384, 640),
+            zoom_factor=1.0,
+            pan=(0.5, 0.5),
+        )
+        frame = display_clip.get_frame(0)
         try:
-            ok, encoded = capture.read()
+            rgb = np.stack(
+                [
+                    np.asarray(frame[plane])[: frame.height, : frame.width]
+                    for plane in range(3)
+                ],
+                axis=2,
+            )
+            encoded = rgb[:, :, ::-1].copy()
         finally:
-            capture.release()
-        if not ok or encoded is None:
-            raise RuntimeError("cannot decode fixed-runner MP4")
+            frame.close()
         if preview.shape != encoded.shape:
             raise AssertionError(f"geometry mismatch: {preview.shape} != {encoded.shape}")
         difference = np.abs(preview.astype(np.int16) - encoded.astype(np.int16))
@@ -186,6 +206,8 @@ def _preview_export_contract() -> dict[str, object]:
             "_Range": 0,
         }:
             raise AssertionError(f"encoded VUI props mismatch: {encoded_props}")
+        del frame, display_clip, encoded_clip
+        gc.collect()
     return {
         "status": "ok",
         "plane_digests": plane_digests,

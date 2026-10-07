@@ -18,9 +18,9 @@ contract 为准，尤其是 `_Range` 的写法；见 [01](01-colour-range-props.
 复制 `resources/vapoursynth/default_pipeline.vpy` 是最稳定的起点。它已经实现：
 
 ```text
-source → 图片首帧/AssumeFPS → rotation → 图片 Loop
-       → output 1 → [start:end) → crop → matrix 补标
-       → Bicubic/YUV420P8 → AddBorders → 可选 180°
+source → 图片首帧/AssumeFPS → 缺失颜色标签补充 → rotation → 图片 Loop
+       → output 1 → [start:end) → crop → process_source
+       → Spline36/色彩转换/YUV420P8 → AddBorders → 可选 180°
        → color props → output 0
 ```
 

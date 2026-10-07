@@ -19,7 +19,12 @@ viewport.width/height > 0
 无论请求 `editor` 还是 `final` surface，先执行：
 
 ```python
-rgb = core.resize.Bicubic(clip, format=vs.RGB24)
+rgb = core.resize.Bicubic(
+    clip, format=vs.RGB24,
+    transfer_in_s="srgb" if clip.format.color_family == vs.RGB else "709",
+    primaries_in_s="709", transfer_s="srgb", primaries_s="709",
+    range_s="full", dither_type="error_diffusion",
+)
 fit = min(viewport_width / rgb.width, viewport_height / rgb.height)
 ```
 
@@ -28,7 +33,7 @@ Qt。
 
 ## 1%–100%：完整画面缩放
 
-当 `zoom_factor <= 1.0`，实现按 fit 尺寸乘倍率，再用 Bicubic 输出：
+当 `zoom_factor <= 1.0`，实现按 fit 尺寸乘倍率，再用 Spline36 输出：
 
 ```python
 output_width = round(fit_width * zoom_factor)

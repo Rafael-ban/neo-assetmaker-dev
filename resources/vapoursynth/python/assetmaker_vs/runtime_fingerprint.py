@@ -294,6 +294,16 @@ def compute_runtime_fingerprint(
             root / "resources" / "vapoursynth" / "python" / "assetmaker_vs",
         ),
     ]
+    for directory in layout.bundled_native_plugin_dirs:
+        if directory.is_relative_to(layout.runtime_root):
+            continue  # Already included in the base runtime distribution above.
+        for path in sorted(directory.rglob("*")):
+            if path.is_file() and "__pycache__" not in path.parts:
+                _file(
+                    digest,
+                    f"bundled/{path.relative_to(root / 'tools' / 'vs-plugins').as_posix()}",
+                    path,
+                )
     directories.extend(
         (f"native-{index}", Path(path).resolve())
         for index, path in enumerate(native_dirs)

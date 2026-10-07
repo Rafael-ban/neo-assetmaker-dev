@@ -28,6 +28,7 @@
 | 你要解决的问题 | 先读 |
 |---|---|
 | 写第一份项目脚本、导入视频/图片、添加滤镜 | [13 用户 VPY ABI](13-user-vpy-abi.md) |
+| 默认滤镜参数、教程插件安装/更新/清理 | [17 滤镜配置](17-filter-configuration.md) |
 | 脚本为何能预览、如何避免过时帧覆盖新画面 | [07 帧生命周期](07-frame-lifetime-threading.md)、[14 worker 协议](14-worker-protocol.md) |
 | `set_output()`、尺寸/颜色/帧率为何导出失败 | [15 输出契约](15-output-contract.md) |
 | 项目脚本是否安全、为何修改后要再次确认 | [13 用户 VPY ABI](13-user-vpy-abi.md)、[16 脚本信任](16-script-trust.md) |
@@ -58,6 +59,7 @@
 | 14 | [worker-protocol.md](14-worker-protocol.md) | 预览 worker、epoch、mmap 与恢复 |
 | 15 | [output-contract.md](15-output-contract.md) | output 0/1 与设备编码约束 |
 | 16 | [script-trust.md](16-script-trust.md) | 来源、bundle hash 与本机信任 |
+| 17 | [filter-configuration.md](17-filter-configuration.md) | 默认参数、扩展插件分发及教程修正 |
 
 ## 证据等级
 

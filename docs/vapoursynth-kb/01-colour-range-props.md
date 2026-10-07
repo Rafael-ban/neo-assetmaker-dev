@@ -20,7 +20,7 @@
 旧值会被别名访问遮蔽，无法证明两者一致。不能借兼容读取把旧物理键当作已校验。
 普通映射可用于独立合同输入/测试；若提供两个键，解析后语义必须一致。
 
-默认脚本先通过 `resize.Bicubic(..., range_s=...)` 转换像素，再用
+默认脚本先通过 `resize.Spline36(..., range_s=...)` 转换像素，再用
 `SetFrameProps(..., _Range=range_codes[output["range"]])` 写标签。当前设备
 profile 为 limited，编码器对应 `--range tv`。frame props 只是元数据，
 不能替代像素转换；详见 [15 输出契约](15-output-contract.md)。
