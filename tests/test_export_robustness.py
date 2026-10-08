@@ -118,7 +118,7 @@ def _valid_render_session(root: Path, *, track: str = "loop"):
                 "profile": "360x640",
                 "display_width": 360,
                 "display_height": 640,
-                "coded_width": 384,
+                "coded_width": 360,
                 "coded_height": 640,
                 "pixel_format": "YUV420P8",
                 "matrix": "170m",

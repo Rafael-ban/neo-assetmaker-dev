@@ -965,7 +965,7 @@ def _job_payload(
             "profile": "360x640",
             "display_width": 360,
             "display_height": 640,
-            "coded_width": 384,
+            "coded_width": 360,
             "coded_height": 640,
             "pixel_format": "YUV420P8",
             "matrix": "170m",
@@ -990,7 +990,7 @@ def _raw_header() -> dict[str, object]:
 
 def _tagged_clip(vs, *, length: int = 5):
     clip = vs.core.std.BlankClip(
-        width=384,
+        width=360,
         height=640,
         length=length,
         fpsnum=30000,
@@ -1316,7 +1316,7 @@ def _range_probe_case() -> dict[str, object]:
 
     binding = sys.modules["vapoursynth.vapoursynth"]
     base = vs.core.std.BlankClip(
-        width=384,
+        width=360,
         height=640,
         length=5,
         fpsnum=30000,
@@ -1603,9 +1603,11 @@ def _display_center_case() -> dict[str, object]:
 
 def _output_payload(profile: str) -> dict[str, object]:
     if profile == "360x640":
-        geometry = (360, 640, 384, 640)
-    elif profile == "720x1080":
-        geometry = (720, 1080, 720, 1080)
+        geometry = (360, 640, 360, 640)
+    elif profile == "720x1280":
+        geometry = (720, 1280, 720, 1280)
+    elif profile == "800x1280":
+        geometry = (800, 1280, 800, 1280)
     else:
         raise ValueError(profile)
     display_width, display_height, coded_width, coded_height = geometry
@@ -1886,7 +1888,7 @@ def _default_video_case() -> dict[str, object]:
             fps=None,
             rotation=90,
             crop=(0, 0, 0, 0),
-            profile="720x1080",
+            profile="720x1280",
             epoch=12,
         )
         vs, bootstrap_graph, bootstrap_validated = _execute_default(
@@ -1907,7 +1909,7 @@ def _default_video_case() -> dict[str, object]:
             fps=(30000, 1001),
             rotation=90,
             crop=(1, 1, 999, 999),
-            profile="720x1080",
+            profile="720x1280",
             epoch=13,
         )
         vs, resolved_graph, resolved_validated = _execute_default(
@@ -2107,6 +2109,23 @@ def _frame_digest(frame) -> str:
     return digest.hexdigest()
 
 
+def _visible_plane_bytes(frame, plane: int) -> bytes:
+    """忽略 VapourSynth 每行 stride 后的 padding，只取 8-bit 有效像素。"""
+    import numpy as np
+
+    if frame.format.bytes_per_sample != 1:
+        raise AssertionError("P7 fixture expects 8-bit output")
+    width = frame.width >> (frame.format.subsampling_w if plane else 0)
+    height = frame.height >> (frame.format.subsampling_h if plane else 0)
+    array = np.asarray(frame[plane])
+    if array.ndim != 2 or array.shape[0] < height or array.shape[1] < width:
+        raise AssertionError("P7 plane view is smaller than visible pixels")
+    return b"".join(
+        array[row, :width].tobytes(order="C")
+        for row in range(height)
+    )
+
+
 def _default_p7_case() -> dict[str, object]:
     vs = _load_vs()
     with tempfile.TemporaryDirectory() as temp_dir:
@@ -2118,6 +2137,7 @@ def _default_p7_case() -> dict[str, object]:
         source_matrix = int(source_frame.props.get("_Matrix", 2))
         source_frame.close()
         digests: list[str] = []
+        rendered_planes: list[tuple[bytes, ...]] = []
         for epoch, crop in (
             (21, (0, 0, 450, 800)),
             (22, (0, 0, 404, 718)),
@@ -2139,15 +2159,26 @@ def _default_p7_case() -> dict[str, object]:
             _vs, graph, validated = _execute_default(job, for_export=True)
             frame = validated.guarded_clip.get_frame(0)
             digests.append(_frame_digest(frame))
+            rendered_planes.append(
+                tuple(
+                    _visible_plane_bytes(frame, plane)
+                    for plane in range(frame.format.num_planes)
+                )
+            )
             frame.close()
             graph.close()
             vs.clear_outputs()
             del validated, graph
             gc.collect()
+    max_plane_delta = max(
+        abs(left - right)
+        for first, second in zip(*rendered_planes)
+        for left, right in zip(first, second)
+    )
     return {
         "source_matrix": source_matrix,
         "digests": digests,
-        "equal": digests[0] == digests[1],
+        "max_plane_delta": max_plane_delta,
     }
 
 

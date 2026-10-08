@@ -5,6 +5,8 @@ import json
 import subprocess
 import sys
 import unittest
+from types import SimpleNamespace
+from unittest.mock import Mock, patch
 from pathlib import Path
 
 
@@ -36,6 +38,47 @@ def _run_child(case: str) -> subprocess.CompletedProcess[str]:
 
 
 class DisplayValidationTests(unittest.TestCase):
+    def test_fit_combines_resize_and_rgb_conversion(self):
+        display = _display_module()
+        source = SimpleNamespace(
+            width=3840, height=2160, format=SimpleNamespace(color_family=1)
+        )
+        resize = SimpleNamespace(Bicubic=Mock(), Spline36=Mock())
+        vs = SimpleNamespace(RGB=2, RGB24=3, core=SimpleNamespace(resize=resize))
+        with patch.dict(sys.modules, {"vapoursynth": vs}):
+            display.to_display_clip(
+                source, viewport=(480, 270), zoom_factor=1.0, pan=(0.5, 0.5)
+            )
+        resize.Bicubic.assert_not_called()
+        args, kwargs = resize.Spline36.call_args
+        self.assertIs(args[0], source)
+        self.assertEqual((kwargs["width"], kwargs["height"]), (480, 270))
+        self.assertEqual(kwargs["format"], vs.RGB24)
+        self.assertEqual(kwargs["transfer_s"], "srgb")
+        self.assertEqual(kwargs["range_s"], "full")
+
+    def test_loaded_graph_reuses_only_last_display_parameters(self):
+        from core.vs_runtime.worker_main import _LoadedGraph
+
+        graph = _LoadedGraph(1, {}, {}, None, None, None)
+        fields = dict(
+            surface="editor", viewport=(480, 270), zoom_factor=1.0,
+            pan=(0.5, 0.5), index=0,
+        )
+        source = object()
+        with patch(
+            "resources.vapoursynth.python.assetmaker_vs.display.to_display_clip",
+            side_effect=lambda *args, **kwargs: object(),
+        ) as build:
+            first = graph.display_for(source, fields)
+            fields["index"] = 12
+            self.assertIs(graph.display_for(source, fields), first)
+            fields["zoom_factor"] = 2.0
+            self.assertIsNot(graph.display_for(source, fields), first)
+            fields["zoom_factor"] = 1.0
+            self.assertIsNot(graph.display_for(source, fields), first)
+            self.assertEqual(build.call_count, 3)
+
     def test_zoom_and_viewport_bounds_are_explicit(self):
         display = _display_module()
         for zoom in (0.0, 0.009, 100.001):

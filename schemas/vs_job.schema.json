@@ -167,7 +167,7 @@
         "final_rotate_180"
       ],
       "properties": {
-        "profile": {"enum": ["360x640", "720x1080"]},
+        "profile": {"enum": ["360x640", "720x1280", "800x1280"]},
         "display_width": {"type": "integer", "minimum": 1},
         "display_height": {"type": "integer", "minimum": 1},
         "coded_width": {"type": "integer", "minimum": 1},
@@ -185,18 +185,28 @@
             "profile": {"const": "360x640"},
             "display_width": {"const": 360},
             "display_height": {"const": 640},
-            "coded_width": {"const": 384},
+            "coded_width": {"const": 360},
             "coded_height": {"const": 640},
             "final_rotate_180": {"const": false}
           }
         },
         {
           "properties": {
-            "profile": {"const": "720x1080"},
+            "profile": {"const": "720x1280"},
             "display_width": {"const": 720},
-            "display_height": {"const": 1080},
+            "display_height": {"const": 1280},
             "coded_width": {"const": 720},
-            "coded_height": {"const": 1080},
+            "coded_height": {"const": 1280},
+            "final_rotate_180": {"const": false}
+          }
+        },
+        {
+          "properties": {
+            "profile": {"const": "800x1280"},
+            "display_width": {"const": 800},
+            "display_height": {"const": 1280},
+            "coded_width": {"const": 800},
+            "coded_height": {"const": 1280},
             "final_rotate_180": {"const": false}
           }
         }

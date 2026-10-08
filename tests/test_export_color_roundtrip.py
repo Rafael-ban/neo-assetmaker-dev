@@ -91,8 +91,7 @@ class ExportColorRoundTripTests(unittest.TestCase):
         mp4 = _export_image_loop(png, self.d / "quad.mp4",
                                  cropbox=(0, 0, 360, 640))
         out = _decode_first_frame(mp4)
-        self.assertEqual(out.shape[1], 384)  # padded width; content at [:, :360]
-        out = out[:, :360]
+        self.assertEqual(out.shape[1], 360)
 
         # Compare quadrant channel means (away from edges to dodge chroma bleed).
         def q(img, ys, xs):

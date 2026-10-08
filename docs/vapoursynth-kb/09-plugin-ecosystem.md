@@ -14,7 +14,7 @@ namespace。可安装、可枚举、存在同名 namespace 和脚本实际声明
 | `lsmas` | `LWLibavSource` | 外部 native plugin | 视频解码与 `.lwi` 索引 |
 | `imwri` | `Read` | 外部 native plugin | 静态图片读取 |
 | `std` | `AssumeFPS`、`Transpose`、`FlipHorizontal`、`FlipVertical`、`Turn180`、`Loop`、`CropAbs`、`SetFrameProps`、`AddBorders` | core/标准 plugin | 时间、几何、属性 |
-| `resize` | `Bicubic` | core resize plugin | RGB/YUV、内容尺寸与 range 转换 |
+| `resize` | `Spline36` | core resize plugin | RGB/YUV、内容尺寸与色彩转换 |
 
 脚本头明确写：
 
@@ -32,7 +32,7 @@ worker/runner 在执行前验证 namespace、属性可调用性与 `plugin_path`
 
 1. `core.<namespace>.<function>` 确实 callable；
 2. plugin 的 `plugin_path` 位于 R79 包的 `plugins/`、随包 `runtime/native-plugins/`
-   中的具体插件目录或 runtime 明确配置的 native 根；
+   中的具体插件目录、`tools/vs-plugins/<package>` 或 runtime 明确配置的 native 根；
 3. 多目录加载期间没有可证明的 identity/namespace 冲突或候选加载失败。
 
 真正的内置 plugin 可能没有文件路径，此时允许 `plugin_path=None`。不要用“没有
@@ -41,7 +41,8 @@ plugin_path”推导插件缺失，也不要把 Python module 目录当成 nativ
 ## 用户脚本如何声明额外插件
 
 用户 `.vpy` 若调用额外 native 函数，必须把完整 `namespace.function` 写入
-`assetmaker-requires`，并把 DLL 所在目录加入 `plugins.native_plugin_dirs`。若调用
+`assetmaker-requires`。随包扩展已自动加入搜索目录；其他 DLL 所在目录加入
+`plugins.native_plugin_dirs`。随包清单见 [17](17-filter-configuration.md)。若调用
 相邻 Python 模块，则其根加入 `plugins.python_module_dirs`；两类目录加载机制不同。
 
 例如以下只是概念示例，不是内置生产依赖：

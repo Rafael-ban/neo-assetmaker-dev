@@ -234,6 +234,7 @@ class VideoPreviewWidget(QWidget):
         self._timeline_end_exclusive: int | None = None
         self._metadata_resolved = False
         self._job_dirty = False
+        self._job_crop_only = False
         self._load_request_id: int | None = None
         self._request_epochs: dict[int, _RequestOwner] = {}
         self._latest_display_request_id: int | None = None
@@ -267,6 +268,8 @@ class VideoPreviewWidget(QWidget):
         self.timer.timeout.connect(self._on_timer_tick)
         self._play_origin_ns = 0
         self._play_origin_frame = 0
+        self._play_sample_started_ns = 0
+        self._play_displayed_frames = 0
 
         self.target_width = DEFAULT_TARGET_WIDTH
         self.target_height = DEFAULT_TARGET_HEIGHT
@@ -586,6 +589,10 @@ class VideoPreviewWidget(QWidget):
         return job
 
     def _load_render_job(self, *, bootstrap: bool) -> RenderSession:
+        # A graph reload is not playback time. Resume the clock when metadata
+        # arrives, retaining the frame visible when the reload began.
+        if self.is_playing:
+            self.timer.stop()
         retired_session = self._render_session
         if retired_session is not None:
             # timeout 属于旧 session 的 frame 请求。换代后它不再有资格
@@ -621,15 +628,36 @@ class VideoPreviewWidget(QWidget):
         return (max(2, round(size.width() * dpr)),
                 max(2, round(size.height() * dpr)))
 
-    def _schedule_render_job(self) -> None:
+    def _schedule_render_job(self, *, crop_only: bool = False) -> None:
         if not self._metadata_resolved or not self.video_path:
             return
+        self._job_crop_only = crop_only and (
+            not self._job_dirty or self._job_crop_only
+        )
         self._job_dirty = True
         if self._crop_edit_start is not None:
             # 手势中的 draft 不能让 100ms debounce 抢先创建新 session；已有
             # trim/rotation 等 pending 状态仍由 _job_dirty 保留到提交后。
             return
+        if self._job_crop_only and self._can_defer_playing_crop():
+            # The builtin editor output is the full source, independent of
+            # crop. Keep decoding it during playback. Pause, final preview,
+            # and export flush the committed crop into output 0.
+            return
         self._job_debounce.start(100)
+
+    def _can_defer_playing_crop(self) -> bool:
+        return (
+            self.is_playing
+            and not self._preview_mode
+            and self._selection is not None
+            and self._session_metadata is not None
+            and self._session_metadata.editor is not None
+            and self._selection.script_path == str(
+                (Path(get_app_dir()) / "resources" / "vapoursynth"
+                 / "default_pipeline.vpy").resolve()
+            )
+        )
 
     def _flush_debounced_render_job(self) -> None:
         try:
@@ -798,6 +826,11 @@ class VideoPreviewWidget(QWidget):
             self.video_loaded.emit(self.total_frames, self.video_fps)
         self._request_current_frame()
 
+        if self.is_playing:
+            self._play_origin_ns = time.perf_counter_ns()
+            self._play_origin_frame = self.current_frame_index
+            self._schedule_next_playback_tick(1)
+
     def _on_worker_frame(
         self, request_id: int, epoch: int, surface: str, index: int, array
     ) -> None:
@@ -827,6 +860,13 @@ class VideoPreviewWidget(QWidget):
         owned = np.array(array, copy=True)
         self.current_frame = owned
         self._display_frame(owned)
+        if self.is_playing:
+            self._play_displayed_frames += 1
+            # If the clock advanced while this frame rendered, start catching
+            # up immediately instead of leaving the worker idle until a tick.
+            # Keep exactly one display request in flight to avoid starvation.
+            if self._frame_request_target() != (surface, index):
+                self._request_current_frame(coalesce=True)
 
     def _on_worker_frame_discarded(
         self, request_id: int, epoch: int, surface: str, index: int
@@ -1299,7 +1339,7 @@ class VideoPreviewWidget(QWidget):
         x, y, w, h = self._display_cropbox()
         self.cropbox_changed.emit(x, y, w, h)
         self._update_info_label()
-        self._schedule_render_job()
+        self._schedule_render_job(crop_only=True)
 
     def _emit_draft_cropbox_changed(self) -> None:
         """仅更新实时覆盖层，绝不写 config/undo 或 worker job。"""
@@ -1329,14 +1369,21 @@ class VideoPreviewWidget(QWidget):
         dpr = self.video_label.devicePixelRatioF()
         logical = self.video_label.size()
         physical = QSize(round(logical.width() * dpr), round(logical.height() * dpr))
+        # VS has already fitted the frame to the viewport and applied zoom.
+        # Scaling a 1% frame back to the full label makes zoom-out invisible.
+        target = QSize(min(w, physical.width()), min(h, physical.height())) if (
+            self._vs_active
+        ) else physical
         pixmap = QPixmap.fromImage(qimage.copy()).scaled(
-            physical,
+            target,
             Qt.AspectRatioMode.KeepAspectRatio,
             Qt.TransformationMode.SmoothTransformation,
         )
         pixmap.setDevicePixelRatio(dpr)
         self.video_label.setPixmap(pixmap)
-        self._update_display_geometry(self.video_label, w, h)
+        self._update_display_geometry(
+            self.video_label, w, h, fit_to_widget=not self._vs_active
+        )
         self.frame_changed.emit(self.current_frame_index)
         self._update_info_label()
 
@@ -1373,7 +1420,10 @@ class VideoPreviewWidget(QWidget):
             self._display_frame(self.current_frame)
         self._update_info_label()
 
-    def _update_display_geometry(self, widget: QWidget, media_w: int, media_h: int):
+    def _update_display_geometry(
+        self, widget: QWidget, media_w: int, media_h: int, *,
+        fit_to_widget: bool = True,
+    ):
         if media_w <= 0 or media_h <= 0:
             self.display_scale = 1.0
             self.display_offset_x = 0
@@ -1381,6 +1431,8 @@ class VideoPreviewWidget(QWidget):
             return
         area = widget.size()
         scale = min(area.width() / media_w, area.height() / media_h)
+        if not fit_to_widget:
+            scale = min(scale, 1.0 / widget.devicePixelRatioF())
         shown_w = int(media_w * scale)
         shown_h = int(media_h * scale)
         self.display_scale = scale if scale > 0 else 1.0
@@ -1423,6 +1475,8 @@ class VideoPreviewWidget(QWidget):
             return
         if not (self._has_video or self._loop_frame is not None):
             return
+        if self._render_session is not None and not self._worker_ready_for_frames:
+            return
         numerator = self._fps_rational.numerator if self._fps_rational else 30
         denominator = self._fps_rational.denominator if self._fps_rational else 1
         elapsed_ns = max(0, time.perf_counter_ns() - self._play_origin_ns)
@@ -1435,7 +1489,11 @@ class VideoPreviewWidget(QWidget):
         self.current_frame_index = low + (
             self._play_origin_frame - low + elapsed_frames
         ) % span
-        self._request_current_frame(coalesce=True)
+        # Keep the frame already in flight eligible for display. If rendering
+        # takes longer than a tick, replacing its request ID every tick would
+        # discard every returned frame while the frame counter keeps moving.
+        if self._latest_display_request_id is None:
+            self._request_current_frame(coalesce=True)
         self.frame_changed.emit(self.current_frame_index)
         self._update_info_label()
         self._schedule_next_playback_tick(elapsed_frames + 1)
@@ -1461,6 +1519,8 @@ class VideoPreviewWidget(QWidget):
         self.is_playing = True
         self._play_origin_ns = time.perf_counter_ns()
         self._play_origin_frame = self.current_frame_index
+        self._play_sample_started_ns = self._play_origin_ns
+        self._play_displayed_frames = 0
         self._schedule_next_playback_tick(1)
         self.playback_state_changed.emit(True)
 
@@ -1469,7 +1529,16 @@ class VideoPreviewWidget(QWidget):
         was_playing = self.is_playing
         self.is_playing = False
         if was_playing:
+            elapsed = (time.perf_counter_ns() - self._play_sample_started_ns) / 1e9
+            if elapsed >= 1.0:
+                logger.info(
+                    "预览实际刷新: %.1f fps (%d 帧 / %.2f 秒，源 %.2f fps)",
+                    self._play_displayed_frames / elapsed,
+                    self._play_displayed_frames, elapsed, self.video_fps,
+                )
             self.playback_state_changed.emit(False)
+            if self._job_dirty and self._crop_edit_start is None:
+                self._job_debounce.start(100)
 
     def toggle_play(self):
         if self.is_playing:
@@ -1778,7 +1847,7 @@ class VideoPreviewWidget(QWidget):
         return (
             not self._preview_mode
             and self.supports_editor_capability("crop")
-            and self._zoom_factor <= 1.0
+            and self._zoom_factor == 1.0
             and self.video_width > 0
             and self.video_height > 0
         )

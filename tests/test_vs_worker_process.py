@@ -99,7 +99,7 @@ def _write_job(path: Path, *, epoch: int = 3, track: str = "loop") -> None:
             "profile": "360x640",
             "display_width": 360,
             "display_height": 640,
-            "coded_width": 384,
+            "coded_width": 360,
             "coded_height": 640,
             "pixel_format": "YUV420P8",
             "matrix": "170m",
@@ -131,7 +131,7 @@ def _valid_script(*, compatible: bool = True, extra: str = "") -> str:
         "import vapoursynth as vs\n"
         "core = vs.core\n"
         "base = core.std.BlankClip(\n"
-        "    width=384, height=640, length=3,\n"
+        "    width=360, height=640, length=3,\n"
         "    fpsnum=30000, fpsden=1001, format=vs.YUV420P8,\n"
         "    color=[81, 90, 240],\n"
         ")\n"
@@ -173,7 +173,7 @@ def _metadata_wire(*, epoch: int = 7, mode: str = "raw") -> dict:
         "mode": mode,
         "capabilities": ["source"],
         "output0": {
-            "width": 384,
+            "width": 360,
             "height": 640,
             "num_frames": 3,
             "fps_num": 30_000,
@@ -2313,7 +2313,7 @@ class WorkerServerFrameTests(unittest.TestCase):
                 return graph
 
             clip = SimpleNamespace(
-                width=384,
+                width=360,
                 height=640,
                 num_frames=3,
                 fps_num=30_000,
@@ -3221,7 +3221,7 @@ class RealVSWorkerLifecycleTests(unittest.TestCase):
         self.assertIsNotNone(metadata.editor)
         self.assertEqual(final.shape, (640, 384, 3))
         self.assertEqual(editor.shape, (320, 192, 3))
-        self.assertEqual(padded.shape, (600, 360, 3))
+        self.assertEqual(padded.shape, (640, 360, 3))
         self.assertTrue(final.flags["OWNDATA"])
         self.assertGreater(int(final[0, 0, 2]), int(final[0, 0, 0]))
         self.assertEqual(set(digests), {"Y", "U", "V"})
@@ -3249,7 +3249,7 @@ class RealVSWorkerLifecycleTests(unittest.TestCase):
         bad_contract = self._write_script(
             "契约错误",
             _valid_script(compatible=False).replace(
-                "width=384, height=640", "width=382, height=640"
+                "width=360, height=640", "width=358, height=640"
             ),
         )
         valid = self._write_script("恢复脚本", _valid_script(compatible=False))
@@ -4159,11 +4159,11 @@ class RealVSWorkerLifecycleTests(unittest.TestCase):
         payload = json.loads(self.job.read_text(encoding="utf-8"))
         payload["output"].update(
             {
-                "profile": "720x1080",
+                "profile": "720x1280",
                 "display_width": 720,
-                "display_height": 1080,
+                "display_height": 1280,
                 "coded_width": 720,
-                "coded_height": 1080,
+                "coded_height": 1280,
             }
         )
         self.job.write_text(
@@ -4172,7 +4172,7 @@ class RealVSWorkerLifecycleTests(unittest.TestCase):
         script = self._write_script(
             "R73步长",
             _valid_script(compatible=False).replace(
-                "width=384, height=640", "width=720, height=1080"
+                "width=360, height=640", "width=720, height=1280"
             ),
         )
         self.client.start(timeout_ms=15_000)
@@ -4183,9 +4183,9 @@ class RealVSWorkerLifecycleTests(unittest.TestCase):
         )
 
         expected = {
-            "Y": hashlib.sha256(bytes([81]) * (720 * 1080)).hexdigest(),
-            "U": hashlib.sha256(bytes([90]) * (360 * 540)).hexdigest(),
-            "V": hashlib.sha256(bytes([240]) * (360 * 540)).hexdigest(),
+            "Y": hashlib.sha256(bytes([81]) * (720 * 1280)).hexdigest(),
+            "U": hashlib.sha256(bytes([90]) * (360 * 640)).hexdigest(),
+            "V": hashlib.sha256(bytes([240]) * (360 * 640)).hexdigest(),
         }
         self.assertEqual(digests, expected)
 

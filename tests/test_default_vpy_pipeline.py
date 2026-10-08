@@ -59,7 +59,7 @@ class DefaultPipelineSemanticTests(unittest.TestCase):
             "clip.set_output(1)",
             'clip = clip[timeline["start_frame"] : timeline["end_frame"]]',
             "clip = crop_safely(",
-            "clip = core.resize.Bicubic(",
+            "clip = FINAL_RESIZER(",
             "clip = core.std.AddBorders(",
             "clip.set_output(0)",
         )
@@ -152,12 +152,12 @@ class DefaultPipelineRealSubprocessTests(unittest.TestCase):
     def test_image_loops_full_editor_timeline_before_nonzero_trim(self):
         result = _run_child("default_image")
 
-        self.assertEqual(result.returncode, 0, result.stderr or result.stdout)
+        self.assertEqual(result.returncode, 0, result.stdout or result.stderr)
         payload = json.loads(result.stdout)
         output0 = payload["output0"]
         output1 = payload["output1"]
         self.assertEqual(
-            (output0["width"], output0["height"]), (384, 640)
+            (output0["width"], output0["height"]), (360, 640)
         )
         self.assertEqual(output0["num_frames"], 5)
         self.assertEqual(output0["fps"], [30, 1])
@@ -177,7 +177,7 @@ class DefaultPipelineRealSubprocessTests(unittest.TestCase):
         self.assertEqual(output1["num_frames"], 9)
         self.assertEqual(output1["fps"], [30, 1])
         self.assertEqual(payload["runner"]["returncode"], 0)
-        self.assertIn("Width: 384", payload["runner"]["stdout"])
+        self.assertIn("Width: 360", payload["runner"]["stdout"])
         self.assertGreater(payload["encoded"]["size"], 0)
 
     def test_video_bootstrap_and_resolved_jobs_share_full_editor_output(self):
@@ -187,7 +187,7 @@ class DefaultPipelineRealSubprocessTests(unittest.TestCase):
         payload = json.loads(result.stdout)
         self.assertEqual(
             (payload["bootstrap0"]["width"], payload["bootstrap0"]["height"]),
-            (720, 1080),
+            (720, 1280),
         )
         self.assertEqual(payload["bootstrap0"]["num_frames"], 8)
         self.assertEqual(payload["bootstrap0"]["fps"], [30000, 1001])
@@ -216,7 +216,9 @@ class DefaultPipelineRealSubprocessTests(unittest.TestCase):
         payload = json.loads(result.stdout)
         self.assertEqual(payload["source_matrix"], 2)
         self.assertEqual(len(payload["digests"]), 2)
-        self.assertTrue(payload["equal"], payload["digests"])
+        # 两种裁剪来自同一均匀 709 源；Spline36 + error diffusion 可产生
+        # 少量像素差，但矩阵选错会造成远大于此的颜色漂移。
+        self.assertLessEqual(payload["max_plane_delta"], 3, payload["digests"])
 
 
 if __name__ == "__main__":

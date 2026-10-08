@@ -334,10 +334,12 @@ class SettingsPage(QWidget):
                 )
             )
 
+            vid = settings.get('usb_controler_vid', '0203')
+            pid = settings.get('usb_controler_pid', '5678')
             self.usbControlerVID.setText(
-                settings.get('usb_controler_vid', False))
+                vid if isinstance(vid, str) else '0203')
             self.usbControlerPID.setText(
-                settings.get('usb_controler_pid', False))
+                pid if isinstance(pid, str) else '5678')
             self.usbControlerAutoRestartProgram.setChecked(
                 settings.get('usb_controler_auto_restart_program', False))
         finally:

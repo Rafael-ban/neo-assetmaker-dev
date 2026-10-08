@@ -147,6 +147,29 @@ class _LoadedGraph:
     graph: Any
     outputs: Any
     snapshot: Any
+    display_key: tuple[Any, ...] | None = None
+    display_clip: Any = None
+
+    def display_for(self, source: Any, fields: dict[str, Any]) -> Any:
+        """Reuse only the last display branch; frame indices do not change it."""
+        from resources.vapoursynth.python.assetmaker_vs.display import to_display_clip
+
+        key = (
+            fields["surface"],
+            tuple(fields["viewport"]),
+            fields["zoom_factor"],
+            tuple(fields["pan"]),
+        )
+        if key != self.display_key:
+            clip = to_display_clip(
+                source,
+                viewport=fields["viewport"],
+                zoom_factor=fields["zoom_factor"],
+                pan=fields["pan"],
+            )
+            self.display_key = key
+            self.display_clip = clip
+        return self.display_clip
 
 
 @dataclass
@@ -620,7 +643,6 @@ class WorkerServer:
                     "脚本 bundle 在执行前发生变化",
                     code="worker.bundle_mismatch",
                 )
-            self._assert_runtime_unchanged(message["runtime_fingerprint"])
             from resources.vapoursynth.python.assetmaker_vs.job_api import (
                 load_job,
             )
@@ -628,10 +650,6 @@ class WorkerServer:
                 parse_script_header,
                 validate_invocation,
             )
-
-            # helper import 可能跨越文件更新；在读取 job/header 前再次核验，
-            # 后续还会在 VS 与全部执行 helper 就绪后做最终核验。
-            self._assert_runtime_unchanged(message["runtime_fingerprint"])
 
             self._assert_snapshot_job_identity(snapshot, message["job_sha256"])
             job = load_job(snapshot.job_path)
@@ -716,6 +734,8 @@ class WorkerServer:
                 self._condition.wait(remaining)
             self._loaded = None
             self._cancelled_epochs.discard(loaded.epoch)
+            loaded.display_clip = None
+            loaded.display_key = None
         failure: BaseException | None = None
         try:
             loaded.graph.close()
@@ -1130,7 +1150,6 @@ class WorkerServer:
 
     def _handle_frame(self, message: dict[str, Any]) -> None:
         from core.vs_runtime.shared_frame import FrameSlot
-        from resources.vapoursynth.python.assetmaker_vs.display import to_display_clip
 
         request_id = _strict_positive_int(message.get("request_id"), "request_id")
         slot_descriptor = None
@@ -1179,12 +1198,7 @@ class WorkerServer:
                     )
             slot = FrameSlot.open(slot_descriptor)
             try:
-                display_clip = to_display_clip(
-                    source,
-                    viewport=fields["viewport"],
-                    zoom_factor=fields["zoom_factor"],
-                    pan=fields["pan"],
-                )
+                display_clip = loaded.display_for(source, fields)
                 if fields["index"] >= int(display_clip.num_frames):
                     raise ProtocolError(
                         "frame index 超出范围", code="worker.frame_index"
@@ -1382,12 +1396,9 @@ def run_worker(
         generation_staging=generation_staging,
     )
     log_writer = _install_structured_stdout(writer)
-    try:
-        server._assert_runtime_unchanged(server.runtime_fingerprint)
-    except ProtocolError as error:
-        _SafeLogSink(writer)(_safe_text(error, "worker runtime changed"))
-        log_writer.flush()
-        return FATAL_RUNTIME_CHANGED_EXIT
+    # RuntimeSnapshot initialization has already fingerprinted the runtime
+    # before constructing this server. A load verifies again after
+    # VapourSynth and all execution helpers are ready, before user code runs.
     decoder = MessageDecoder()
     read1 = getattr(input_stream, "read1", None)
     while True:

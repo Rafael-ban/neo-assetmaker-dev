@@ -84,6 +84,12 @@ tools\media\runtime\Lib\site-packages\vapoursynth\vspipe.exe --version
 文件完整性通过仍需要冻结版实际预览、导出验收。迁移状态见
 [R79 运行时与验收边界](docs/vapoursynth-kb/08-version-upgrade-notes.md)。
 
+扩展滤镜单独安装到 `tools/vs-plugins/`。部署基础媒体包后运行
+`uv run python plugin_distribution.py sync --app-dir .`；重复执行可修复不完整的包，
+`verify` 校验现有文件，`clean` 清除该工具管理的扩展。插件版本与下载来源见
+`resources/packaging/vs-plugins.json`。默认滤镜参数、自定义处理阶段及教程适配说明见
+[滤镜配置](docs/vapoursynth-kb/17-filter-configuration.md)。
+
 ## 基本使用
 
 1. 选择“新建项目”或“打开项目”，项目主配置为 `epconfig.json`。

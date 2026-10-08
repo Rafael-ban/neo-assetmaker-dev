@@ -179,6 +179,17 @@ def _layout_for(app_dir: str | os.PathLike[str]) -> RuntimeLayout:
     site_packages = runtime / "Lib" / "site-packages"
     package = site_packages / "vapoursynth"
     metadata_dir = site_packages / "vapoursynth-79.dist-info"
+    # VSRepo extensions are distributed separately from the fixed base runtime.
+    # Each package keeps its own dependencies and model files together.
+    extension_root = root / "tools" / "vs-plugins"
+    extension_dirs = (
+        tuple(sorted(
+            (path for path in extension_root.iterdir()
+             if path.is_dir() and not path.name.startswith(".")),
+            key=lambda path: path.name.casefold(),
+        ))
+        if extension_root.is_dir() else ()
+    )
     return RuntimeLayout(
         app_dir=root,
         media_root=media,
@@ -200,6 +211,7 @@ def _layout_for(app_dir: str | os.PathLike[str]) -> RuntimeLayout:
         bundled_native_plugin_dirs=(
             runtime / "native-plugins" / "01-lsmas",
             runtime / "native-plugins" / "02-imwri",
+            *extension_dirs,
         ),
         wheel_metadata_dir=metadata_dir,
         wheel_metadata=metadata_dir / "METADATA",
@@ -291,6 +303,7 @@ def sanitize_runtime_process_environment(
     path_entries = (
         layout.vs_package_dir,
         layout.runtime_root,
+        *layout.bundled_native_plugin_dirs,
         system_root / "System32",
         system_root,
     )

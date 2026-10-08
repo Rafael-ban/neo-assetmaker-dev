@@ -510,6 +510,15 @@ def _collect_vs_contract_include_files(project_root):
     return include_files
 
 
+def _collect_vs_plugin_include_files(project_root):
+    """Include the same locked plugin files that the source runtime uses."""
+    from plugin_distribution import verify_plugins
+
+    root = Path(project_root).resolve()
+    files = verify_plugins(root)
+    return [(str(path), path.relative_to(root).as_posix()) for path in files]
+
+
 def _collect_vs_worker_support_files(project_root):
     """验证 worker/runner 共用的 portable helper 与内置脚本。"""
     root = os.path.abspath(os.fspath(project_root))
@@ -567,6 +576,7 @@ def run_cxfreeze(skip_flasher=False, source_root=None):
         )
         vs_worker_support_files = _collect_vs_worker_support_files(project_root)
         media_tool_include_files = _collect_media_tool_include_files(project_root)
+        plugin_include_files = _collect_vs_plugin_include_files(project_root)
     except (OSError, RuntimeError, ValueError) as exc:
         print(f"  FATAL: {exc}")
         return False
@@ -756,6 +766,7 @@ def run_cxfreeze(skip_flasher=False, source_root=None):
         include_files.append((runtime_path, runtime_name))
         print(f"  Including PyArmor runtime: {runtime_path}")
     include_files.extend(media_tool_include_files)
+    include_files.extend(plugin_include_files)
 
     # 添加 Rust 模拟器
     simulator_exe = os.path.join(
@@ -828,6 +839,9 @@ def run_cxfreeze(skip_flasher=False, source_root=None):
             build_output,
             Path(project_root) / MEDIA_MANIFEST_RELATIVE,
         )
+        from plugin_distribution import verify_plugins
+
+        verify_plugins(build_output)
         license_file = os.path.join(BUILD_DIR, "frozen_application_license.txt")
         if os.path.exists(license_file):
             os.remove(license_file)

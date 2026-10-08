@@ -52,7 +52,7 @@ class FakeVideoNode:
     def __init__(
         self,
         *,
-        width: int = 384,
+        width: int = 360,
         height: int = 640,
         num_frames: int = 5,
         fps: tuple[int, int] = (30000, 1001),
@@ -224,7 +224,7 @@ def _job(
             "profile": "360x640",
             "display_width": 360,
             "display_height": 640,
-            "coded_width": 384,
+            "coded_width": 360,
             "coded_height": 640,
             "pixel_format": "YUV420P8",
             "matrix": "170m",

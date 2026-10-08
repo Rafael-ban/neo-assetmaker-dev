@@ -36,7 +36,8 @@ SOURCES = {
 }
 TARGETS = {
     "360x640": (360, 640),
-    "720x1080": (720, 1080),
+    "720x1280": (720, 1280),
+    "800x1280": (800, 1280),
     "square256": (256, 256),
 }
 # Integer quantization: a box of h px can only express the ratio to ~1/h.
@@ -179,9 +180,9 @@ class DragTests(unittest.TestCase):
 
 class SetCropboxTests(unittest.TestCase):
     def test_foreign_resolution_box_is_refitted(self):
-        # A box saved under 360x640 (AR 0.5625) restored under a 720x1080
-        # project (AR 0.6667) used to be accepted verbatim.
-        w = _widget((1080, 1920), (720, 1080))
+        # A box saved under 360x640 (AR 0.5625) restored under an 800x1280
+        # project (AR 0.625) used to be accepted verbatim.
+        w = _widget((1080, 1920), (800, 1280))
         w.set_cropbox(135, 240, 810, 1440)
         self.assertLess(
             _ar_off(w), TOL,
@@ -210,7 +211,7 @@ class SetCropboxTests(unittest.TestCase):
 class TargetResolutionChangeTests(unittest.TestCase):
     def test_changing_target_refits_existing_box(self):
         w = _widget((1080, 1920), (360, 640))
-        w.set_target_resolution(720, 1080)
+        w.set_target_resolution(800, 1280)
         self.assertLess(
             _ar_off(w), TOL,
             f"box kept the old ratio after a resolution change: {w.cropbox}",
@@ -222,7 +223,7 @@ class TargetResolutionChangeTests(unittest.TestCase):
         # _apply_project_config calls clear() (video_width=0) BEFORE
         # set_target_resolution — the old guard skipped the re-fit entirely.
         w = VideoPreviewWidget()
-        w.set_target_resolution(720, 1080)
+        w.set_target_resolution(800, 1280)
         w.video_width, w.video_height = 1080, 1920
         w._init_cropbox()
         self.assertLess(_ar_off(w), TOL)
@@ -231,17 +232,17 @@ class TargetResolutionChangeTests(unittest.TestCase):
 class TransitionPreviewTests(unittest.TestCase):
     """The transition-image crop boxes were never given the target resolution
     (TransitionPreviewWidget.set_target_resolution existed but had zero callers),
-    so they stayed locked to the module default 0.5625 — a 720x1080 project
-    stretched its transition images by ~15.6%."""
+    so they stayed locked to the module default 0.5625 — an 800x1280 project
+    stretched its transition images by ~11.1%."""
 
     def test_forwarding_sets_ratio_on_both_inner_previews(self):
         from gui.widgets.transition_preview import TransitionPreviewWidget
 
         tp = TransitionPreviewWidget()
-        tp.set_target_resolution(720, 1080)
+        tp.set_target_resolution(800, 1280)
         for name in ("preview_in", "preview_loop"):
             inner = getattr(tp, name)
-            self.assertAlmostEqual(inner.target_aspect_ratio, 720 / 1080, places=6,
+            self.assertAlmostEqual(inner.target_aspect_ratio, 800 / 1280, places=6,
                                    msg=f"{name} kept a stale target ratio")
 
     def test_main_window_forwards_resolution_to_transition_preview(self):

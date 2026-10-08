@@ -70,7 +70,7 @@ def _write_image_job(path: Path, *, epoch: int) -> None:
                     "profile": "360x640",
                     "display_width": 360,
                     "display_height": 640,
-                    "coded_width": 384,
+                    "coded_width": 360,
                     "coded_height": 640,
                     "pixel_format": "YUV420P8",
                     "matrix": "170m",
@@ -115,7 +115,7 @@ def _write_identity_script(script: Path, *, mode: str) -> None:
         "clips = []\n"
         "for yuv in identity['frames']:\n"
         "    frame = core.std.BlankClip(\n"
-        "        width=384, height=640, length=1, fpsnum=30000, fpsden=1001,\n"
+        "        width=360, height=640, length=1, fpsnum=30000, fpsden=1001,\n"
         "        format=vs.YUV420P8, color=yuv,\n"
         "    )\n"
         "    clips.append(core.std.SetFrameProps(\n"

@@ -17,7 +17,7 @@ from gui.widgets.vs_script_panel import VSScriptPanel
 from gui.widgets.config_panel import ConfigPanel
 from config.constants import (
     APP_NAME, APP_VERSION, APP_VERSION_LABEL, get_resolution_spec,
-    SUPPORTED_VIDEO_FORMATS, SUPPORTED_IMAGE_FORMATS
+    SUPPORTED_VIDEO_FORMATS, SUPPORTED_IMAGE_FORMATS, LOGO_WIDTH, LOGO_HEIGHT
 )
 from gui.widgets.drop_overlay import DropOverlayWidget
 from gui.styles import COLOR_TEXT_PRIMARY, COLOR_BG_ELEVATED, COLOR_BORDER, hex_with_alpha
@@ -514,10 +514,10 @@ class MainWindow(QMainWindow):
         frame_capture_layout.setContentsMargins(0, 0, 0, 0)
         frame_capture_layout.setSpacing(5)
         self.frame_capture_preview = VideoPreviewWidget()
-        # The saved icon is center-cropped to 256x256 by process_for_logo, so the
+        # The saved icon is center-cropped by process_for_logo, so the
         # capture crop box must be square too — otherwise the user frames a tall
         # 360:640 region but a different centre square is what actually ships.
-        self.frame_capture_preview.set_target_resolution(256, 256)
+        self.frame_capture_preview.set_target_resolution(LOGO_WIDTH, LOGO_HEIGHT)
         frame_capture_layout.addWidget(self.frame_capture_preview, stretch=1)
         btn_layout = QHBoxLayout()
         btn_layout.addStretch()
@@ -1245,9 +1245,8 @@ class MainWindow(QMainWindow):
         target_w, target_h = self._get_target_resolution()
         self.video_preview.set_target_resolution(target_w, target_h)
         self.intro_preview.set_target_resolution(target_w, target_h)
-        # 过渡图预览此前从不接收目标分辨率(TransitionPreviewWidget.
-        # set_target_resolution 有定义但全仓零调用),裁剪框永远锁在默认
-        # 360x640 比例 —— 720x1080 工程里过渡图会被拉伸约 15.6%。
+        # 过渡图使用当前项目的目标比例，避免在 800x1280 等非 9:16
+        # 项目中继续使用默认 360x640 的裁剪比例。
         self.transition_preview.set_target_resolution(target_w, target_h)
 
         load_failures: list[str] = []
@@ -1482,6 +1481,7 @@ class MainWindow(QMainWindow):
             try:
                 aux_images.extend(self._collect_arknights_custom_images())
                 aux_images.extend(self._collect_image_overlay())
+                aux_images.extend(self._collect_transition_images())
             except Exception as e:
                 logger.error(f"处理自定义图片失败: {e}")
                 show_error(e, "处理自定义图片", self)
@@ -4243,6 +4243,28 @@ class MainWindow(QMainWindow):
         img = ImageProcessor.load_image(src_path)
         if img is not None:
             result.append(("overlay.png", img))
+        return result
+
+    def _collect_transition_images(self) -> list:
+        """Collect enabled transition images under their package-local names."""
+        from config.epconfig import TransitionType
+        from core.image_processor import ImageProcessor
+
+        result: list = []
+        for transition, filename in (
+            (self._config.transition_in, "transition_in.png"),
+            (self._config.transition_loop, "transition_loop.png"),
+        ):
+            if transition.type == TransitionType.NONE or not transition.options:
+                continue
+            source = transition.options.image
+            if not source:
+                continue
+            source_path = source if os.path.isabs(source) else os.path.join(
+                self._base_dir, source)
+            image = ImageProcessor.load_image(source_path)
+            if image is not None:
+                result.append((filename, image))
         return result
 
     def _on_export_completed(self, success: bool, message: str, *, service=None):

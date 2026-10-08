@@ -1,7 +1,7 @@
 # 03 · 几何滤镜：旋转、裁剪、resize 与补边
 
 **结论：当前默认图只有一份脚本真相。生产顺序是 source → 图片首帧/FPS →
-rotation → 图片 Loop → output 1 → timeline trim → crop → matrix 补标 →
+缺失颜色属性补标 → rotation → 图片 Loop → output 1 → timeline trim → crop → process_source →
 resize/YUV420P8 → AddBorders → 可选最终 180° → frame props → output 0。**
 
 ## R73 历史来源
@@ -48,9 +48,9 @@ y_step = 1 << clip.format.subsampling_h
 这比无条件“取偶数”准确：YUV420P8 通常两个步长都是 2，但 RGB 或 4:4:4 可为 1，
 其他格式也必须服从自己的 subsampling。
 
-`CropAbs` 后，Bicubic 先生成 profile 的内容画布。例如 `360x640` profile 先得到
-360×640 YUV420P8，再由 `AddBorders(right=24)` 得到 384×640 编码画布。补边发生
-在颜色转换之后，因此其约束按 YUV420P8 计算。
+`CropAbs` 和自定义处理阶段后，Spline36 生成 profile 的内容画布。例如 `360x640` profile 先得到
+360×640 YUV420P8，编码画布同为 360×640，不再补右侧 24 像素黑边。
+当前三个 profile 的编码尺寸均等于内容尺寸，因此默认图跳过 `AddBorders`。
 
 ## 编辑框与 RGB 视口不是同一个裁剪层
 

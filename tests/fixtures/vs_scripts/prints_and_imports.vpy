@@ -12,7 +12,7 @@ assert VALUE == "marker-from-script-root"
 print("hello from script")
 core = vs.core
 base = core.std.BlankClip(
-    width=384,
+    width=360,
     height=640,
     length=3,
     fpsnum=30000,

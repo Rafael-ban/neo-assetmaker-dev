@@ -130,18 +130,39 @@ class RenderJobContractTests(unittest.TestCase):
 
     def test_output_is_derived_from_resolution_specs(self):
         compact = OutputSpec.from_profile("360x640")
-        large = OutputSpec.from_profile("720x1080")
+        large = OutputSpec.from_profile("720x1280")
+        wide = OutputSpec.from_profile("800x1280")
 
         self.assertEqual(
             (compact.display_width, compact.display_height), (360, 640)
         )
-        self.assertEqual((compact.coded_width, compact.coded_height), (384, 640))
+        self.assertEqual((compact.coded_width, compact.coded_height), (360, 640))
         self.assertEqual(
-            (large.display_width, large.display_height), (720, 1080)
+            (large.display_width, large.display_height), (720, 1280)
         )
-        self.assertEqual((large.coded_width, large.coded_height), (720, 1080))
+        self.assertEqual((large.coded_width, large.coded_height), (720, 1280))
+        self.assertEqual((wide.display_width, wide.display_height), (800, 1280))
+        self.assertEqual((wide.coded_width, wide.coded_height), (800, 1280))
         with self.assertRaises(RenderJobError):
             OutputSpec.from_profile("1080x1920")
+        with self.assertRaises(RenderJobError):
+            OutputSpec.from_profile("720x1080")
+
+    def test_screen_profiles_match_both_schemas(self):
+        from config.constants import RESOLUTION_SPECS
+        from config.epconfig import ScreenType
+
+        expected = {"360x640", "720x1280", "800x1280"}
+        epconfig_schema = json.loads(
+            (ROOT / "schemas" / "epconfig.schema.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(set(RESOLUTION_SPECS), expected)
+        self.assertEqual({member.value for member in ScreenType}, expected)
+        self.assertEqual(set(epconfig_schema["properties"]["screen"]["enum"]), expected)
+        self.assertEqual(
+            set(JOB_SCHEMA["$defs"]["output"]["properties"]["profile"]["enum"]),
+            expected,
+        )
 
     def test_every_profile_has_full_schema_roundtrip(self):
         expected_outputs = {
@@ -149,7 +170,7 @@ class RenderJobContractTests(unittest.TestCase):
                 "profile": "360x640",
                 "display_width": 360,
                 "display_height": 640,
-                "coded_width": 384,
+                "coded_width": 360,
                 "coded_height": 640,
                 "pixel_format": "YUV420P8",
                 "matrix": "170m",
@@ -158,12 +179,25 @@ class RenderJobContractTests(unittest.TestCase):
                 "range": "limited",
                 "final_rotate_180": False,
             },
-            "720x1080": {
-                "profile": "720x1080",
+            "720x1280": {
+                "profile": "720x1280",
                 "display_width": 720,
-                "display_height": 1080,
+                "display_height": 1280,
                 "coded_width": 720,
-                "coded_height": 1080,
+                "coded_height": 1280,
+                "pixel_format": "YUV420P8",
+                "matrix": "170m",
+                "transfer": "170m",
+                "primaries": "170m",
+                "range": "limited",
+                "final_rotate_180": False,
+            },
+            "800x1280": {
+                "profile": "800x1280",
+                "display_width": 800,
+                "display_height": 1280,
+                "coded_width": 800,
+                "coded_height": 1280,
                 "pixel_format": "YUV420P8",
                 "matrix": "170m",
                 "transfer": "170m",
@@ -182,7 +216,7 @@ class RenderJobContractTests(unittest.TestCase):
 
     def test_mismatched_profile_dimensions_are_rejected(self):
         job = make_job()
-        invalid_output = replace(job.output, coded_width=360)
+        invalid_output = replace(job.output, coded_width=384)
 
         with self.assertRaises(RenderJobError):
             replace(job, output=invalid_output).validate()

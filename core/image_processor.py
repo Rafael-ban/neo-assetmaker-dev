@@ -187,7 +187,7 @@ class ImageProcessor:
             img: 输入图片
 
         Returns:
-            处理后的图片 (256x256 BGRA)
+            处理后的图片 (LOGO_WIDTH × LOGO_HEIGHT BGRA，当前为 360×360)
         """
         img = ImageProcessor.resize_image(img, LOGO_WIDTH, LOGO_HEIGHT)
         img = ImageProcessor.ensure_bgra(img)

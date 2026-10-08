@@ -70,6 +70,17 @@ def _verify_job_content(stage):
 # 在用户脚本和滤镜图执行前，复核 VSPipe 实际继承的 runtime 身份，并按与
 # worker loader 相同的语义应用非零 core 限制；0 保留 VapourSynth 默认值。
 verified_runtime = verify_runtime_from_env()
+# Match the worker's Windows loader search paths, including shared plugin DLLs.
+# Retain handles for delayed dependencies throughout the render session.
+_dll_directory_handles = tuple(
+    os.add_dll_directory(str(directory))
+    for directory in dict.fromkeys((
+        verified_runtime.layout.vs_package_dir,
+        verified_runtime.layout.runtime_root,
+        *verified_runtime.layout.bundled_native_plugin_dirs,
+        *verified_runtime.runtime["plugins"]["native_plugin_dirs"],
+    ))
+)
 core_config = verified_runtime.runtime["core"]
 core_baseline = CoreResourceBaseline.capture(vs.core)
 restore_core_resources(vs.core, core_config, core_baseline)

@@ -4,7 +4,7 @@
   "name": "Full Overlay",
   "description": "Fixture with transitions and Arknights overlay",
   "icon": "icon.png",
-  "screen": "720x1080",
+  "screen": "720x1280",
   "loop": {
     "file": "loop.mp4"
   },

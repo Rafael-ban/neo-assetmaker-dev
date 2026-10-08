@@ -33,11 +33,12 @@ profile 几何示例：
 
 | profile | 内容画布 | output 0 编码画布 |
 |---|---:|---:|
-| `360x640` | 360×640 | 384×640 |
-| `720x1080` | 720×1080 | 720×1080 |
+| `360x640` | 360×640 | 360×640 |
+| `720x1280` | 720×1280 | 720×1280 |
+| `800x1280` | 800×1280 | 800×1280 |
 
-360 profile 的右侧 24 像素由默认脚本在 resize 后 AddBorders；contract 只接受最终
-384×640。看到 384 而不是 360 不是参数错误。
+360 profile 按素材包的实际画布直接输出 360×640，不再补右侧 24 像素。
+contract 接受最终 360×640；旧自定义脚本若固定输出 384×640，需要同步调整。
 
 ## 当前 R79 色彩与 VUI
 
@@ -83,7 +84,7 @@ worker 的 final surface 和 VSPipe runner 都消费 `guarded_clip`。VSPipe run
 
 - 只写 `clip` 变量但没 `set_output(0)`；
 - 输出 RGB、10-bit、可变 format、alpha 或错误 coded size；
-- 按内容宽 360 注册 output 0，忘记 384 编码补边；
+- 仍按旧规则补黑边并注册 384×640 的 output 0；
 - timeline 帧数或有理 fps 不一致；
 - 只写标签但像素未转换，或像素已转换但 props/VUI 不一致；
 - compatible 脚本声明 editor output 1 却未注册，或图片 output 1 已被 trim。
