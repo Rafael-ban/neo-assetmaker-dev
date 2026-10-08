@@ -45,8 +45,7 @@ def to_display_clip(
     core = vs.core
     # 已标记的输入属性优先；空白 RGB 测试帧等无标签源按 sRGB 解释。
     input_transfer = "srgb" if clip.format.color_family == vs.RGB else "709"
-    rgb = core.resize.Bicubic(
-        clip,
+    colour = dict(
         format=vs.RGB24,
         transfer_in_s=input_transfer,
         primaries_in_s="709",
@@ -55,18 +54,21 @@ def to_display_clip(
         range_s="full",
         dither_type=DISPLAY_DITHER,
     )
-    fit = min(viewport_width / rgb.width, viewport_height / rgb.height)
-    fit_width = max(1, min(viewport_width, round(rgb.width * fit)))
-    fit_height = max(1, min(viewport_height, round(rgb.height * fit)))
+    fit = min(viewport_width / clip.width, viewport_height / clip.height)
+    fit_width = max(1, min(viewport_width, round(clip.width * fit)))
+    fit_height = max(1, min(viewport_height, round(clip.height * fit)))
     if zoom_factor <= 1.0:
         output_width = max(1, round(fit_width * zoom_factor))
         output_height = max(1, round(fit_height * zoom_factor))
         return core.resize.Spline36(
-            rgb,
+            clip,
             width=output_width,
             height=output_height,
+            **colour,
         )
 
+    # Pixel inspection retains conversion before the nearest-neighbour zoom.
+    rgb = core.resize.Bicubic(clip, **colour)
     window_width = max(1, min(rgb.width, math.ceil(rgb.width / zoom_factor)))
     window_height = max(1, min(rgb.height, math.ceil(rgb.height / zoom_factor)))
     left = min(

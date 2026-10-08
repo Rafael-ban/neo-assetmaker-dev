@@ -147,6 +147,29 @@ class _LoadedGraph:
     graph: Any
     outputs: Any
     snapshot: Any
+    display_key: tuple[Any, ...] | None = None
+    display_clip: Any = None
+
+    def display_for(self, source: Any, fields: dict[str, Any]) -> Any:
+        """Reuse only the last display branch; frame indices do not change it."""
+        from resources.vapoursynth.python.assetmaker_vs.display import to_display_clip
+
+        key = (
+            fields["surface"],
+            tuple(fields["viewport"]),
+            fields["zoom_factor"],
+            tuple(fields["pan"]),
+        )
+        if key != self.display_key:
+            clip = to_display_clip(
+                source,
+                viewport=fields["viewport"],
+                zoom_factor=fields["zoom_factor"],
+                pan=fields["pan"],
+            )
+            self.display_key = key
+            self.display_clip = clip
+        return self.display_clip
 
 
 @dataclass
@@ -711,6 +734,8 @@ class WorkerServer:
                 self._condition.wait(remaining)
             self._loaded = None
             self._cancelled_epochs.discard(loaded.epoch)
+            loaded.display_clip = None
+            loaded.display_key = None
         failure: BaseException | None = None
         try:
             loaded.graph.close()
@@ -1125,7 +1150,6 @@ class WorkerServer:
 
     def _handle_frame(self, message: dict[str, Any]) -> None:
         from core.vs_runtime.shared_frame import FrameSlot
-        from resources.vapoursynth.python.assetmaker_vs.display import to_display_clip
 
         request_id = _strict_positive_int(message.get("request_id"), "request_id")
         slot_descriptor = None
@@ -1174,12 +1198,7 @@ class WorkerServer:
                     )
             slot = FrameSlot.open(slot_descriptor)
             try:
-                display_clip = to_display_clip(
-                    source,
-                    viewport=fields["viewport"],
-                    zoom_factor=fields["zoom_factor"],
-                    pan=fields["pan"],
-                )
+                display_clip = loaded.display_for(source, fields)
                 if fields["index"] >= int(display_clip.num_frames):
                     raise ProtocolError(
                         "frame index 超出范围", code="worker.frame_index"
