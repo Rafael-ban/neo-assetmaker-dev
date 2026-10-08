@@ -1245,9 +1245,8 @@ class MainWindow(QMainWindow):
         target_w, target_h = self._get_target_resolution()
         self.video_preview.set_target_resolution(target_w, target_h)
         self.intro_preview.set_target_resolution(target_w, target_h)
-        # 过渡图预览此前从不接收目标分辨率(TransitionPreviewWidget.
-        # set_target_resolution 有定义但全仓零调用),裁剪框永远锁在默认
-        # 360x640 比例 —— 720x1080 工程里过渡图会被拉伸约 15.6%。
+        # 过渡图使用当前项目的目标比例，避免在 800x1280 等非 9:16
+        # 项目中继续使用默认 360x640 的裁剪比例。
         self.transition_preview.set_target_resolution(target_w, target_h)
 
         load_failures: list[str] = []

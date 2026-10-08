@@ -11,7 +11,7 @@
     "name": { "type": "string" },
     "description": { "type": "string" },
     "icon": { "type": "string" },
-    "screen": { "enum": ["360x640", "480x854", "720x1080"] },
+    "screen": { "enum": ["360x640", "720x1280", "800x1280"] },
     "loop": {
       "type": "object",
       "required": ["file"],

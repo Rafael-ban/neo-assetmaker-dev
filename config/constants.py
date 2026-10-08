@@ -32,15 +32,25 @@ RESOLUTION_SPECS: Dict[str, Dict[str, Any]] = {
         "rotate_180": False,
         "description": "360x640 (无黑边)"
     },
-    "720x1080": {
+    "720x1280": {
         "width": 720,
-        "height": 1080,
+        "height": 1280,
         "padded_width": 720,
-        "padded_height": 1080,
+        "padded_height": 1280,
         "padding_side": None,
         "padding_amount": 0,
         "rotate_180": False,
-        "description": "720x1080 (无黑边)"
+        "description": "720x1280 (无黑边)"
+    },
+    "800x1280": {
+        "width": 800,
+        "height": 1280,
+        "padded_width": 800,
+        "padded_height": 1280,
+        "padding_side": None,
+        "padding_amount": 0,
+        "rotate_180": False,
+        "description": "800x1280 (无黑边)"
     }
 }
 

@@ -187,7 +187,7 @@ class DefaultPipelineRealSubprocessTests(unittest.TestCase):
         payload = json.loads(result.stdout)
         self.assertEqual(
             (payload["bootstrap0"]["width"], payload["bootstrap0"]["height"]),
-            (720, 1080),
+            (720, 1280),
         )
         self.assertEqual(payload["bootstrap0"]["num_frames"], 8)
         self.assertEqual(payload["bootstrap0"]["fps"], [30000, 1001])

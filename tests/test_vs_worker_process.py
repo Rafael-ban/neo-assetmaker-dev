@@ -4159,11 +4159,11 @@ class RealVSWorkerLifecycleTests(unittest.TestCase):
         payload = json.loads(self.job.read_text(encoding="utf-8"))
         payload["output"].update(
             {
-                "profile": "720x1080",
+                "profile": "720x1280",
                 "display_width": 720,
-                "display_height": 1080,
+                "display_height": 1280,
                 "coded_width": 720,
-                "coded_height": 1080,
+                "coded_height": 1280,
             }
         )
         self.job.write_text(
@@ -4172,7 +4172,7 @@ class RealVSWorkerLifecycleTests(unittest.TestCase):
         script = self._write_script(
             "R73步长",
             _valid_script(compatible=False).replace(
-                "width=360, height=640", "width=720, height=1080"
+                "width=360, height=640", "width=720, height=1280"
             ),
         )
         self.client.start(timeout_ms=15_000)
@@ -4183,9 +4183,9 @@ class RealVSWorkerLifecycleTests(unittest.TestCase):
         )
 
         expected = {
-            "Y": hashlib.sha256(bytes([81]) * (720 * 1080)).hexdigest(),
-            "U": hashlib.sha256(bytes([90]) * (360 * 540)).hexdigest(),
-            "V": hashlib.sha256(bytes([240]) * (360 * 540)).hexdigest(),
+            "Y": hashlib.sha256(bytes([81]) * (720 * 1280)).hexdigest(),
+            "U": hashlib.sha256(bytes([90]) * (360 * 640)).hexdigest(),
+            "V": hashlib.sha256(bytes([240]) * (360 * 640)).hexdigest(),
         }
         self.assertEqual(digests, expected)
 

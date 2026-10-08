@@ -1604,8 +1604,10 @@ def _display_center_case() -> dict[str, object]:
 def _output_payload(profile: str) -> dict[str, object]:
     if profile == "360x640":
         geometry = (360, 640, 360, 640)
-    elif profile == "720x1080":
-        geometry = (720, 1080, 720, 1080)
+    elif profile == "720x1280":
+        geometry = (720, 1280, 720, 1280)
+    elif profile == "800x1280":
+        geometry = (800, 1280, 800, 1280)
     else:
         raise ValueError(profile)
     display_width, display_height, coded_width, coded_height = geometry
@@ -1886,7 +1888,7 @@ def _default_video_case() -> dict[str, object]:
             fps=None,
             rotation=90,
             crop=(0, 0, 0, 0),
-            profile="720x1080",
+            profile="720x1280",
             epoch=12,
         )
         vs, bootstrap_graph, bootstrap_validated = _execute_default(
@@ -1907,7 +1909,7 @@ def _default_video_case() -> dict[str, object]:
             fps=(30000, 1001),
             rotation=90,
             crop=(1, 1, 999, 999),
-            profile="720x1080",
+            profile="720x1280",
             epoch=13,
         )
         vs, resolved_graph, resolved_validated = _execute_default(

@@ -64,7 +64,8 @@ profile 由 `assetmaker_vs.job_api` 固定，而不是可随意拼接的旧全�
 | profile | 内容画布 | 编码画布 | format | matrix/range |
 |---|---:|---:|---|---|
 | `360x640` | 360×640 | 360×640 | YUV420P8 | 170m / limited |
-| `720x1080` | 720×1080 | 720×1080 | YUV420P8 | 170m / limited |
+| `720x1280` | 720×1280 | 720×1280 | YUV420P8 | 170m / limited |
+| `800x1280` | 800×1280 | 800×1280 | YUV420P8 | 170m / limited |
 
 修改 kernel、Bicubic b/c、dither、输出格式或色彩参数会改变实际像素或编码合同，
 必须同时验证默认脚本、output contract、worker/VSPipe parity 和真实导出回读；不能

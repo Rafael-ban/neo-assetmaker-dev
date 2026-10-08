@@ -220,7 +220,7 @@ class PathSpec:
 
 @dataclass(frozen=True)
 class OutputSpec:
-    profile: Literal["360x640", "720x1080"]
+    profile: Literal["360x640", "720x1280", "800x1280"]
     display_width: int
     display_height: int
     coded_width: int

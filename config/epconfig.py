@@ -16,7 +16,8 @@ CONFIG_FILENAME = "epconfig.json"
 class ScreenType(Enum):
     """屏幕分辨率类型"""
     S360x640 = "360x640"
-    S720x1080 = "720x1080"
+    S720x1280 = "720x1280"
+    S800x1280 = "800x1280"
 
     @classmethod
     def from_string(cls, value: str) -> "ScreenType":

@@ -15,8 +15,10 @@ pub enum ScreenType {
     S360x640,
     #[serde(rename = "480x854")]
     S480x854,
-    #[serde(rename = "720x1080")]
-    S720x1080,
+    #[serde(rename = "720x1280")]
+    S720x1280,
+    #[serde(rename = "800x1280")]
+    S800x1280,
 }
 
 impl ScreenType {
@@ -24,7 +26,8 @@ impl ScreenType {
         match self {
             ScreenType::S360x640 => (360, 640),
             ScreenType::S480x854 => (480, 854),
-            ScreenType::S720x1080 => (720, 1080),
+            ScreenType::S720x1280 => (720, 1280),
+            ScreenType::S800x1280 => (800, 1280),
         }
     }
 }
@@ -417,7 +420,17 @@ mod tests {
     fn test_screen_dimensions() {
         assert_eq!(ScreenType::S360x640.dimensions(), (360, 640));
         assert_eq!(ScreenType::S480x854.dimensions(), (480, 854));
-        assert_eq!(ScreenType::S720x1080.dimensions(), (720, 1080));
+        assert_eq!(ScreenType::S720x1280.dimensions(), (720, 1280));
+        assert_eq!(ScreenType::S800x1280.dimensions(), (800, 1280));
+    }
+
+    #[test]
+    fn test_new_screen_profiles_parse() {
+        assert_eq!(serde_json::from_str::<ScreenType>("\"720x1280\"").unwrap(),
+                   ScreenType::S720x1280);
+        assert_eq!(serde_json::from_str::<ScreenType>("\"800x1280\"").unwrap(),
+                   ScreenType::S800x1280);
+        assert!(serde_json::from_str::<ScreenType>("\"720x1080\"").is_err());
     }
 
     #[test]
@@ -444,7 +457,7 @@ mod tests {
     fn test_golden_image_loop_fixture() {
         let json = include_str!("../../../tests/fixtures/epconfig/image_loop_intro_crop.json");
         let config: EPConfig = serde_json::from_str(json).unwrap();
-        assert_eq!(config.screen, ScreenType::S720x1080);
+        assert_eq!(config.screen, ScreenType::S720x1280);
         assert!(config.loop_config.is_image);
         assert!(config.has_intro());
     }

@@ -50,7 +50,7 @@ y_step = 1 << clip.format.subsampling_h
 
 `CropAbs` 和自定义处理阶段后，Spline36 生成 profile 的内容画布。例如 `360x640` profile 先得到
 360×640 YUV420P8，编码画布同为 360×640，不再补右侧 24 像素黑边。
-当前两个 profile 的编码尺寸均等于内容尺寸，因此默认图跳过 `AddBorders`。
+当前三个 profile 的编码尺寸均等于内容尺寸，因此默认图跳过 `AddBorders`。
 
 ## 编辑框与 RGB 视口不是同一个裁剪层
 
