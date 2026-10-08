@@ -65,6 +65,8 @@ def load_manifest(
         package_id = package.get("id")
         if not isinstance(package_id, str) or not _PACKAGE_ID.fullmatch(package_id):
             raise PluginDistributionError(f"Invalid package id: {package_id!r}")
+        if not isinstance(package.get("autoload", True), bool):
+            raise PluginDistributionError(f"Invalid autoload setting: {package_id}")
         if package_id in ids:
             raise PluginDistributionError(f"Duplicate package id: {package_id}")
         ids.add(package_id)

@@ -39,7 +39,10 @@ class DefaultPipelineCacheTests(unittest.TestCase):
         """执行脚本到 job 加载边界，观测缓存阈值已覆写。"""
         source = DEFAULT_PIPELINE.read_text(encoding="utf-8")
         fake_vs = types.ModuleType("vapoursynth")
-        fake_vs.core = types.SimpleNamespace(max_cache_size=37)
+        fake_vs.core = types.SimpleNamespace(
+            max_cache_size=37,
+            resize=types.SimpleNamespace(Spline36=mock.Mock()),
+        )
         job_api = types.ModuleType("assetmaker_vs.job_api")
 
         class JobBoundaryReached(Exception):

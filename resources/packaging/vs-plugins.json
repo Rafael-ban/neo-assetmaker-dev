@@ -85,7 +85,8 @@
       "namespaces": [
         "bilateralgpu"
       ],
-      "adjacent_from": []
+      "adjacent_from": [],
+      "autoload": false
     },
     {
       "id": "bm3d",
@@ -144,7 +145,8 @@
       "namespaces": [
         "bm3dcuda"
       ],
-      "adjacent_from": []
+      "adjacent_from": [],
+      "autoload": false
     },
     {
       "id": "bm3dcuda_rtc",
@@ -163,7 +165,8 @@
       "namespaces": [
         "bm3dcuda_rtc"
       ],
-      "adjacent_from": []
+      "adjacent_from": [],
+      "autoload": false
     },
     {
       "id": "bwdif",
@@ -346,7 +349,8 @@
         "dfttest2_cuda",
         "dfttest2_nvrtc"
       ],
-      "adjacent_from": []
+      "adjacent_from": [],
+      "autoload": false
     },
     {
       "id": "dfttest2_cuda_runtime",
@@ -363,7 +367,8 @@
       ],
       "dependencies": [],
       "namespaces": [],
-      "adjacent_from": []
+      "adjacent_from": [],
+      "autoload": false
     },
     {
       "id": "dpid",
@@ -458,7 +463,8 @@
       "namespaces": [
         "eedi3vk"
       ],
-      "adjacent_from": []
+      "adjacent_from": [],
+      "autoload": false
     },
     {
       "id": "ffms2",
@@ -634,7 +640,8 @@
       "namespaces": [
         "knlm"
       ],
-      "adjacent_from": []
+      "adjacent_from": [],
+      "autoload": false
     },
     {
       "id": "median",
@@ -832,7 +839,8 @@
       ],
       "adjacent_from": [
         "nnedi3_weights"
-      ]
+      ],
+      "autoload": false
     },
     {
       "id": "retinex",
@@ -1083,7 +1091,8 @@
       ],
       "adjacent_from": [
         "w2xnvk_models"
-      ]
+      ],
+      "autoload": false
     },
     {
       "id": "w2xnvk_models",

@@ -161,6 +161,35 @@ class RuntimeLayoutTests(unittest.TestCase):
                 layout.vsscript_library.parents[3], layout.runtime_root
             )
 
+    def test_optional_accelerator_plugins_are_not_loaded_by_default(self):
+        _error, resolve_runtime_layout = _runtime_layout_api()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir).resolve()
+            runtime = _build_r79_fixture(root)
+            extensions = root / "tools" / "vs-plugins"
+            for name in ("cpu_filter", "cuda_filter"):
+                (extensions / name).mkdir(parents=True)
+            lock = root / "resources" / "packaging" / "vs-plugins.json"
+            lock.parent.mkdir(parents=True)
+            lock.write_text(json.dumps({"packages": [
+                {"id": "cpu_filter"},
+                {"id": "cuda_filter", "autoload": False},
+            ]}), encoding="utf-8")
+
+            layout = resolve_runtime_layout(root)
+
+            self.assertIn(extensions / "cpu_filter", layout.bundled_native_plugin_dirs)
+            self.assertNotIn(
+                extensions / "cuda_filter", layout.bundled_native_plugin_dirs
+            )
+            self.assertEqual(
+                layout.bundled_native_plugin_dirs[:2],
+                (
+                    runtime / "native-plugins" / "01-lsmas",
+                    runtime / "native-plugins" / "02-imwri",
+                ),
+            )
+
     def test_rejects_each_missing_execution_asset_with_exact_path(self):
         """漏掉任一执行闭包资产时必须在启动上游前给出准确路径。"""
         RuntimeLayoutError, resolve_runtime_layout = _runtime_layout_api()

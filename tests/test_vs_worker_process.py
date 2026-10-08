@@ -568,6 +568,7 @@ class WorkerProcessTransportTests(unittest.TestCase):
                 for path in (
                     layout.vs_package_dir,
                     layout.runtime_root,
+                    *layout.bundled_native_plugin_dirs,
                     Path(system_root) / "System32",
                     Path(system_root),
                 )
@@ -2426,112 +2427,34 @@ class WorkerServerFrameTests(unittest.TestCase):
         server.app_dir = ROOT
         server.runtime = load_vs_runtime()
         server.runtime_fingerprint = "a" * 64
-        server.generation_staging = GenerationStagingRoot.create()
-        server.generation_staging.initialize_marker()
-        self.addCleanup(server.generation_staging.close)
-        with tempfile.TemporaryDirectory() as temp_dir:
-            script = Path(temp_dir) / "pipeline.vpy"
-            job = Path(temp_dir) / "job.json"
-            script.write_text("# test\n", encoding="utf-8")
-            job.write_text("{}", encoding="utf-8")
-            message = {
-                "type": "load",
-                "request_id": 1,
-                "api_version": 1,
-                "track": "loop",
-                "epoch": 7,
-                "script_path": str(script.resolve()),
-                "job_path": str(job.resolve()),
-                "job_sha256": hashlib.sha256(job.read_bytes()).hexdigest(),
-                "bundle_hash": "c" * 64,
-                "runtime_fingerprint": "b" * 64,
-                "mode": "raw",
-            }
-            with (
-                mock.patch(
-                    "core.vs_runtime.session.compute_script_bundle_hash",
-                    return_value="c" * 64,
-                ),
-                mock.patch(
-                    "core.vs_runtime.vs_loader.compute_runtime_fingerprint",
-                    return_value="b" * 64,
-                ),
-                mock.patch(
-                    "resources.vapoursynth.python.assetmaker_vs.job_api.load_job",
-                    return_value={
-                        "api_version": 1,
-                        "track": "loop",
-                        "epoch": 7,
-                    },
-                ) as load_job,
-                mock.patch(
-                    "resources.vapoursynth.python.assetmaker_vs.script_header.parse_script_header",
-                    return_value={"mode": "raw"},
-                ),
-                mock.patch(
-                    "resources.vapoursynth.python.assetmaker_vs.script_header.validate_invocation"
-                ),
-                self.assertRaises(ProtocolError) as raised,
-            ):
-                server._prepare_load(message)
+        with mock.patch(
+            "core.vs_runtime.vs_loader.compute_runtime_fingerprint",
+            side_effect=("a" * 64, "b" * 64),
+        ) as fingerprint:
+            server._assert_runtime_unchanged("a" * 64)
+            with self.assertRaises(ProtocolError) as raised:
+                server._assert_runtime_unchanged("a" * 64)
 
         self.assertEqual(raised.exception.code, "worker.runtime_changed")
-        load_job.assert_not_called()
+        self.assertEqual(fingerprint.call_count, 2)
 
-    def test_runtime_change_while_importing_helpers_prevents_job_read(self):
+    def test_runtime_fingerprint_mismatch_requires_fresh_process(self):
         from core.vs_runtime.worker_main import WorkerServer
 
         server = object.__new__(WorkerServer)
         server.app_dir = ROOT
         server.runtime = load_vs_runtime()
         server.runtime_fingerprint = "a" * 64
-        server.generation_staging = GenerationStagingRoot.create()
-        server.generation_staging.initialize_marker()
-        self.addCleanup(server.generation_staging.close)
-        with tempfile.TemporaryDirectory() as temp_dir:
-            script = Path(temp_dir) / "pipeline.vpy"
-            job = Path(temp_dir) / "job.json"
-            script.write_text("# test\n", encoding="utf-8")
-            job.write_text("{}", encoding="utf-8")
-            message = {
-                "type": "load",
-                "request_id": 1,
-                "api_version": 1,
-                "track": "loop",
-                "epoch": 7,
-                "script_path": str(script.resolve()),
-                "job_path": str(job.resolve()),
-                "job_sha256": hashlib.sha256(job.read_bytes()).hexdigest(),
-                "bundle_hash": "c" * 64,
-                "runtime_fingerprint": "a" * 64,
-                "mode": "raw",
-            }
-            with (
-                mock.patch(
-                    "core.vs_runtime.session.compute_script_bundle_hash",
-                    return_value="c" * 64,
-                ),
-                mock.patch(
-                    "core.vs_runtime.vs_loader.compute_runtime_fingerprint",
-                    side_effect=("a" * 64, "b" * 64),
-                ) as fingerprint,
-                mock.patch(
-                    "resources.vapoursynth.python.assetmaker_vs.job_api.load_job"
-                ) as load_job,
-                mock.patch(
-                    "resources.vapoursynth.python.assetmaker_vs.script_header.parse_script_header",
-                    return_value={"mode": "raw"},
-                ),
-                mock.patch(
-                    "resources.vapoursynth.python.assetmaker_vs.script_header.validate_invocation"
-                ),
-                self.assertRaises(ProtocolError) as raised,
-            ):
-                server._prepare_load(message)
+        with (
+            mock.patch(
+                "core.vs_runtime.vs_loader.compute_runtime_fingerprint",
+                return_value="a" * 64,
+            ),
+            self.assertRaises(ProtocolError) as raised,
+        ):
+            server._assert_runtime_unchanged("b" * 64)
 
         self.assertEqual(raised.exception.code, "worker.runtime_changed")
-        self.assertEqual(fingerprint.call_count, 2)
-        load_job.assert_not_called()
 
     def test_runtime_change_while_loading_vs_prevents_user_execution(self):
         from core.vs_runtime.worker_main import WorkerServer
@@ -2676,19 +2599,11 @@ class WorkerServerFrameTests(unittest.TestCase):
         self.assertEqual(raised.exception.exit_code, 73)
         server._send_error.assert_called_once()
 
-    def test_run_worker_snapshots_runtime_before_importing_log_helper(self):
+    def test_run_worker_initializes_server_before_installing_log_helper(self):
         from core.vs_runtime import worker_main
 
         events = []
-        server = SimpleNamespace(
-            runtime_fingerprint="a" * 64,
-            close_for_eof=mock.Mock(return_value=0),
-        )
-
-        def verify_runtime(_expected):
-            events.append("runtime-check")
-
-        server._assert_runtime_unchanged = verify_runtime
+        server = SimpleNamespace(close_for_eof=mock.Mock(return_value=0))
 
         def create_server(**_kwargs):
             events.append("server")
@@ -2717,7 +2632,7 @@ class WorkerServerFrameTests(unittest.TestCase):
             )
 
         self.assertEqual(result, 0)
-        self.assertEqual(events, ["server", "stdout", "runtime-check"])
+        self.assertEqual(events, ["server", "stdout"])
 
     def test_main_defers_staging_import_until_worker_runtime_snapshot(self):
         from core.vs_runtime import worker_main

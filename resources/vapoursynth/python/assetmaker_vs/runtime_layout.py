@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -190,6 +191,22 @@ def _layout_for(app_dir: str | os.PathLike[str]) -> RuntimeLayout:
         ))
         if extension_root.is_dir() else ()
     )
+    plugin_lock = root / "resources" / "packaging" / "vs-plugins.json"
+    if plugin_lock.is_file():
+        try:
+            packages = json.loads(plugin_lock.read_text(encoding="utf-8"))["packages"]
+            autoload_ids = {
+                package["id"] for package in packages
+                if package.get("autoload", True)
+            }
+        except (OSError, ValueError, KeyError, TypeError) as error:
+            raise RuntimeLayoutError(
+                f"无法读取插件加载配置 {plugin_lock}: {error}"
+            ) from error
+        extension_dirs = tuple(
+            directory for directory in extension_dirs
+            if directory.name in autoload_ids
+        )
     return RuntimeLayout(
         app_dir=root,
         media_root=media,

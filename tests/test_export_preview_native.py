@@ -10,6 +10,8 @@ from unittest import mock
 
 
 def _run_probe():
+    import numpy as np
+
     from PyQt6.QtCore import QTimer, Qt
     from PyQt6.QtTest import QTest
     from PyQt6.QtWidgets import QDialog
@@ -59,6 +61,22 @@ def _run_probe():
 
     try:
         fixture.setUp()
+        client = fixture.client
+        request_frame = client.request_frame
+
+        def request_and_deliver_frame(**kwargs):
+            request_id = request_frame(**kwargs)
+            # 播放保持一个显示请求在途；模拟 worker 异步完成后才可继续取帧。
+            QTimer.singleShot(1, lambda: client.frame_ready.emit(
+                request_id,
+                kwargs["epoch"],
+                kwargs["surface"],
+                kwargs["index"],
+                np.full((8, 8, 3), kwargs["index"] % 256, dtype=np.uint8),
+            ))
+            return request_id
+
+        client.request_frame = request_and_deliver_frame
         fixture._load_compatible()
         fixture.widget.flush_render_job()
         fixture._resolve_current()
@@ -68,6 +86,7 @@ def _run_probe():
         baseline = len(client.requests)
         wait_for_requests(client, baseline + 3)
         observations["playing_requests"] = len(client.requests) - baseline
+        case.assertGreater(preview._play_displayed_frames, 0)
         frozen_session = []
 
         def collect():
@@ -130,6 +149,7 @@ def _run_probe():
         resumed = len(client.requests)
         wait_for_requests(client, resumed + 2)
         observations["resumed_requests"] = len(client.requests) - resumed
+        case.assertGreater(preview._play_displayed_frames, 0)
         preview.close()
         observations["worker_close_calls"] = client.closed
         case.assertEqual(client.closed, 1)
