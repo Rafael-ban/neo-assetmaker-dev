@@ -8,7 +8,7 @@ import vapoursynth as vs
 
 
 base = vs.core.std.BlankClip(
-    width=384,
+    width=360,
     height=640,
     length=5,
     fpsnum=30000,

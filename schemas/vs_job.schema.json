@@ -185,7 +185,7 @@
             "profile": {"const": "360x640"},
             "display_width": {"const": 360},
             "display_height": {"const": 640},
-            "coded_width": {"const": 384},
+            "coded_width": {"const": 360},
             "coded_height": {"const": 640},
             "final_rotate_180": {"const": false}
           }

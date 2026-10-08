@@ -965,7 +965,7 @@ def _job_payload(
             "profile": "360x640",
             "display_width": 360,
             "display_height": 640,
-            "coded_width": 384,
+            "coded_width": 360,
             "coded_height": 640,
             "pixel_format": "YUV420P8",
             "matrix": "170m",
@@ -990,7 +990,7 @@ def _raw_header() -> dict[str, object]:
 
 def _tagged_clip(vs, *, length: int = 5):
     clip = vs.core.std.BlankClip(
-        width=384,
+        width=360,
         height=640,
         length=length,
         fpsnum=30000,
@@ -1316,7 +1316,7 @@ def _range_probe_case() -> dict[str, object]:
 
     binding = sys.modules["vapoursynth.vapoursynth"]
     base = vs.core.std.BlankClip(
-        width=384,
+        width=360,
         height=640,
         length=5,
         fpsnum=30000,
@@ -1603,7 +1603,7 @@ def _display_center_case() -> dict[str, object]:
 
 def _output_payload(profile: str) -> dict[str, object]:
     if profile == "360x640":
-        geometry = (360, 640, 384, 640)
+        geometry = (360, 640, 360, 640)
     elif profile == "720x1080":
         geometry = (720, 1080, 720, 1080)
     else:

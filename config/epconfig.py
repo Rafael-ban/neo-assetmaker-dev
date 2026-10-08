@@ -437,10 +437,14 @@ class EPConfig:
 
         trans_in_dict = self.transition_in.to_dict(normalize_paths=normalize_paths)
         if trans_in_dict:
+            if normalize_paths and trans_in_dict.get("options", {}).get("image"):
+                trans_in_dict["options"]["image"] = "transition_in.png"
             result["transition_in"] = trans_in_dict
 
         trans_loop_dict = self.transition_loop.to_dict(normalize_paths=normalize_paths)
         if trans_loop_dict:
+            if normalize_paths and trans_loop_dict.get("options", {}).get("image"):
+                trans_loop_dict["options"]["image"] = "transition_loop.png"
             result["transition_loop"] = trans_loop_dict
 
         overlay_dict = self.overlay.to_dict(normalize_paths=normalize_paths)

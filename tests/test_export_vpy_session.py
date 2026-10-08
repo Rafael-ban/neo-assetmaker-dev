@@ -79,7 +79,7 @@ class ExportSessionTests(unittest.TestCase):
                 mode=session.selection.mode,
                 capabilities=frozenset(),
                 output0=NodeMetadata(
-                    width=384, height=640, num_frames=30,
+                    width=360, height=640, num_frames=30,
                     fps_num=30000, fps_den=1001, pixel_format="YUV420P8",
                     matrix="170m", transfer="170m", primaries="170m",
                     range="limited",
@@ -130,7 +130,7 @@ class ExportSessionTests(unittest.TestCase):
                 mode=session.selection.mode,
                 capabilities=frozenset(),
                 output0=NodeMetadata(
-                    width=384, height=640, num_frames=30,
+                    width=360, height=640, num_frames=30,
                     fps_num=30000, fps_den=1001, pixel_format="YUV420P8",
                     matrix="170m", transfer="170m", primaries="170m",
                     range="limited",
@@ -186,7 +186,7 @@ class ExportSessionTests(unittest.TestCase):
                 mode=session.selection.mode,
                 capabilities=frozenset(),
                 output0=NodeMetadata(
-                    width=384, height=640, num_frames=30,
+                    width=360, height=640, num_frames=30,
                     fps_num=30000, fps_den=1001, pixel_format="YUV420P8",
                     matrix="170m", transfer="170m", primaries="170m",
                     range="limited",
@@ -225,7 +225,7 @@ class ExportSessionTests(unittest.TestCase):
             worker._media_toolchain = mock.Mock(missing_for_export=mock.Mock(return_value=[]))
             metadata = SessionMetadata(
                 epoch=session.epoch, mode=session.selection.mode, capabilities=frozenset(),
-                output0=NodeMetadata(384, 640, 30, 30000, 1001, "YUV420P8", "170m", "170m", "170m", "limited"),
+                output0=NodeMetadata(360, 640, 30, 30000, 1001, "YUV420P8", "170m", "170m", "170m", "limited"),
                 editor=None,
             )
             with mock.patch("core.export_service.SyncVSWorkerProcess") as process_type, mock.patch(
@@ -265,7 +265,7 @@ class ExportSessionTests(unittest.TestCase):
             worker._media_toolchain = mock.Mock(missing_for_export=mock.Mock(return_value=[]))
             metadata = SessionMetadata(
                 epoch=session.epoch, mode=session.selection.mode, capabilities=frozenset(),
-                output0=NodeMetadata(384, 640, 30, 30000, 1001, "YUV420P8", "170m", "170m", "170m", "limited"),
+                output0=NodeMetadata(360, 640, 30, 30000, 1001, "YUV420P8", "170m", "170m", "170m", "limited"),
                 editor=None,
             )
             seen = {}
@@ -327,7 +327,7 @@ class ExportSessionTests(unittest.TestCase):
                 mode=export_session.selection.mode,
                 capabilities=frozenset(),
                 output0=NodeMetadata(
-                    384, 640, 30, 30000, 1001, "YUV420P8",
+                    360, 640, 30, 30000, 1001, "YUV420P8",
                     "170m", "170m", "170m", "limited",
                 ),
                 editor=None,
@@ -434,7 +434,7 @@ class RealRunnerExportTests(unittest.TestCase):
                         "profile": "360x640",
                         "display_width": 360,
                         "display_height": 640,
-                        "coded_width": 384,
+                        "coded_width": 360,
                         "coded_height": 640,
                         "pixel_format": "YUV420P8",
                         "matrix": "170m",
@@ -574,7 +574,7 @@ class RealRunnerRuntimeIdentityTests(unittest.TestCase):
                             "profile": "360x640",
                             "display_width": 360,
                             "display_height": 640,
-                            "coded_width": 384,
+                            "coded_width": 360,
                             "coded_height": 640,
                             "pixel_format": "YUV420P8",
                             "matrix": "170m",

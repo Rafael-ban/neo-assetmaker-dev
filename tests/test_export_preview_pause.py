@@ -135,6 +135,7 @@ class _OnExportWindow(_ExportWindow):
         )
         self._collect_arknights_custom_images = mock.Mock(return_value=[])
         self._collect_image_overlay = mock.Mock(return_value=[])
+        self._collect_transition_images = mock.Mock(return_value=[])
 
 
 class _CompletedExportService:

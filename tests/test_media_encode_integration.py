@@ -107,7 +107,7 @@ class MediaEncodeIntegrationTests(unittest.TestCase):
     def test_odd_and_out_of_bounds_crop_encodes(self):
         """M1b: odd + oversized crop is clamped/aligned instead of aborting the encode."""
         out = _export(self.src, self.d / "crop.mp4", cropbox=(11, 21, 999, 999))
-        self.assertEqual(_decode0(out).shape, (640, 384, 3))
+        self.assertEqual(_decode0(out).shape, (640, 360, 3))
 
     def test_image_loop_encodes(self):
         """M1f: image-loop RGB->YUV no longer fails on a missing colour matrix."""

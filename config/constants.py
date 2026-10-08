@@ -14,10 +14,10 @@ APP_VERSION_LABEL = f"{APP_VERSION}（测试预览版）"
 SCREEN_WIDTH = 360
 SCREEN_HEIGHT = 640
 
-LOGO_WIDTH = 256
-LOGO_HEIGHT = 256
+LOGO_WIDTH = 360
+LOGO_HEIGHT = 360
 
-VIDEO_WIDTH = 384
+VIDEO_WIDTH = 360
 VIDEO_HEIGHT = 640
 
 # ===== 分辨率规范配置 =====
@@ -25,12 +25,12 @@ RESOLUTION_SPECS: Dict[str, Dict[str, Any]] = {
     "360x640": {
         "width": 360,
         "height": 640,
-        "padded_width": 384,
+        "padded_width": 360,
         "padded_height": 640,
-        "padding_side": "right",
-        "padding_amount": 24,
+        "padding_side": None,
+        "padding_amount": 0,
         "rotate_180": False,
-        "description": "360x640 (对齐后384x640, 右边+24px黑边)"
+        "description": "360x640 (无黑边)"
     },
     "720x1080": {
         "width": 720,

@@ -157,7 +157,7 @@ class DefaultPipelineRealSubprocessTests(unittest.TestCase):
         output0 = payload["output0"]
         output1 = payload["output1"]
         self.assertEqual(
-            (output0["width"], output0["height"]), (384, 640)
+            (output0["width"], output0["height"]), (360, 640)
         )
         self.assertEqual(output0["num_frames"], 5)
         self.assertEqual(output0["fps"], [30, 1])
@@ -177,7 +177,7 @@ class DefaultPipelineRealSubprocessTests(unittest.TestCase):
         self.assertEqual(output1["num_frames"], 9)
         self.assertEqual(output1["fps"], [30, 1])
         self.assertEqual(payload["runner"]["returncode"], 0)
-        self.assertIn("Width: 384", payload["runner"]["stdout"])
+        self.assertIn("Width: 360", payload["runner"]["stdout"])
         self.assertGreater(payload["encoded"]["size"], 0)
 
     def test_video_bootstrap_and_resolved_jobs_share_full_editor_output(self):

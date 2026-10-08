@@ -135,7 +135,7 @@ class RenderJobContractTests(unittest.TestCase):
         self.assertEqual(
             (compact.display_width, compact.display_height), (360, 640)
         )
-        self.assertEqual((compact.coded_width, compact.coded_height), (384, 640))
+        self.assertEqual((compact.coded_width, compact.coded_height), (360, 640))
         self.assertEqual(
             (large.display_width, large.display_height), (720, 1080)
         )
@@ -149,7 +149,7 @@ class RenderJobContractTests(unittest.TestCase):
                 "profile": "360x640",
                 "display_width": 360,
                 "display_height": 640,
-                "coded_width": 384,
+                "coded_width": 360,
                 "coded_height": 640,
                 "pixel_format": "YUV420P8",
                 "matrix": "170m",
@@ -182,7 +182,7 @@ class RenderJobContractTests(unittest.TestCase):
 
     def test_mismatched_profile_dimensions_are_rejected(self):
         job = make_job()
-        invalid_output = replace(job.output, coded_width=360)
+        invalid_output = replace(job.output, coded_width=384)
 
         with self.assertRaises(RenderJobError):
             replace(job, output=invalid_output).validate()

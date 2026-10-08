@@ -863,7 +863,7 @@ class NativePluginPortableIntegrationTests(unittest.TestCase):
                 "    'api': list(vs.__api_version__),\n"
                 "    'appdata': os.environ['APPDATA'],\n"
                 "}), encoding='utf-8')\n"
-                "base = vs.core.std.BlankClip(width=384, height=640, length=3, "
+                "base = vs.core.std.BlankClip(width=360, height=640, length=3, "
                 "fpsnum=30000, fpsden=1001, format=vs.YUV420P8, "
                 "color=[16, 128, 128])\n"
                 "base = vs.core.std.SetFrameProps(base, _Matrix=6, _Transfer=6, "
@@ -882,7 +882,7 @@ class NativePluginPortableIntegrationTests(unittest.TestCase):
                         "source": {"path": str(project / "source.mp4"), "kind": "video", "virtual_frame_count": None},
                         "timeline": {"start_frame": 0, "end_frame": 3, "fps": {"numerator": 30000, "denominator": 1001}},
                         "transform": {"rotation": 0, "crop": {"coordinate_space": "post_rotation_source_pixels", "x": 0, "y": 0, "width": 0, "height": 0}},
-                        "output": {"profile": "360x640", "display_width": 360, "display_height": 640, "coded_width": 384, "coded_height": 640, "pixel_format": "YUV420P8", "matrix": "170m", "transfer": "170m", "primaries": "170m", "range": "limited", "final_rotate_180": False},
+                        "output": {"profile": "360x640", "display_width": 360, "display_height": 640, "coded_width": 360, "coded_height": 640, "pixel_format": "YUV420P8", "matrix": "170m", "transfer": "170m", "primaries": "170m", "range": "limited", "final_rotate_180": False},
                         "paths": {"cache_dir": str(project / "cache")},
                     },
                     ensure_ascii=False,
@@ -939,12 +939,12 @@ class NativePluginPortableIntegrationTests(unittest.TestCase):
                 epoch=3,
                 index=0,
                 surface="final",
-                viewport=(384, 640),
+                viewport=(360, 640),
                 zoom_factor=1.0,
                 pan=(0.5, 0.5),
                 timeout_ms=15_000,
             )
-            self.assertEqual(frame.shape, (640, 384, 3))
+            self.assertEqual(frame.shape, (640, 360, 3))
             worker_sources = json.loads(sources_marker.read_text(encoding="utf-8"))
             self.assertEqual(Path(worker_sources["lsmas"]).resolve(), first / "LSMASHSource.dll")
             self.assertEqual(Path(worker_sources["imwri"]).resolve(), second / "libimwri.dll")

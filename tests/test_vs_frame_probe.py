@@ -189,7 +189,7 @@ class LoaderProbeTests(_IsolatedVSCase):
         from core.video_processor import probe_video_info
 
         info = probe_video_info(str(self.mp4))
-        self.assertEqual(info.width, 384)
+        self.assertEqual(info.width, 360)
         self.assertEqual(info.height, 640)
         self.assertEqual(info.total_frames, 45)
         self.assertAlmostEqual(info.fps, 30.0, places=6)
@@ -201,12 +201,12 @@ class LoaderProbeTests(_IsolatedVSCase):
 
         info = VideoProcessor().get_video_info(str(self.mp4))
         self.assertIsNotNone(info)
-        self.assertEqual((info.width, info.height, info.total_frames), (384, 640, 45))
+        self.assertEqual((info.width, info.height, info.total_frames), (360, 640, 45))
         self.assertNotIn("vapoursynth", sys.modules)
 
     def test_real_frame_round_trips_to_bgr_in_isolated_loader_process(self):
         result = self._run_vs_child("real_frame", str(self.mp4))
-        self.assertEqual(result["shape"], [640, 384, 3])
+        self.assertEqual(result["shape"], [640, 360, 3])
         self.assertGreater(result["mean"], 100)
 
     def test_missing_file_returns_none(self):

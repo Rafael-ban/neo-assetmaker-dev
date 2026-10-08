@@ -25,7 +25,7 @@ _PROFILE_OUTPUTS: dict[str, dict[str, Any]] = {
         "profile": "360x640",
         "display_width": 360,
         "display_height": 640,
-        "coded_width": 384,
+        "coded_width": 360,
         "coded_height": 640,
         "pixel_format": "YUV420P8",
         "matrix": "170m",

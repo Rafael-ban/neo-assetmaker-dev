@@ -173,7 +173,7 @@ class ExportPackageIntegrationTests(unittest.TestCase):
                                 decoded, frame = capture.read()
                                 if not decoded:
                                     break
-                                self.assertEqual(frame.shape, (640, 384, 3))
+                                self.assertEqual(frame.shape, (640, 360, 3))
                                 decoded_frames += 1
                         finally:
                             capture.release()

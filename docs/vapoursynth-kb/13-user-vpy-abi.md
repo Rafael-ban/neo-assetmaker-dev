@@ -124,7 +124,7 @@ import vapoursynth as vs
 from assetmaker_vs.job_api import load_job
 
 job = load_job(assetmaker_job)
-clip = vs.core.std.BlankClip(width=384, height=640, format=vs.YUV420P8)
+clip = vs.core.std.BlankClip(width=360, height=640, format=vs.YUV420P8)
 # 这里只是结构示例；真实 output 0 仍须匹配 job 的帧数、fps 与色彩 props。
 clip.set_output(0)
 ```

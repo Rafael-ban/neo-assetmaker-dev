@@ -105,7 +105,7 @@ def _write_job(path: Path, *, frame_count: int = 3) -> None:
             "profile": "360x640",
             "display_width": 360,
             "display_height": 640,
-            "coded_width": 384,
+            "coded_width": 360,
             "coded_height": 640,
             "pixel_format": "YUV420P8",
             "matrix": "170m",
@@ -236,7 +236,7 @@ def _write_invalid_prop_script(
         "# assetmaker-editor-output: 0\n\n"
         "import vapoursynth as vs\n\n"
         "base = vs.core.std.BlankClip(\n"
-        "    width=384, height=640, length=3,\n"
+        "    width=360, height=640, length=3,\n"
         "    fpsnum=30000, fpsden=1001, format=vs.YUV420P8,\n"
         "    color=[16, 128, 128],\n"
         ")\n"
@@ -1003,7 +1003,7 @@ class TrustedRunnerTests(unittest.TestCase):
             result = _run_vspipe(script=script, job=job, mode="raw")
 
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn("Width: 384", result.stdout)
+        self.assertIn("Width: 360", result.stdout)
         self.assertNotIn("hello from script", result.stdout)
         self.assertIn("hello from script", result.stderr)
         self.assertIn("lazy module imported", result.stderr)
@@ -1072,7 +1072,7 @@ class TrustedRunnerTests(unittest.TestCase):
                 "from pathlib import Path\n"
                 "import vapoursynth as vs\n"
                 f"Path({str(sentinel)!r}).write_text('ran', encoding='utf-8')\n"
-                "clip = vs.core.std.BlankClip(width=384, height=640, length=3, "
+                "clip = vs.core.std.BlankClip(width=360, height=640, length=3, "
                 "fpsnum=30, fpsden=1, format=vs.YUV420P8, color=[16, 128, 128])\n"
                 "clip = vs.core.std.SetFrameProps(clip, _Matrix=6, _Transfer=6, "
                 "_Primaries=6, _ColorRange=1)\n"
