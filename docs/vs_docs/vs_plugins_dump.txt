@@ -1,0 +1,555 @@
+VapourSynth 已加载插件/命名空间共 62 个，函数合计 306 个。
+
+======================================================================
+# 插件命名空间: akarin
+# 函数数: 11
+  akarin.Cambi
+  akarin.DLISR
+  akarin.DLVFX
+  akarin.Expr
+  akarin.ExprTest
+  akarin.PickFrames
+  akarin.PropExpr
+  akarin.Select
+  akarin.Text
+  akarin.Tmpl
+  akarin.Version
+
+======================================================================
+# 插件命名空间: anime4kcpp
+# 函数数: 2
+  anime4kcpp.ACInfoList
+  anime4kcpp.ACUpscale
+
+======================================================================
+# 插件命名空间: avs
+# 函数数: 1
+  avs.LoadPlugin
+
+======================================================================
+# 插件命名空间: bilateral
+# 函数数: 2
+  bilateral.Bilateral
+  bilateral.Gaussian
+
+======================================================================
+# 插件命名空间: bilateralgpu
+# 函数数: 2
+  bilateralgpu.Bilateral
+  bilateralgpu.Version
+
+======================================================================
+# 插件命名空间: bm3d
+# 函数数: 7
+  bm3d.Basic
+  bm3d.Final
+  bm3d.OPP2RGB
+  bm3d.RGB2OPP
+  bm3d.VAggregate
+  bm3d.VBasic
+  bm3d.VFinal
+
+======================================================================
+# 插件命名空间: bm3dcpu
+# 函数数: 3
+  bm3dcpu.BM3D
+  bm3dcpu.BM3Dv2
+  bm3dcpu.VAggregate
+
+======================================================================
+# 插件命名空间: bm3dcuda
+# 函数数: 3
+  bm3dcuda.BM3D
+  bm3dcuda.BM3Dv2
+  bm3dcuda.VAggregate
+
+======================================================================
+# 插件命名空间: bm3dcuda_rtc
+# 函数数: 3
+  bm3dcuda_rtc.BM3D
+  bm3dcuda_rtc.BM3Dv2
+  bm3dcuda_rtc.VAggregate
+
+======================================================================
+# 插件命名空间: bwdif
+# 函数数: 1
+  bwdif.Bwdif
+
+======================================================================
+# 插件命名空间: cas
+# 函数数: 1
+  cas.CAS
+
+======================================================================
+# 插件命名空间: ctmf
+# 函数数: 1
+  ctmf.CTMF
+
+======================================================================
+# 插件命名空间: d2v
+# 函数数: 1
+  d2v.Source
+
+======================================================================
+# 插件命名空间: dctf
+# 函数数: 1
+  dctf.DCTFilter
+
+======================================================================
+# 插件命名空间: deblock
+# 函数数: 1
+  deblock.Deblock
+
+======================================================================
+# 插件命名空间: descale
+# 函数数: 16
+  descale.Bicubic
+  descale.Bilinear
+  descale.Debicubic
+  descale.Debilinear
+  descale.Decustom
+  descale.Delanczos
+  descale.Depoint
+  descale.Despline16
+  descale.Despline36
+  descale.Despline64
+  descale.Lanczos
+  descale.Point
+  descale.ScaleCustom
+  descale.Spline16
+  descale.Spline36
+  descale.Spline64
+
+======================================================================
+# 插件命名空间: dfttest
+# 函数数: 1
+  dfttest.DFTTest
+
+======================================================================
+# 插件命名空间: dfttest2_cuda
+# 函数数: 4
+  dfttest2_cuda.DFTTest
+  dfttest2_cuda.RDFT
+  dfttest2_cuda.ToSingle
+  dfttest2_cuda.Version
+
+======================================================================
+# 插件命名空间: dfttest2_nvrtc
+# 函数数: 4
+  dfttest2_nvrtc.DFTTest
+  dfttest2_nvrtc.RDFT
+  dfttest2_nvrtc.ToSingle
+  dfttest2_nvrtc.Version
+
+======================================================================
+# 插件命名空间: dpid
+# 函数数: 2
+  dpid.Dpid
+  dpid.DpidRaw
+
+======================================================================
+# 插件命名空间: eedi2
+# 函数数: 1
+  eedi2.EEDI2
+
+======================================================================
+# 插件命名空间: eedi3
+# 函数数: 1
+  eedi3.eedi3
+
+======================================================================
+# 插件命名空间: eedi3m
+# 函数数: 1
+  eedi3m.EEDI3
+
+======================================================================
+# 插件命名空间: eedi3vk
+# 函数数: 1
+  eedi3vk.EEDI3
+
+======================================================================
+# 插件命名空间: ffms2
+# 函数数: 5
+  ffms2.GetLogLevel
+  ffms2.Index
+  ffms2.SetLogLevel
+  ffms2.Source
+  ffms2.Version
+
+======================================================================
+# 插件命名空间: fft3dfilter
+# 函数数: 1
+  fft3dfilter.FFT3DFilter
+
+======================================================================
+# 插件命名空间: flux
+# 函数数: 2
+  flux.SmoothST
+  flux.SmoothT
+
+======================================================================
+# 插件命名空间: fmtc
+# 函数数: 9
+  fmtc.bitdepth
+  fmtc.histluma
+  fmtc.matrix
+  fmtc.matrix2020cl
+  fmtc.nativetostack16
+  fmtc.primaries
+  fmtc.resample
+  fmtc.stack16tonative
+  fmtc.transfer
+
+======================================================================
+# 插件命名空间: grain
+# 函数数: 1
+  grain.Add
+
+======================================================================
+# 插件命名空间: hist
+# 函数数: 5
+  hist.Classic
+  hist.Color
+  hist.Color2
+  hist.Levels
+  hist.Luma
+
+======================================================================
+# 插件命名空间: hqdn3d
+# 函数数: 1
+  hqdn3d.Hqdn3d
+
+======================================================================
+# 插件命名空间: knlm
+# 函数数: 1
+  knlm.KNLMeansCL
+
+======================================================================
+# 插件命名空间: lsmas
+# 函数数: 2
+  lsmas.LWLibavSource
+  lsmas.LibavSMASHSource
+
+======================================================================
+# 插件命名空间: median
+# 函数数: 3
+  median.Median
+  median.MedianBlend
+  median.TemporalMedian
+
+======================================================================
+# 插件命名空间: misc
+# 函数数: 3
+  misc.AverageFrames
+  misc.Hysteresis
+  misc.SCDetect
+
+======================================================================
+# 插件命名空间: mpls
+# 函数数: 1
+  mpls.Read
+
+======================================================================
+# 插件命名空间: msmoosh
+# 函数数: 2
+  msmoosh.MSharpen
+  msmoosh.MSmooth
+
+======================================================================
+# 插件命名空间: mv
+# 函数数: 22
+  mv.Analyse
+  mv.BlockFPS
+  mv.Compensate
+  mv.Degrain1
+  mv.Degrain2
+  mv.Degrain3
+  mv.Degrain4
+  mv.Degrain5
+  mv.Degrain6
+  mv.DepanAnalyse
+  mv.DepanCompensate
+  mv.DepanEstimate
+  mv.DepanStabilise
+  mv.Finest
+  mv.Flow
+  mv.FlowBlur
+  mv.FlowFPS
+  mv.FlowInter
+  mv.Mask
+  mv.Recalculate
+  mv.SCDetection
+  mv.Super
+
+======================================================================
+# 插件命名空间: mvu
+# 函数数: 43
+  mvu.Analyse
+  mvu.AnalyseMany
+  mvu.Compensate
+  mvu.Degrain
+  mvu.Degrain1
+  mvu.Degrain10
+  mvu.Degrain11
+  mvu.Degrain12
+  mvu.Degrain13
+  mvu.Degrain14
+  mvu.Degrain15
+  mvu.Degrain16
+  mvu.Degrain17
+  mvu.Degrain18
+  mvu.Degrain19
+  mvu.Degrain2
+  mvu.Degrain20
+  mvu.Degrain21
+  mvu.Degrain22
+  mvu.Degrain23
+  mvu.Degrain24
+  mvu.Degrain25
+  mvu.Degrain3
+  mvu.Degrain4
+  mvu.Degrain5
+  mvu.Degrain6
+  mvu.Degrain7
+  mvu.Degrain8
+  mvu.Degrain9
+  mvu.DepanAnalyse
+  mvu.DepanCompensate
+  mvu.DepanEstimate
+  mvu.DepanStabilise
+  mvu.Flow
+  mvu.FlowBlur
+  mvu.FlowFPS
+  mvu.FlowInter
+  mvu.OcclusionMask
+  mvu.Recalculate
+  mvu.SADMask
+  mvu.SCDetection
+  mvu.Super
+  mvu.VectorLengthMask
+
+======================================================================
+# 插件命名空间: neo_f3kdb
+# 函数数: 1
+  neo_f3kdb.Deband
+
+======================================================================
+# 插件命名空间: nnedi3
+# 函数数: 1
+  nnedi3.nnedi3
+
+======================================================================
+# 插件命名空间: nnedi3cl
+# 函数数: 1
+  nnedi3cl.NNEDI3CL
+
+======================================================================
+# 插件命名空间: resize
+# 函数数: 8
+  resize.Bicubic
+  resize.Bilinear
+  resize.Bob
+  resize.Lanczos
+  resize.Point
+  resize.Spline16
+  resize.Spline36
+  resize.Spline64
+
+======================================================================
+# 插件命名空间: retinex
+# 函数数: 2
+  retinex.MSRCP
+  retinex.MSRCR
+
+======================================================================
+# 插件命名空间: rgvs
+# 函数数: 6
+  rgvs.BackwardClense
+  rgvs.Clense
+  rgvs.ForwardClense
+  rgvs.RemoveGrain
+  rgvs.Repair
+  rgvs.VerticalCleaner
+
+======================================================================
+# 插件命名空间: sangnom
+# 函数数: 1
+  sangnom.SangNom
+
+======================================================================
+# 插件命名空间: std
+# 函数数: 81
+  std.AddBorders
+  std.AssumeFPS
+  std.AssumeSampleRate
+  std.AudioGain
+  std.AudioLoop
+  std.AudioMix
+  std.AudioResample
+  std.AudioReverse
+  std.AudioSplice
+  std.AudioTrim
+  std.AverageFrames
+  std.Binarize
+  std.BinarizeMask
+  std.BlankAudio
+  std.BlankClip
+  std.BoxBlur
+  std.Cache
+  std.ClipToProp
+  std.Convolution
+  std.CopyFrameProps
+  std.Crop
+  std.CropAbs
+  std.CropRel
+  std.Deflate
+  std.DeleteFrames
+  std.DoubleWeave
+  std.DuplicateFrames
+  std.Expr
+  std.FlipHorizontal
+  std.FlipVertical
+  std.FrameEval
+  std.FreezeFrames
+  std.Inflate
+  std.Interleave
+  std.Invert
+  std.InvertMask
+  std.Levels
+  std.Limiter
+  std.LoadAllPlugins
+  std.LoadPlugin
+  std.Loop
+  std.Lut
+  std.Lut2
+  std.MakeDiff
+  std.MakeFullDiff
+  std.MaskedMerge
+  std.Maximum
+  std.Median
+  std.Merge
+  std.MergeDiff
+  std.MergeFullDiff
+  std.Minimum
+  std.ModifyFrame
+  std.PEMVerifier
+  std.PlaneStats
+  std.PreMultiply
+  std.Prewitt
+  std.PropToClip
+  std.RemoveFrameProps
+  std.Reverse
+  std.SelectEvery
+  std.SeparateFields
+  std.SetAudioCache
+  std.SetFieldBased
+  std.SetFrameProp
+  std.SetFrameProps
+  std.SetMaxCPU
+  std.SetVideoCache
+  std.ShuffleChannels
+  std.ShufflePlanes
+  std.Sobel
+  std.Splice
+  std.SplitChannels
+  std.SplitPlanes
+  std.StackHorizontal
+  std.StackVertical
+  std.Transpose
+  std.Trim
+  std.Turn180
+  std.Turn270
+  std.Turn90
+
+======================================================================
+# 插件命名空间: sub
+# 函数数: 3
+  sub.ImageFile
+  sub.Subtitle
+  sub.TextFile
+
+======================================================================
+# 插件命名空间: tcanny
+# 函数数: 1
+  tcanny.TCanny
+
+======================================================================
+# 插件命名空间: tdm
+# 函数数: 2
+  tdm.IsCombed
+  tdm.TDeintMod
+
+======================================================================
+# 插件命名空间: text
+# 函数数: 5
+  text.ClipInfo
+  text.CoreInfo
+  text.FrameNum
+  text.FrameProps
+  text.Text
+
+======================================================================
+# 插件命名空间: tivtc
+# 函数数: 2
+  tivtc.TDecimate
+  tivtc.TFM
+
+======================================================================
+# 插件命名空间: tonemap
+# 函数数: 3
+  tonemap.Hable
+  tonemap.Mobius
+  tonemap.Reinhard
+
+======================================================================
+# 插件命名空间: ttmpsm
+# 函数数: 1
+  ttmpsm.TTempSmooth
+
+======================================================================
+# 插件命名空间: vivtc
+# 函数数: 2
+  vivtc.VDecimate
+  vivtc.VFM
+
+======================================================================
+# 插件命名空间: vmaf
+# 函数数: 3
+  vmaf.CAMBI
+  vmaf.Metric
+  vmaf.VMAF
+
+======================================================================
+# 插件命名空间: vsfm
+# 函数数: 2
+  vsfm.TextSubMod
+  vsfm.VobSub
+
+======================================================================
+# 插件命名空间: w2xnvk
+# 函数数: 1
+  w2xnvk.Waifu2x
+
+======================================================================
+# 插件命名空间: warp
+# 函数数: 4
+  warp.ABlur
+  warp.ASobel
+  warp.AWarp
+  warp.AWarpSharp2
+
+======================================================================
+# 插件命名空间: xyvsf
+# 函数数: 2
+  xyvsf.TextSub
+  xyvsf.VobSub
+
+======================================================================
+# 插件命名空间: yadifmod
+# 函数数: 1
+  yadifmod.Yadifmod
+
+======================================================================
+# 插件命名空间: znedi3
+# 函数数: 1
+  znedi3.nnedi3
