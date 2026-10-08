@@ -193,12 +193,12 @@ class RealPreviewWorkerAcceptanceTests(unittest.TestCase):
         self.assertEqual(widget._session_metadata.mode, "compatible")
         self.assertIsNotNone(widget._session_metadata.editor)
         editor = widget._session_metadata.editor
-        self.assertEqual((editor.width, editor.height), (384, 640))
+        self.assertEqual((editor.width, editor.height), (360, 640))
         self.assertEqual(editor.num_frames, _SOURCE_FRAME_COUNT)
         # 此断言故意读取私有有理数；若实现先转 float 再反推，分母会丢失。
         self.assertEqual(widget._fps_rational, _FPS)
         self.assertEqual((editor.fps_num, editor.fps_den), (30_000, 1_001))
-        self.assertEqual((widget.video_width, widget.video_height), (384, 640))
+        self.assertEqual((widget.video_width, widget.video_height), (360, 640))
 
         first = widget.current_frame
         self.assertEqual(first.ndim, 3)

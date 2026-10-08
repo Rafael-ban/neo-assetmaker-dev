@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import gc
 import hashlib
 import json
 import os
@@ -79,9 +78,7 @@ def _preview_export_contract() -> dict[str, object]:
 
     from core.media_pipeline import MediaEncoder
     from core.media_tools import MediaToolchain
-    from core.vs_runtime.vs_loader import load_vapoursynth
     from core.vs_runtime.worker_process import SyncVSWorkerProcess
-    from resources.vapoursynth.python.assetmaker_vs.display import to_display_clip
     from tests.helpers.m5_render_fixture import (
         build_default_render_session,
         preflight_encode_request,
@@ -147,44 +144,14 @@ def _preview_export_contract() -> dict[str, object]:
                 )
         output = root / "encoded.mp4"
         MediaEncoder(toolchain).encode_vpy_to_mp4(request, str(output), fps, vui=vui)
-        vs = load_vapoursynth(ROOT, request.runtime)
-        encoded_clip = vs.core.lsmas.LWLibavSource(str(output))
-        if (
-            encoded_clip.fps_num * fps.denominator
-            != fps.numerator * encoded_clip.fps_den
-        ):
-            raise AssertionError("encoded FPS differs from frozen job")
-        display_clip = to_display_clip(
-            encoded_clip,
-            viewport=(384, 640),
-            zoom_factor=1.0,
-            pan=(0.5, 0.5),
-        )
-        frame = display_clip.get_frame(0)
-        try:
-            rgb = np.stack(
-                [
-                    np.asarray(frame[plane])[: frame.height, : frame.width]
-                    for plane in range(3)
-                ],
-                axis=2,
-            )
-            encoded = rgb[:, :, ::-1].copy()
-        finally:
-            frame.close()
-        if preview.shape != encoded.shape:
-            raise AssertionError(f"geometry mismatch: {preview.shape} != {encoded.shape}")
-        difference = np.abs(preview.astype(np.int16) - encoded.astype(np.int16))
-        if difference.mean() >= 3.0:
-            raise AssertionError(f"mean BGR difference too large: {difference.mean():.3f}")
-        if (difference.max(axis=2) > 30).mean() >= 0.02:
-            raise AssertionError("too many BGR pixels exceed the bounded colour error")
+        decoded_path = root / "encoded-display.npy"
         probe = subprocess.run(
             [
                 sys.executable,
                 str(ROOT / "tests" / "helpers" / "run_vs_contract_case.py"),
-                "encoded_vui",
+                "encoded_srgb",
                 str(output),
+                str(decoded_path),
             ],
             cwd=ROOT,
             capture_output=True,
@@ -196,9 +163,23 @@ def _preview_export_contract() -> dict[str, object]:
         )
         if probe.returncode != 0:
             raise AssertionError(
-                f"encoded VUI probe failed: {probe.stderr or probe.stdout}"
+                f"encoded display probe failed: {probe.stderr or probe.stdout}"
             )
-        encoded_props = json.loads(probe.stdout.splitlines()[-1])
+        decoded = json.loads(probe.stdout.splitlines()[-1])
+        if (decoded["fps"][0] * fps.denominator
+                != fps.numerator * decoded["fps"][1]):
+            raise AssertionError("encoded FPS differs from frozen job")
+        encoded = np.load(decoded_path)
+        if list(encoded.shape) != decoded["shape"]:
+            raise AssertionError("encoded display shape differs from probe")
+        encoded_props = decoded["props"]
+        if preview.shape != encoded.shape:
+            raise AssertionError(f"geometry mismatch: {preview.shape} != {encoded.shape}")
+        difference = np.abs(preview.astype(np.int16) - encoded.astype(np.int16))
+        if difference.mean() >= 3.0:
+            raise AssertionError(f"mean BGR difference too large: {difference.mean():.3f}")
+        if (difference.max(axis=2) > 30).mean() >= 0.02:
+            raise AssertionError("too many BGR pixels exceed the bounded colour error")
         if encoded_props != {
             "_Matrix": 6,
             "_Transfer": 6,
@@ -206,8 +187,6 @@ def _preview_export_contract() -> dict[str, object]:
             "_Range": 0,
         }:
             raise AssertionError(f"encoded VUI props mismatch: {encoded_props}")
-        del frame, display_clip, encoded_clip
-        gc.collect()
     return {
         "status": "ok",
         "plane_digests": plane_digests,

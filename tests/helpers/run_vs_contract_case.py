@@ -1965,31 +1965,53 @@ def _encode_vspipe_output(
         stderr=subprocess.PIPE,
         **popen_kwargs,
     )
-    x264 = subprocess.Popen(
-        build_x264_command(
-            toolchain.x264_path,
-            str(raw),
-            crf=10,
-            preset="ultrafast",
-            vui=X264Vui(
-                colormatrix=colormatrix,
-                colorprim=colorprim,
-                transfer=transfer,
-                range_="tv",
+    stderr_chunks: list[bytes] = []
+
+    def drain_vspipe_stderr() -> None:
+        if vspipe.stderr is not None:
+            stderr_chunks.append(vspipe.stderr.read())
+
+    stderr_reader = threading.Thread(target=drain_vspipe_stderr, daemon=True)
+    stderr_reader.start()
+    x264 = None
+    try:
+        x264 = subprocess.Popen(
+            build_x264_command(
+                toolchain.x264_path,
+                str(raw),
+                crf=10,
+                preset="ultrafast",
+                vui=X264Vui(
+                    colormatrix=colormatrix,
+                    colorprim=colorprim,
+                    transfer=transfer,
+                    range_="tv",
+                ),
             ),
-        ),
-        stdin=vspipe.stdout,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.PIPE,
-        **popen_kwargs,
-    )
-    if vspipe.stdout is not None:
-        vspipe.stdout.close()
-    x264_stderr = x264.communicate(timeout=120)[1]
-    vspipe.wait(timeout=30)
-    vspipe_stderr = (
-        vspipe.stderr.read() if vspipe.stderr is not None else b""
-    )
+            stdin=vspipe.stdout,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+            **popen_kwargs,
+        )
+        if vspipe.stdout is not None:
+            vspipe.stdout.close()
+        x264_stderr = x264.communicate(timeout=120)[1]
+        vspipe.wait(timeout=30)
+        stderr_reader.join()
+        vspipe_stderr = b"".join(stderr_chunks)
+    finally:
+        if vspipe.stdout is not None and not vspipe.stdout.closed:
+            vspipe.stdout.close()
+        for process in (x264, vspipe):
+            if process is not None:
+                if process.poll() is None:
+                    process.kill()
+                process.wait()
+        stderr_reader.join()
+        if vspipe.stderr is not None:
+            vspipe.stderr.close()
+        if x264 is not None and x264.stderr is not None:
+            x264.stderr.close()
     if vspipe.returncode != 0 or x264.returncode != 0:
         raise RuntimeError(
             (vspipe_stderr + x264_stderr).decode("utf-8", errors="replace")
@@ -2182,6 +2204,45 @@ def _default_p7_case() -> dict[str, object]:
     }
 
 
+def _encoded_srgb_case() -> dict[str, object]:
+    if len(sys.argv) != 4:
+        raise ValueError("encoded_srgb requires an MP4 and .npy output path")
+    import numpy as np
+
+    from resources.vapoursynth.python.assetmaker_vs.display import to_display_clip
+
+    vs = _load_vs()
+    clip = vs.core.lsmas.LWLibavSource(str(Path(sys.argv[2]).resolve()))
+    frame = clip.get_frame(0)
+    try:
+        props = {
+            name: int(frame.props[name])
+            for name in ("_Matrix", "_Transfer", "_Primaries", "_Range")
+        }
+    finally:
+        frame.close()
+    display_clip = to_display_clip(
+        clip,
+        viewport=(clip.width, clip.height),
+        zoom_factor=1.0,
+        pan=(0.5, 0.5),
+    )
+    frame = display_clip.get_frame(0)
+    try:
+        rgb = np.stack(
+            [
+                np.asarray(frame[plane])[: frame.height, : frame.width]
+                for plane in range(3)
+            ],
+            axis=2,
+        )
+        bgr = rgb[:, :, ::-1].copy()
+    finally:
+        frame.close()
+    np.save(sys.argv[3], bgr)
+    return {"shape": list(bgr.shape), "fps": [clip.fps_num, clip.fps_den], "props": props}
+
+
 def _encoded_vui_case() -> dict[str, int]:
     if len(sys.argv) != 3:
         raise ValueError("encoded_vui requires an MP4 path")
@@ -2209,6 +2270,7 @@ CASES = {
     "default_image": _default_image_case,
     "default_p7": _default_p7_case,
     "default_video": _default_video_case,
+    "encoded_srgb": _encoded_srgb_case,
     "encoded_vui": _encoded_vui_case,
     "executor_deferred": _executor_deferred_case,
     "executor_cross_root": _executor_cross_root_case,

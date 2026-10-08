@@ -1,20 +1,13 @@
-"""S4: real-encode colour/crop/rotation round-trip tests for the export path.
+"""真实编码后的颜色、裁剪与旋转回归。
 
-Old behaviour (provably wrong): images were converted RGB->YUV with
-matrix_s='709' while the H.264 stream carried NO colour tags (x264-7mod
-defaults: --colormatrix/--colorprim/--transfer "undef", --range "auto" — see
-`x264-7mod --fullhelp`). Untagged sub-HD content is decoded as BT.601 by
-convention (H.273; mpv applies the same heuristic), so exported colours were
-visibly shifted vs the preview. The decode side here (cv2/ffmpeg swscale)
-uses the BT.601 default too, matching what convention-following devices do —
-these round-trips FAIL on the old pipeline and pass on the new one
-(convert with '170m' + tag smpte170m/tv in the VUI).
-
-Also covers: image loops now honour crop and rotation (the script blocks
-used to be video-branch-only), and the exported stream really carries the
-SMPTE 170M matrix tag (read back off the decoded clip's H.273 frame props).
+颜色往返需把带 SMPTE 170M 标签的视频按矩阵、传递函数和原色转换回
+sRGB，再与源图片比较。OpenCV 的普通解码只适合这里的几何检查，不能
+把目标色域中的 RGB 编码值直接当作源 sRGB 编码值比较。
 """
+import json
 import os
+import subprocess
+import sys
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 import tempfile
 import unittest
@@ -72,6 +65,35 @@ def _decode_first_frame(mp4: Path) -> np.ndarray:
     return frame  # BGR, 640x360 target -> (640, 360, 3)
 
 
+def _decode_srgb_frame(mp4: Path) -> np.ndarray:
+    """在独立 VS 子进程中按码流颜色标签还原 sRGB，避免污染 Qt 父进程。"""
+    output = mp4.with_suffix(".srgb.npy")
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(REPO / "tests" / "helpers" / "run_vs_contract_case.py"),
+            "encoded_srgb",
+            str(mp4),
+            str(output),
+        ],
+        cwd=REPO,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=30,
+        check=False,
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+    )
+    if result.returncode != 0:
+        raise AssertionError(result.stdout or result.stderr)
+    payload = json.loads(result.stdout.splitlines()[-1])
+    expected_props = {"_Matrix": 6, "_Transfer": 6, "_Primaries": 6, "_Range": 0}
+    if payload["props"] != expected_props:
+        raise AssertionError(f"unexpected encoded colour tags: {payload['props']}")
+    return np.load(output, allow_pickle=False)
+
+
 @unittest.skipUnless(ENCODE_OK, "encode toolchain (tools/media) unavailable")
 class ExportColorRoundTripTests(unittest.TestCase):
     @classmethod
@@ -79,18 +101,20 @@ class ExportColorRoundTripTests(unittest.TestCase):
         cls.d = Path(tempfile.mkdtemp())
 
     def test_saturated_colors_survive_the_encode(self):
-        # Four saturated quadrants at the exact target size (no rescale blur).
+        # Leave gamut headroom: pure sRGB primaries can exceed SMPTE 170M,
+        # so clipping them cannot be reversed even by a correct decoder.
+        # These colourful quadrants fit both gamuts at the exact target size.
         src = np.zeros((640, 360, 3), np.uint8)  # BGR
-        src[:320, :180] = (0, 0, 255)    # top-left red
-        src[:320, 180:] = (0, 255, 0)    # top-right green
-        src[320:, :180] = (255, 0, 0)    # bottom-left blue
+        src[:320, :180] = (64, 64, 224)    # top-left red
+        src[:320, 180:] = (64, 224, 64)    # top-right green
+        src[320:, :180] = (224, 64, 64)    # bottom-left blue
         src[320:, 180:] = (128, 128, 128)  # bottom-right grey
         png = self.d / "quad.png"
         cv2.imwrite(str(png), src)
 
         mp4 = _export_image_loop(png, self.d / "quad.mp4",
                                  cropbox=(0, 0, 360, 640))
-        out = _decode_first_frame(mp4)
+        out = _decode_srgb_frame(mp4)
         self.assertEqual(out.shape[1], 360)
 
         # Compare quadrant channel means (away from edges to dodge chroma bleed).
@@ -106,9 +130,8 @@ class ExportColorRoundTripTests(unittest.TestCase):
             expected = q(src, ys, xs)
             got = q(out, ys, xs)
             delta = np.abs(expected - got).max()
-            # The old 709-coded/untagged pipeline shifts saturated primaries by
-            # far more than this tolerance when decoded per the BT.601 SD
-            # convention; the 170m-coded/tagged pipeline stays within it.
+            # Compare in the source sRGB colour space while retaining the
+            # original tolerance for chroma subsampling and lossy encoding.
             self.assertLess(
                 delta, 20.0,
                 f"{name}: expected≈{expected.round(1)} got≈{got.round(1)} "
