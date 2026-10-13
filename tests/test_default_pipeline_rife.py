@@ -89,7 +89,7 @@ class RifeTemplateTests(unittest.TestCase):
                         exec(compile(ast.Module(body=[setting], type_ignores=[]), str(script), "exec"), namespace)
                         self.assertEqual(
                             namespace["RIFE_MODEL_PATH"],
-                            expected_root / "tools/vs-rife/rife/models/rife-v4.6_ensembleFalse",
+                            expected_root.resolve() / "tools/vs-rife/rife/models/rife-v4.6_ensembleFalse",
                         )
 
     def test_common_editor_colour_and_output_stages_match_default(self):
