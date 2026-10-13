@@ -41,7 +41,7 @@ class DefaultPipelineCacheTests(unittest.TestCase):
         fake_vs = types.ModuleType("vapoursynth")
         fake_vs.core = types.SimpleNamespace(
             max_cache_size=37,
-            resize=types.SimpleNamespace(Spline36=mock.Mock()),
+            resize=types.SimpleNamespace(Lanczos=mock.Mock()),
         )
         job_api = types.ModuleType("assetmaker_vs.job_api")
 
@@ -60,6 +60,7 @@ class DefaultPipelineCacheTests(unittest.TestCase):
         }), self.assertRaises(JobBoundaryReached):
             exec(compile(source, str(DEFAULT_PIPELINE), "exec"), {
                 "assetmaker_job": "unused.json",
+                "__file__": str(DEFAULT_PIPELINE),
             })
 
     @unittest.skipUnless(REAL_VS_READY, "bundled VSPipe/x264/muxer unavailable")

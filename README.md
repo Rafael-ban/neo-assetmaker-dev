@@ -111,6 +111,8 @@ tools\media\runtime\Lib\site-packages\vapoursynth\vspipe.exe --version
 `resources/packaging/vs-plugins.json`。CUDA/OpenCL/Vulkan 插件随包分发但不默认加载；使用时需具备相应运行依赖，并在 `config/vs_runtime.json` 中配置 `plugins.native_plugin_dirs`。默认滤镜参数、自定义处理阶段及教程适配说明见
 [滤镜配置](docs/vapoursynth-kb/17-filter-configuration.md)。
 
+RIFE 为可选的 60 fps 插帧，默认关闭。只安装它可使用 `plugin_distribution.py sync --app-dir . --package rife`；启用条件、模型位置和脚本参数见 [RIFE 配置](docs/vapoursynth-kb/17-filter-configuration.md#可选-rife-插帧到-60-fps)。
+
 ## 基本使用
 
 1. 选择“新建项目”或“打开项目”，项目主配置为 `epconfig.json`。

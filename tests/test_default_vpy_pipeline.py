@@ -55,6 +55,7 @@ class DefaultPipelineSemanticTests(unittest.TestCase):
         source = DEFAULT_PIPELINE.read_text(encoding="utf-8")
         ordered_steps = (
             "clip = rotate(clip, transform[\"rotation\"])",
+            "clip = interpolate_timeline(clip, kind=source[\"kind\"])",
             "clip = core.std.Loop(clip, times=virtual_count)[:virtual_count]",
             "clip.set_output(1)",
             'clip = clip[timeline["start_frame"] : timeline["end_frame"]]',
@@ -216,7 +217,7 @@ class DefaultPipelineRealSubprocessTests(unittest.TestCase):
         payload = json.loads(result.stdout)
         self.assertEqual(payload["source_matrix"], 2)
         self.assertEqual(len(payload["digests"]), 2)
-        # 两种裁剪来自同一均匀 709 源；Spline36 + error diffusion 可产生
+        # 两种裁剪来自同一均匀 709 源；Lanczos 的舍入可产生
         # 少量像素差，但矩阵选错会造成远大于此的颜色漂移。
         self.assertLessEqual(payload["max_plane_delta"], 3, payload["digests"])
 

@@ -1,6 +1,6 @@
 # 当前滤镜与插件清单
 
-核对基线：`25b6e4127f2dd5257aaf3bb67d97cd68a4b11525`，2026-10-13。此表来自实际脚本和分发清单，不代表用户本机已安装或每个插件已执行测试。
+源码基线：`25b6e4127f2dd5257aaf3bb67d97cd68a4b11525`，2026-10-13。本工作分支已追加 Lanczos / 可选 RIFE 60 fps；此表来自实际脚本和分发清单，不代表用户本机已安装或每个插件已执行测试。
 
 ## 默认实际执行的处理
 
@@ -8,19 +8,19 @@
 |---|---|---|
 | `lsmas.LWLibavSource` | 视频输入与索引 | [L-SMASH-Works](https://github.com/HomeOfAviSynthPlusEvolution/L-SMASH-Works) |
 | `imwri.Read` | 图片输入 | [vs-imwri](https://github.com/vapoursynth/vs-imwri) |
-| `resize.Spline36` | 输出缩放、色彩/位深转换；适应窗口预览 | [VapourSynth](https://github.com/vapoursynth/vapoursynth) / [zimg](https://github.com/sekrit-twc/zimg) |
-| `resize.Bicubic`、`resize.Point` | 预览色彩转换和最近邻像素放大 | [VapourSynth](https://github.com/vapoursynth/vapoursynth) |
+| `resize.Lanczos` | 输出缩放、色彩/位深转换；适应窗口预览 | [VapourSynth](https://github.com/vapoursynth/vapoursynth) / [zimg](https://github.com/sekrit-twc/zimg) |
+| `resize.Point` | 最近邻像素放大预览 | [VapourSynth](https://github.com/vapoursynth/vapoursynth) |
 | `std.CropAbs`、`Transpose`、`FlipHorizontal`、`FlipVertical`、`Turn180` | 按编辑参数裁剪和旋转 | [VapourSynth](https://github.com/vapoursynth/vapoursynth) |
 | `std.AssumeFPS`、`Loop` | 图片生成指定帧率/帧数的循环片段 | [VapourSynth](https://github.com/vapoursynth/vapoursynth) |
 | `std.SetFrameProps`、`AddBorders` | 颜色属性与必要的编码尺寸补边 | [VapourSynth](https://github.com/vapoursynth/vapoursynth) |
 
-`FINAL_RESIZER = core.resize.Spline36`，`FINAL_RESIZE_OPTIONS = {"dither_type": "error_diffusion"}`。 `process_source()` 直接返回输入；DFTTest 与 neo_f3kdb 的代码在说明字符串中，当前未执行。默认链不启用降噪、去色带、锐化、去隔行、插帧、HDR tone mapping 或 AI 放大。
+`FINAL_RESIZER = core.resize.Lanczos`，`FINAL_RESIZE_OPTIONS = {"dither_type": "none"}`。 `process_source()` 直接返回输入；DFTTest 与 neo_f3kdb 的代码在说明字符串中，当前未执行。默认链不启用降噪、去色带、锐化、去隔行、插帧、HDR tone mapping 或 AI 放大。可选 RIFE 默认关闭，启用后仅将低于 60 fps 的视频插到 60 fps，详见 [配置步骤](vapoursynth-kb/17-filter-configuration.md#可选-rife-插帧到-60-fps)。
 
 `config/vs_runtime.json` 的 `native_plugin_dirs` 和 `python_module_dirs` 均为空；当前 Windows 用户覆盖或项目自定义脚本可以改变实际配置，本清单不推定那些本机内容。
 
 ## 已配置分发的扩展包
 
-`resources/packaging/vs-plugins.json` 共 60 个包。允许自动加载表示运行时可注册该 DLL 的函数，不表示它被默认脚本调用；设为手动的 GPU 插件需另行配置运行依赖和插件目录。无命名空间的是运行库/权重/模型依赖。
+`resources/packaging/vs-plugins.json` 共 64 个包。允许自动加载表示运行时可注册该 DLL 的函数，不表示它被默认脚本调用；设为手动的 GPU 插件需另行配置运行依赖和插件目录。无命名空间的是运行库/权重/模型依赖。
 
 | 包 | 锁定版本 | 命名空间 | 加载策略 | 上游 GitHub |
 |---|---|---|---|---|
@@ -67,6 +67,10 @@
 | `nnedi3_weights` | r1 | 无（依赖包） | 由使用它的插件依赖 | [sekrit-twc/znedi3](https://github.com/sekrit-twc/znedi3) |
 | `nnedi3cl` | r8 | `nnedi3cl` | 手动启用 | [HomeOfVapourSynthEvolution/VapourSynth-NNEDI3CL](https://github.com/HomeOfVapourSynthEvolution/VapourSynth-NNEDI3CL) |
 | `retinex` | r4 | `retinex` | 允许自动加载 | [HomeOfVapourSynthEvolution/VapourSynth-Retinex](https://github.com/HomeOfVapourSynthEvolution/VapourSynth-Retinex) |
+| `rife` | r9_mod_v33 | `rife` | 手动启用 / 依赖 | [styler00dollar/VapourSynth-RIFE-ncnn-Vulkan](https://github.com/styler00dollar/VapourSynth-RIFE-ncnn-Vulkan) |
+| `rife_license` | r9_mod_v33 | 无（依赖/许可） | 手动启用 / 依赖 | [styler00dollar/VapourSynth-RIFE-ncnn-Vulkan](https://github.com/styler00dollar/VapourSynth-RIFE-ncnn-Vulkan) |
+| `rife_model_bin` | r9_mod_v33 / rife-v4.6_ensembleFalse | 无（依赖/许可） | 手动启用 / 依赖 | [styler00dollar/VapourSynth-RIFE-ncnn-Vulkan](https://github.com/styler00dollar/VapourSynth-RIFE-ncnn-Vulkan) |
+| `rife_model_param` | r9_mod_v33 / rife-v4.6_ensembleFalse | 无（依赖/许可） | 手动启用 / 依赖 | [styler00dollar/VapourSynth-RIFE-ncnn-Vulkan](https://github.com/styler00dollar/VapourSynth-RIFE-ncnn-Vulkan) |
 | `rgvs` | R1 | `rgvs` | 允许自动加载 | [vapoursynth/vs-removegrain](https://github.com/vapoursynth/vs-removegrain) |
 | `sangnom` | r42 | `sangnom` | 允许自动加载 | [dubhatervapoursynth/vapoursynth-sangnom](https://github.com/dubhatervapoursynth/vapoursynth-sangnom) |
 | `sub` | R5 | `sub` | 允许自动加载 | [vapoursynth/subtext](https://github.com/vapoursynth/subtext) |

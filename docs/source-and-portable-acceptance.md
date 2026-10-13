@@ -98,9 +98,21 @@ Windows 缺失 runtime 目录时记录一次部署提示，保留 GUI 启动。�
 - 用户使用新目录解压；旧项目保留，关闭所有实例后可清理旧 preview 缓存。
 - 反馈同时提供 `app_*.log` 与 `diagnostic-*.log`，以及便携包文件名和是否重新构建/解压；实际目录从 resolved_app_dir 看，不从 traceback 文件名猜。
 - 版本号应随真正发布同步，后续可给构建产物加入实际 commit 信息；目前 unknown 的记录只用于诚实诊断。
-- 新增测试和验收入口在本次本地工作树中，未向 GitHub 推送，也未发布新的 Windows 二进制。
+- 本报告记录源码修改与本地验证结果；新增 Windows CI 验收仍需在 GitHub 上实际运行。本次未发布新的 Windows 二进制。
 
 ## 滤镜清单
 
-[完整清单](filter-inventory.md) 给出当前默认实际调用、60 个扩展/依赖包的锁定版本、命名空间、加载策略和 GitHub 上游。
-默认 `process_source()` 原样返回，采用 Spline36 + error diffusion；默认未启用 DFTTest、neo_f3kdb、插帧或 AI 放大。
+[完整清单](filter-inventory.md) 给出当前默认实际调用、64 个扩展/依赖包的锁定版本、命名空间、加载策略和 GitHub 上游。
+默认 `process_source()` 原样返回，采用 Lanczos，显式关闭抖动（none）；默认未启用 DFTTest、neo_f3kdb、插帧或 AI 放大。
+
+## 追加：Lanczos、关闭抖动与可选 RIFE 60 fps
+
+按用户最终选择：默认及预览缩放改为 Lanczos，明确使用 dither_type=none；8-bit设备合同和x264量化设置保留。RIFE先由脚本参数按需开启、默认关闭，只将低于60fps的多帧视频插到60；图片、单帧和>=60fps素材保留原帧率。没有新增GUI开关或迁移旧项目schema，旧trim帧号切换RIFE后必须重新核对。
+
+- 滤镜/显示/时间轴相关13个定向模拟测试一次通过，包括25/23.976/29.97→60、跳过条件和错误诊断；没有执行真实GPU推理。
+- 插件分发相关9个用例最终通过；新增raw模型下载、坏下载保留旧包、选择安装与依赖闭包、未知包诊断、禁止把局部clean当成全部删除。新增测试最初的fixture字段和hash错误已修正，仅复测失败项。
+- 实际下载上游r9_mod_v33 DLL、v4.6_ensembleFalse模型及MIT许可并核对SHA-256；复用这些真实字节做安装/校验，7个最终文件（含邻近模型副本）、26,559,742字节通过，重复sync不下载。
+- 同一sync操作新增--package rife，可只安装RIFE及其3项模型/许可依赖；完整打包仍沿用全部64包清单。
+- DLL导入表实测包含VCOMP140.DLL，启用电脑须安装官方VC++v14 x64运行库及Vulkan驱动；默认不自动加载RIFE。
+
+启用与验证步骤见 [RIFE配置](vapoursynth-kb/17-filter-configuration.md#可选-rife-插帧到-60-fps)。
