@@ -105,13 +105,25 @@ tools\media\runtime\Lib\site-packages\vapoursynth\vspipe.exe --version
 文件完整性通过仍需要冻结版实际预览、导出验收。迁移状态见
 [R79 运行时与验收边界](docs/vapoursynth-kb/08-version-upgrade-notes.md)。
 
-扩展滤镜单独安装到 `tools/vs-plugins/`。部署基础媒体包后运行
-`uv run python plugin_distribution.py sync --app-dir .`；重复执行可修复不完整的包，
-`verify` 校验现有文件，`clean` 清除该工具管理的扩展。插件版本与下载来源见
-`resources/packaging/vs-plugins.json`。CUDA/OpenCL/Vulkan 插件随包分发但不默认加载；使用时需具备相应运行依赖，并在 `config/vs_runtime.json` 中配置 `plugins.native_plugin_dirs`。默认滤镜参数、自定义处理阶段及教程适配说明见
-[滤镜配置](docs/vapoursynth-kb/17-filter-configuration.md)。
+默认安装版和便携包只包含正常制作所需的 R79 基础运行时（含 lsmas/imwri），不要求或打包 VSRepo 扩展、GPU 插件和 AI 模型。
 
-RIFE 为可选的 60 fps 插帧，默认关闭。只安装它可使用 `plugin_distribution.py sync --app-dir . --package rife`；启用条件、模型位置和脚本参数见 [RIFE 配置](docs/vapoursynth-kb/17-filter-configuration.md#可选-rife-插帧到-60-fps)。
+额外滤镜可单独安装到 `tools/vs-plugins/`，清单为 `resources/packaging/vs-plugins.json`。
+部署基础包后按需运行 `uv run python plugin_distribution.py sync --app-dir .`；
+`verify` 校验、`sync` 修复不完整安装、`clean` 清除该扩展根目录。
+
+RIFE 使用独立模板 `resources/vapoursynth/rife_pipeline.vpy`，依赖清单为
+`resources/packaging/vs-rife.json`，安装到 `tools/vs-rife/`。可单独下载 RIFE DLC ZIP，
+解压到实际应用目录后选择该脚本；默认“内置脚本”不依赖 RIFE。
+源码安装及制作 DLC：
+
+```powershell
+uv run python plugin_distribution.py sync --app-dir . --manifest resources/packaging/vs-rife.json
+uv run python rife_dlc.py --app-dir . --output dist/RIFE-DLC-r9_mod_v33.zip
+```
+
+DLC 不包含主程序和 R79 基础媒体树。启用 GPU/运行库要求、脚本选择和本机插件
+目录设置见 [RIFE 配置](docs/vapoursynth-kb/17-filter-configuration.md#可选-rife-插帧到-60-fps)。
+GitHub Actions 的 **Build RIFE DLC** 可以独立生成 DLC 下载产物。
 
 ## 基本使用
 

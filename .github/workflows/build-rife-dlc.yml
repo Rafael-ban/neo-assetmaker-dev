@@ -1,0 +1,33 @@
+name: Build RIFE DLC
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - .github/workflows/build-rife-dlc.yml
+      - plugin_distribution.py
+      - rife_dlc.py
+      - resources/packaging/vs-rife.json
+      - resources/vapoursynth/rife_pipeline.vpy
+      - tests/test_rife_dlc.py
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install independent RIFE resources
+        run: python plugin_distribution.py sync --app-dir . --manifest resources/packaging/vs-rife.json
+      - name: Package RIFE DLC
+        run: python rife_dlc.py --app-dir . --output dist/RIFE-DLC-r9_mod_v33.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: RIFE-DLC-r9_mod_v33
+          path: dist/RIFE-DLC-r9_mod_v33.zip
+          if-no-files-found: error

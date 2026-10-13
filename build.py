@@ -511,12 +511,12 @@ def _collect_vs_contract_include_files(project_root):
 
 
 def _collect_vs_plugin_include_files(project_root):
-    """Include the same locked plugin files that the source runtime uses."""
-    from plugin_distribution import verify_plugins
+    """Base builds use R79's lsmas/imwri; optional addons stay outside the package.
 
-    root = Path(project_root).resolve()
-    files = verify_plugins(root)
-    return [(str(path), path.relative_to(root).as_posix()) for path in files]
+    Installed extensions may be absent, incomplete or GPU-specific. They do not
+    affect a base build and can be installed separately into the resulting app.
+    """
+    return []
 
 
 def _collect_vs_worker_support_files(project_root):
@@ -839,9 +839,6 @@ def run_cxfreeze(skip_flasher=False, source_root=None):
             build_output,
             Path(project_root) / MEDIA_MANIFEST_RELATIVE,
         )
-        from plugin_distribution import verify_plugins
-
-        verify_plugins(build_output)
         license_file = os.path.join(BUILD_DIR, "frozen_application_license.txt")
         if os.path.exists(license_file):
             os.remove(license_file)

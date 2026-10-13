@@ -217,12 +217,6 @@ jobs:
             exit $LASTEXITCODE
           }
 
-      - name: Install locked VapourSynth plugins
-        shell: pwsh
-        run: |
-          uv run --no-sync python plugin_distribution.py sync --app-dir .
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-
       # M3 worker tests intentionally do not skip without the portable runtime.
       - name: Run Python tests
         shell: bash
@@ -277,6 +271,12 @@ jobs:
           foreach ($artifact in $requiredArtifacts) {
             if (-not (Test-Path $artifact)) {
               Write-Error "Required frozen artifact not found: $artifact"
+              exit 1
+            }
+          }
+          foreach ($addonRoot in @("ArknightsPassMaker/tools/vs-plugins", "ArknightsPassMaker/tools/vs-rife")) {
+            if (Test-Path -LiteralPath $addonRoot) {
+              Write-Error "Optional extension directory included in base build: $addonRoot"
               exit 1
             }
           }
@@ -366,8 +366,12 @@ jobs:
             exit $LASTEXITCODE
           }
           Write-Host "Portable archive extraction smoke test OK"
-          uv run --no-sync python plugin_distribution.py verify --app-dir $portableApp
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          foreach ($addonRoot in @("tools/vs-plugins", "tools/vs-rife")) {
+            if (Test-Path -LiteralPath (Join-Path $portableApp $addonRoot)) {
+              Write-Error "Optional extension directory included in base ZIP: $addonRoot"
+              exit 1
+            }
+          }
           "PORTABLE_SMOKE_APP=$portableApp" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
       - name: Accept relocated frozen application rendering and export

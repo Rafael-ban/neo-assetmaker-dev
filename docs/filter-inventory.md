@@ -1,6 +1,6 @@
 # 当前滤镜与插件清单
 
-源码基线：`25b6e4127f2dd5257aaf3bb67d97cd68a4b11525`，2026-10-13。本工作分支已追加 Lanczos / 可选 RIFE 60 fps；此表来自实际脚本和分发清单，不代表用户本机已安装或每个插件已执行测试。
+源码基线：`25b6e4127f2dd5257aaf3bb67d97cd68a4b11525`，2026-10-13。默认包采用 Lanczos；RIFE 60 fps为独立脚本与DLC；此表来自实际脚本和分发清单，不代表用户本机已安装或每个插件已执行测试。
 
 ## 默认实际执行的处理
 
@@ -14,13 +14,13 @@
 | `std.AssumeFPS`、`Loop` | 图片生成指定帧率/帧数的循环片段 | [VapourSynth](https://github.com/vapoursynth/vapoursynth) |
 | `std.SetFrameProps`、`AddBorders` | 颜色属性与必要的编码尺寸补边 | [VapourSynth](https://github.com/vapoursynth/vapoursynth) |
 
-`FINAL_RESIZER = core.resize.Lanczos`，`FINAL_RESIZE_OPTIONS = {}`。尺寸缩放不指定输出格式，保留源格式和位深；之后单独按设备合同转换为 YUV420P8，保留原有 error_diffusion 抖动。 `process_source()` 直接返回输入；DFTTest 与 neo_f3kdb 的代码在说明字符串中，当前未执行。默认链不启用降噪、去色带、锐化、去隔行、插帧、HDR tone mapping 或 AI 放大。可选 RIFE 默认关闭，启用后仅将低于 60 fps 的视频插到 60 fps，详见 [配置步骤](vapoursynth-kb/17-filter-configuration.md#可选-rife-插帧到-60-fps)。
+`FINAL_RESIZER = core.resize.Lanczos`，`FINAL_RESIZE_OPTIONS = {}`。尺寸缩放不指定输出格式，保留源格式和位深；之后单独按设备合同转换为 YUV420P8，保留原有 error_diffusion 抖动。 `process_source()` 直接返回输入；DFTTest 与 neo_f3kdb 的代码在说明字符串中，当前未执行。默认链不启用降噪、去色带、锐化、去隔行、插帧、HDR tone mapping 或 AI 放大。默认脚本不包含RIFE；选择独立 rife_pipeline.vpy后仅将低于 60 fps 的视频插到 60 fps，详见 [配置步骤](vapoursynth-kb/17-filter-configuration.md#可选-rife-插帧到-60-fps)。
 
 `config/vs_runtime.json` 的 `native_plugin_dirs` 和 `python_module_dirs` 均为空；当前 Windows 用户覆盖或项目自定义脚本可以改变实际配置，本清单不推定那些本机内容。
 
-## 已配置分发的扩展包
+## 可单独安装的扩展包
 
-`resources/packaging/vs-plugins.json` 共 64 个包。允许自动加载表示运行时可注册该 DLL 的函数，不表示它被默认脚本调用；设为手动的 GPU 插件需另行配置运行依赖和插件目录。无命名空间的是运行库/权重/模型依赖。
+通用可选清单 `resources/packaging/vs-plugins.json` 有60个包，RIFE独立清单 `resources/packaging/vs-rife.json` 有4个包。以下合并列出全部64项，均不属于默认基础二进制包。允许自动加载表示运行时可注册该 DLL 的函数，不表示它被默认脚本调用；设为手动的 GPU 插件需另行配置运行依赖和插件目录。无命名空间的是运行库/权重/模型依赖。
 
 | 包 | 锁定版本 | 命名空间 | 加载策略 | 上游 GitHub |
 |---|---|---|---|---|

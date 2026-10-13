@@ -80,7 +80,7 @@ Windows 缺失 runtime 目录时记录一次部署提示，保留 GUI 启动。�
 ## Windows 端验收流程
 
 1. 在全新目录准备本仓库源码，按 README 完成依赖与 R79 基础媒体包部署。
-2. 普通默认处理仅依赖基础包。要构建与仓库清单相符的完整分发，另执行 `uv run --no-sync python plugin_distribution.py sync --app-dir .` 和 `verify --app-dir .`。
+2. 默认打包仅依赖基础媒体包；通用扩展及RIFE DLC按需独立安装，不是基础构建前置条件。
 3. 运行 `uv run --no-sync python main.py --smoke-test --report source-smoke.json`。
 4. 生成新 Windows 构建；修改源码不会修改已经发出去的 EXE。构建目录与 dist 应是新的/已按 build.py --clean 清理的输出，不复用旧便携 ZIP。
 5. 解压真正的便携 ZIP 到中文/空格路径，切换到另一个工作目录，以完整 EXE 路径运行 `--smoke-test --report <绝对报告路径>`。
@@ -107,14 +107,22 @@ Windows 缺失 runtime 目录时记录一次部署提示，保留 GUI 启动。�
 
 ## 追加：Lanczos、保留缩放位深与可选 RIFE 60 fps
 
-按用户澄清：默认及预览缩放改为 Lanczos；“去掉量化”指尺寸缩放不指定 format=vs.YUV420P8。尺寸缩放保留源格式/位深，之后在设备输出边界单独转换格式/颜色；恢复原有 error_diffusion 抖动。8-bit设备合同和x264设置保留。RIFE由脚本参数按需开启、默认关闭，只将低于60fps的多帧视频插到60；图片、单帧和>=60fps素材保留原帧率。没有新增GUI开关或迁移旧项目schema，旧trim帧号切换RIFE后必须重新核对。
+按用户澄清：默认及预览缩放改为 Lanczos；“去掉量化”指尺寸缩放不指定 format=vs.YUV420P8。尺寸缩放保留源格式/位深，之后在设备输出边界单独转换格式/颜色；恢复原有 error_diffusion 抖动。8-bit设备合同和x264设置保留。RIFE使用独立rife_pipeline.vpy按需选择；默认内置脚本不含RIFE，只将低于60fps的多帧视频插到60；图片、单帧和>=60fps素材保留原帧率。没有新增GUI开关或迁移旧项目schema，旧trim帧号切换RIFE后必须重新核对。
 
 - Windows CI 首轮850个测试仅新增缓存测试失败：RUNNER~1与runneradmin是同一路径的不同表示。将预期目录resolve后，下一轮Run Python tests阶段已通过；该修复不改变生产路径解析。
 - 澄清后的缩放/设备转换、显示、RIFE与脚本合同13个定向测试通过，包括高位深YUV/RGB float在尺寸缩放阶段不指定输出格式，格式转换阶段不再次改变尺寸。
 - 滤镜/显示/时间轴相关13个定向模拟测试一次通过，包括25/23.976/29.97→60、跳过条件和错误诊断；没有执行真实GPU推理。
 - 插件分发相关9个用例最终通过；新增raw模型下载、坏下载保留旧包、选择安装与依赖闭包、未知包诊断、禁止把局部clean当成全部删除。新增测试最初的fixture字段和hash错误已修正，仅复测失败项。
 - 实际下载上游r9_mod_v33 DLL、v4.6_ensembleFalse模型及MIT许可并核对SHA-256；复用这些真实字节做安装/校验，7个最终文件（含邻近模型副本）、26,559,742字节通过，重复sync不下载。
-- 同一sync操作新增--package rife，可只安装RIFE及其3项模型/许可依赖；完整打包仍沿用全部64包清单。
+- RIFE及3项模型/许可依赖已移入独立vs-rife.json和tools/vs-rife根；基础打包不收集扩展目录，通用60项扩展也按需安装。
 - DLL导入表实测包含VCOMP140.DLL，启用电脑须安装官方VC++v14 x64运行库及Vulkan驱动；默认不自动加载RIFE。
 
 启用与验证步骤见 [RIFE配置](vapoursynth-kb/17-filter-configuration.md#可选-rife-插帧到-60-fps)。
+
+## 后续：最小基础包与独立RIFE DLC
+
+截图中的FATAL来自build.py在冻结开始前无条件verify_plugins；R79的120个基础文件校验通过，但扩展清单中的RIFE DLL缺失或SHA-256不符会继续阻止构建。上一轮CI预先安装全部64项，因此没有复现本机缺扩展的场景。
+
+默认构建现只验证/包含R79基础树；不再要求任何VSRepo扩展或GPU模型。RIFE模板、4项依赖和DLC制作独立，资源根为tools/vs-rife，不与通用扩展同步/清理互相干扰。
+
+本地验证：基础冻结流程在可选RIFE校验故意失败的模拟边界下仍成功；分发/根目录隔离相关12个测试通过。独立脚本、路径、时间轴及默认图合同15个测试通过，后续根目录调整仅复测2个受影响测试。使用先前下载的真实DLL/模型/许可字节在新根安装校验通过：7个文件、26,559,742字节；重复同步不下载，其他扩展保持。DLC ZIP制作与最新Windows CI结果见对应PR。真实RIFE GPU推理仍需用户设备验收。

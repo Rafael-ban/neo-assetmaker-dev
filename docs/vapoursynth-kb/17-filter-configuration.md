@@ -11,7 +11,7 @@
 缩放结束后单独执行设备所需的格式/颜色转换；`OUTPUT_CONVERSION_OPTIONS` 保留原有
 `dither_type="error_diffusion"`，显示端的 RGB24 转换也保留该抖动设置。
 
-顺序为：取源 → 补充未标记源的颜色信息 → 旋转 → 图片循环 / 可选 RIFE → output 1 →
+顺序为：取源 → 补充未标记源的颜色信息 → 旋转 → 图片循环 → output 1 →
 时间裁切 → 空间裁剪 → `process_source()` → 保留源格式的尺寸缩放 → 设备格式/色彩转换 → 补边/设备旋转 →
 output 0。`process_source()` 默认原样返回，供按实际素材加入去噪、去色带等处理。
 启用第三方调用时，同时在脚本头的 `assetmaker-requires` 中声明具体函数。
@@ -29,82 +29,93 @@ matrix 与 primaries 的名称仍为 `170m`。
 
 ## 可选 RIFE 插帧到 60 fps
 
-RIFE 由脚本参数控制，默认关闭。启用后仅将低于 60 fps、至少两帧的视频
-插到 60 fps；图片、单帧视频以及原本达到或超过 60 fps 的素材保持原帧率。
-使用 [VapourSynth-RIFE-ncnn-Vulkan](https://github.com/styler00dollar/VapourSynth-RIFE-ncnn-Vulkan)
-的 `r9_mod_v33` Windows DLL 和 `rife-v4.6_ensembleFalse` 模型。
-模型文件及 MIT 许可与 DLL 一起分发并校验，不依赖开发机目录。
+`default_pipeline.vpy` 不包含 RIFE。需要插帧时选择独立的
+`resources/vapoursynth/rife_pipeline.vpy`，默认目标为 60 fps；仅处理低于60 fps、
+至少两帧的视频。图片、单帧和≥60 fps视频保持原帧率。
+独立模板仍保留完整编辑画布、trim/crop、旋转、色彩和设备输出合同。
 
-需要具有 Vulkan 支持的 GPU/驱动，以及
-[Microsoft Visual C++ v14 x64 Redistributable](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist)。
-本次实测 DLL 的导入表包含 `VCOMP140.DLL`（OpenMP）和 MSVC v14 运行库。
-基础 R79 媒体包没有 `VCOMP140.DLL`，因此启用 RIFE 的电脑应安装官方运行库；
-没有 Vulkan 的电脑可以保持 RIFE 关闭。该包设置 `autoload=false`，避免默认运行
-因可选 GPU 插件依赖而失败。
+依赖使用 [VapourSynth-RIFE-ncnn-Vulkan](https://github.com/styler00dollar/VapourSynth-RIFE-ncnn-Vulkan)
+的 `r9_mod_v33` DLL 和 `rife-v4.6_ensembleFalse` 模型。启用电脑需要 Vulkan GPU/驱动
+及 [Microsoft VC++ v14 x64运行库](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist)。
+DLL导入包含VCOMP140.DLL和MSVC v14运行库；基础R79包不包含VCOMP140.DLL。
+这些要求只适用于选用RIFE的电脑。
 
-源码根目录执行，只安装 RIFE 及其依赖，不需要下载全部扩展：
+### 安装 DLC 或从源码安装
 
-```powershell
-uv run --no-sync python plugin_distribution.py sync --app-dir . --package rife
-uv run --no-sync python plugin_distribution.py verify --app-dir . --package rife
-```
+RIFE DLC ZIP包含独立脚本、DLL、模型、MIT许可及其清单；不包含主程序和基础媒体包。
+把 ZIP内容解压到包含 `ArknightsPassMaker.exe` 的实际应用目录，保持resources/tools层级。
+基础目录和DLC版本分别安装；默认内置脚本继续使用基础图。
 
-把当前应用的 `tools/vs-plugins/rife` 绝对目录加入本机运行配置覆盖，而不是
-写入随源码分发的 `config/vs_runtime.json`。下面命令在 Windows 源码根执行，
-合并已有目录并保留其他配置；路径由当前应用位置生成，不使用开发者路径：
+源码目录可直接安装（或修复）RIFE：
 
 ```powershell
-uv run --no-sync python -c 'from pathlib import Path; from config.vs_runtime import load_vs_runtime, save_vs_runtime_override, default_vs_runtime_user_path; folder = str((Path.cwd() / "tools" / "vs-plugins" / "rife").resolve()); dirs = list(dict.fromkeys([*load_vs_runtime().plugins.native_plugin_dirs, folder])); save_vs_runtime_override(default_vs_runtime_user_path(), {"plugins": {"native_plugin_dirs": dirs}})'
+uv run python plugin_distribution.py sync --app-dir . --manifest resources/packaging/vs-rife.json
+uv run python plugin_distribution.py verify --app-dir . --manifest resources/packaging/vs-rife.json
 ```
 
-然后在所选 `.vpy` 脚本参数区设置：
+RIFE管理根为 `tools/vs-rife/`；通用扩展根为 `tools/vs-plugins/`。
+同步、修复及清理只影响相应根，不会删除另一组扩展。安装到已有便携包时，从源码
+目录运行同一工具，将 `--app-dir` 指向该应用目录，`--manifest`仍指向源码中的独立清单。
 
-```python
-RIFE_ENABLED = True
-RIFE_TARGET_FPS = 60
+### 配置插件路径与选择脚本
+
+把实际应用的 `tools/vs-rife/rife` 绝对目录加入本机运行覆盖的
+`plugins.native_plugin_dirs`，不写入随源码分发的config/vs_runtime.json。
+以前配置过 `tools/vs-plugins/rife` 时，用新目录替换，避免重复加载同一个插件。
+下列命令在源码根执行，保留其他本机配置并生成当前应用路径：
+
+```powershell
+uv run python -c 'from pathlib import Path; from config.vs_runtime import load_vs_runtime, save_vs_runtime_override, default_vs_runtime_user_path; folder = str((Path.cwd() / "tools" / "vs-rife" / "rife").resolve()); old = (Path.cwd() / "tools" / "vs-plugins" / "rife").resolve(); dirs = list(dict.fromkeys([*[d for d in load_vs_runtime().plugins.native_plugin_dirs if Path(d).resolve() != old], folder])); save_vs_runtime_override(default_vs_runtime_user_path(), {"plugins": {"native_plugin_dirs": dirs}})'
 ```
 
-内置脚本的模型路径基于 canonical 脚本所在应用目录生成，指向
-`tools/vs-plugins/rife/models/rife-v4.6_ensembleFalse`。如果把脚本复制到全局或
-项目脚本目录，须同时将 `RIFE_MODEL_PATH` 设置为当前应用的该模型目录。
-选择“重载”或重新打开素材后生效。明确启用却缺少插件、模型或可用 GPU 时会报告
-原因，不把原视频冒充为成功插帧结果。
+在“VapourSynth脚本 → 来源”选择“全局本机脚本”，选中独立的rife_pipeline.vpy；
+或复制到项目内，选择“项目脚本”，按现有流程确认信任。“内置脚本”始终使用基础图。
+独立模板的参数默认为 `RIFE_ENABLED=True`、`RIFE_TARGET_FPS=60`。
+选择“重载”或重新打开素材后生效。模板头声明rife.RIFE，所以选用它前须安装并配置
+RIFE，即使当前素材会跳过插帧；需要基础处理时直接选择内置脚本。
 
-插帧发生在 `output 1` 和 trim 之前，编辑时间轴、预览及导出采用同一帧率。
-输出帧数按 `floor(源帧数 × 60 / 源帧率)` 取整，尾部时长误差小于一个 60 fps 帧。
-例如 25 fps、24000/1001 和 30000/1001 fps 都是真正插到 60，而非一律乘二。
-旧项目仅存 trim 帧编号：请在开始裁剪前确定 RIFE 开关；切换已有项目时重新核对
-入出点，避免把旧帧编号当作 60 fps 时间轴中的同一时间。
+模型默认位于当前RenderSession实际应用根的
+`tools/vs-rife/rife/models/rife-v4.6_ensembleFalse`；复制脚本到项目或外部目录不会
+改变模型根。模型另存于外部目录时，可显式设置RIFE_MODEL_PATH。
+插件、模型或GPU失败会报告原因，不把原视频冒充为成功插帧结果。
 
-关闭抖动不等于删除设备要求的 8-bit YUV420P8 转换，也不修改 x264 编码质量参数。
-真实 Vulkan GPU 插值尚未在本次 Linux 环境执行；模型安装/校验与模拟时间轴测试
-不能替代 Windows 上启用 RIFE 的真实视频预览、导出和回读。
+插帧位于output 1与trim之前；预览、编辑和导出使用同一时间轴。
+帧数按floor(源帧数×60/源帧率)取整，尾部误差小于一个60 fps帧。
+旧项目只保存trim帧编号，切换脚本后需要重新核对入出点。
+尺寸缩放不指定YUV420P8；设备输出前单独转换格式，保留原有抖动和x264设置。
+DLC打包和模拟测试不代表已完成Vulkan GPU推理验收。
 
-## 安装、修复与清理
+### 制作与清理 DLC
 
-基础 R79 媒体包仍使用 `media-tools-r79-v1.json`。扩展插件独立位于
-`tools/vs-plugins/<package>/`，由 `resources/packaging/vs-plugins.json` 记录上游
-版本、下载地址、归档成员和文件 SHA-256；它不描述滤镜图。
+完成RIFE资源安装后运行：
 
-先按 README 部署基础媒体包，然后执行：
+```powershell
+uv run python rife_dlc.py --app-dir . --output dist/RIFE-DLC-r9_mod_v33.zip
+```
+
+打包前校验锁定文件，输出已存在时要求选择新文件名，不覆盖已有包。
+**Build RIFE DLC**工作流可独立生成下载产物，无需构建主程序。
+
+清理RIFE独立资源（脚本模板保留）：
+
+```powershell
+uv run python plugin_distribution.py clean --app-dir . --manifest resources/packaging/vs-rife.json
+```
+
+## 通用扩展的安装、修复与清理
+
+通用扩展清单为 `resources/packaging/vs-plugins.json`，不是基础构建要求。
+需要时运行：
 
 ```powershell
 uv run python plugin_distribution.py sync --app-dir .
 uv run python plugin_distribution.py verify --app-dir .
-```
-
-`sync` 是安装和更新共用的操作：已有正确文件不重复下载；缺失、损坏或含旧文件的
-包按包替换，失败后可重复执行。中断保留已安装包，临时下载自动清理；锁清单删除的
-包会从此专用目录移除。用户自己的插件请使用 runtime 配置的 `native_plugin_dirs`，
-不要手工放入工具管理的目录。彻底移除扩展包：
-
-```powershell
 uv run python plugin_distribution.py clean --app-dir .
 ```
 
-构建前、冻结后和便携包解压后都检查扩展清单；CI 会在基础媒体包解压后安装扩展。
-worker 和 VSPipe 共用相同插件目录及依赖搜索路径，模型/权重与 DLL 一起参与运行时
-身份校验。没有更改已发布基础包的内容，也不需要替换现有基础包下载变量。
+构建只校验R79基础媒体树，不校验或收集扩展；CI不再下载整套插件/模型。
+安装后的插件目录、依赖和模型仍通过现有runtime配置与身份校验供worker/VSPipe共用。
+无需改变现有R79下载变量，也不需要重新生成基础媒体工具包。
 
 ## 教程来源与验证边界
 
