@@ -46,6 +46,8 @@ test/
 
 # User settings
 config/user_settings.json
+# 本机刷机驱动状态由 flasher_dialog 创建，不能随克隆传播。
+config/config.json
 CLAUDE.md
 .planning
 docs/plans/
