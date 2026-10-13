@@ -1,4 +1,4 @@
-"""Install the locked VapourSynth plugin set beside the packaged media runtime."""
+"""Install optional VapourSynth extensions independently of the base runtime."""
 
 from __future__ import annotations
 
@@ -21,6 +21,7 @@ from pathlib import Path, PurePosixPath
 _PACKAGE_ID = re.compile(r"^[a-z][a-z0-9_]*$")
 _SHA256 = re.compile(r"^[a-f0-9]{64}$")
 _INSTALL_ROOT = Path("tools/vs-plugins")
+_MANAGED_ROOTS = {_INSTALL_ROOT.as_posix(), "tools/vs-rife"}
 _LOCK_PATH = Path("resources/packaging/vs-plugins.json")
 
 
@@ -55,7 +56,7 @@ def load_manifest(
     manifest = json.loads(source.read_text(encoding="utf-8"))
     if manifest.get("schema_version") != 1 or manifest.get("target") != "win64":
         raise PluginDistributionError(f"Unsupported plugin manifest: {source}")
-    if manifest.get("install_root") != _INSTALL_ROOT.as_posix():
+    if manifest.get("install_root") not in _MANAGED_ROOTS:
         raise PluginDistributionError(f"Unexpected plugin install root: {source}")
     packages = manifest.get("packages")
     if not isinstance(packages, list):
@@ -95,9 +96,10 @@ def load_manifest(
     return manifest
 
 
-def _install_root(app_dir: str | Path) -> Path:
+def _install_root(app_dir: str | Path, manifest: dict | None = None) -> Path:
     base = Path(app_dir).resolve()
-    root = base / _INSTALL_ROOT
+    relative = manifest["install_root"] if manifest else _INSTALL_ROOT.as_posix()
+    root = base / _safe_relative(relative)
     if root.is_symlink() or (root.exists() and root.is_junction()):
         raise PluginDistributionError(f"Plugin root is a link: {root}")
     return root
@@ -179,7 +181,7 @@ def verify_plugins(
     manifest = load_manifest(app_dir, manifest_path)
     packages = {item["id"]: item for item in manifest["packages"]}
     selected = _select_packages(packages, package_ids)
-    root = _install_root(app_dir)
+    root = _install_root(app_dir, manifest)
     result: list[Path] = []
     for package in selected.values():
         result.extend(_verify_package(root / package["id"], package, packages))
@@ -376,7 +378,7 @@ def sync_plugins(
     manifest = load_manifest(app_dir, manifest_path)
     packages = {item["id"]: item for item in manifest["packages"]}
     selected = _select_packages(packages, package_ids)
-    root = _install_root(app_dir)
+    root = _install_root(app_dir, manifest)
     root.mkdir(parents=True, exist_ok=True)
     if package_ids is None:
         _prune_unlocked(root, set(packages))
@@ -420,9 +422,10 @@ def sync_plugins(
     return verify_plugins(app_dir, manifest_path, package_ids=package_ids)
 
 
-def clean_plugins(app_dir: str | Path) -> None:
-    """Remove only this tool's install root."""
-    root = _install_root(app_dir)
+def clean_plugins(app_dir: str | Path, manifest_path: str | Path | None = None) -> None:
+    """Remove only the selected extension manifest's managed install root."""
+    manifest = load_manifest(app_dir, manifest_path) if manifest_path else None
+    root = _install_root(app_dir, manifest)
     if root.exists():
         for child in root.iterdir():
             _remove_managed_entry(root, child)
@@ -445,7 +448,7 @@ def main(argv: list[str] | None = None) -> int:
         elif args.action == "verify":
             files = verify_plugins(args.app_dir, args.manifest, package_ids=args.package_ids)
         else:
-            clean_plugins(args.app_dir)
+            clean_plugins(args.app_dir, args.manifest)
             print("Plugin install root removed")
             return 0
     except (OSError, ValueError, KeyError, PluginDistributionError) as error:

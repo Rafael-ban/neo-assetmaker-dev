@@ -49,14 +49,14 @@ class PluginDistributionTests(unittest.TestCase):
             "adjacent_from": list(adjacent_from),
         }
 
-    def _manifest(self, packages):
-        path = self.app_dir / "lock.json"
+    def _manifest(self, packages, *, install_root="tools/vs-plugins", name="lock.json"):
+        path = self.app_dir / name
         path.write_text(
             json.dumps(
                 {
                     "schema_version": 1,
                     "target": "win64",
-                    "install_root": "tools/vs-plugins",
+                    "install_root": install_root,
                     "packages": packages,
                 }
             ),
@@ -211,6 +211,41 @@ class PluginDistributionTests(unittest.TestCase):
                 main(["clean", "--app-dir", str(self.app_dir), "--package", "rife"])
         self.assertEqual(raised.exception.code, 2)
         clean.assert_not_called()
+
+    def test_rife_manifest_sync_and_clean_preserve_general_extensions(self):
+        from plugin_distribution import main
+
+        general = self._package("filter", {"filter.dll": b"general plugin"})
+        rife = self._package("rife", {"rife.dll": b"rife plugin"})
+        general_lock = self._manifest([general], name="general.json")
+        rife_lock = self._manifest([rife], install_root="tools/vs-rife", name="rife.json")
+        with patch("plugin_distribution._download", side_effect=self._download):
+            sync_plugins(self.app_dir, general_lock)
+            rife_files = sync_plugins(self.app_dir, rife_lock)
+            # General sync only prunes its own root, leaving the RIFE addon intact.
+            sync_plugins(self.app_dir, general_lock)
+        self.assertEqual(verify_plugins(self.app_dir, rife_lock), rife_files)
+        self.assertEqual(rife_files[0].read_bytes(), b"rife plugin")
+        self.assertEqual(main([
+            "clean", "--app-dir", str(self.app_dir), "--manifest", str(rife_lock),
+        ]), 0)
+        self.assertFalse((self.app_dir / "tools/vs-rife").exists())
+        self.assertEqual(
+            (self.app_dir / "tools/vs-plugins/filter/filter.dll").read_bytes(),
+            b"general plugin",
+        )
+
+    def test_product_manifests_keep_rife_separate_from_general_extensions(self):
+        from plugin_distribution import load_manifest
+
+        root = Path(__file__).resolve().parents[1]
+        general = load_manifest(root)
+        rife = load_manifest(root, root / "resources/packaging/vs-rife.json")
+        rife_ids = {"rife", "rife_model_param", "rife_model_bin", "rife_license"}
+        self.assertTrue(rife_ids.isdisjoint(p["id"] for p in general["packages"]))
+        self.assertEqual({p["id"] for p in rife["packages"]}, rife_ids)
+        self.assertEqual(general["install_root"], "tools/vs-plugins")
+        self.assertEqual(rife["install_root"], "tools/vs-rife")
 
 
 if __name__ == "__main__":

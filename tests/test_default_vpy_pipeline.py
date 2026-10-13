@@ -53,6 +53,11 @@ class DefaultPipelineHeaderTests(unittest.TestCase):
 
 
 class DefaultPipelineSemanticTests(unittest.TestCase):
+    def test_default_template_has_no_rife_configuration_or_processing(self):
+        source = DEFAULT_PIPELINE.read_text(encoding="utf-8")
+        self.assertNotIn("rife", source.lower())
+        self.assertNotIn("interpolate_timeline", source)
+
     def test_resize_keeps_source_format_until_device_output_conversion(self):
         tree = ast.parse(DEFAULT_PIPELINE.read_text(encoding="utf-8"))
         constants = [
@@ -107,7 +112,6 @@ class DefaultPipelineSemanticTests(unittest.TestCase):
         source = DEFAULT_PIPELINE.read_text(encoding="utf-8")
         ordered_steps = (
             "clip = rotate(clip, transform[\"rotation\"])",
-            "clip = interpolate_timeline(clip, kind=source[\"kind\"])",
             "clip = core.std.Loop(clip, times=virtual_count)[:virtual_count]",
             "clip.set_output(1)",
             'clip = clip[timeline["start_frame"] : timeline["end_frame"]]',

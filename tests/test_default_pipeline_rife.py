@@ -10,9 +10,11 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import Mock
 
+from core.vs_runtime.script_header import parse_script_header
+
 
 ROOT = Path(__file__).resolve().parents[1]
-PIPELINE = ROOT / "resources" / "vapoursynth" / "default_pipeline.vpy"
+PIPELINE = ROOT / "resources" / "vapoursynth" / "rife_pipeline.vpy"
 
 
 def _clip(fps: Fraction = Fraction(25), frames: int = 11):
@@ -32,6 +34,86 @@ def _rife_function(core, model_path, *, enabled=True, target_fps=60):
     }
     exec(compile(ast.Module(body=[function], type_ignores=[]), str(PIPELINE), "exec"), namespace)
     return namespace["interpolate_timeline"]
+
+
+class RifeTemplateTests(unittest.TestCase):
+    def test_optional_header_declares_rife_and_enables_60_fps(self):
+        header = parse_script_header(PIPELINE)
+        self.assertEqual(header.api_version, 1)
+        self.assertEqual(header.mode, "compatible")
+        self.assertEqual(header.editor_output, 1)
+        self.assertEqual(
+            header.capabilities,
+            ("source", "trim", "crop", "rotation", "resolution", "image_loop"),
+        )
+        self.assertEqual(header.requires, ("lsmas.LWLibavSource", "imwri.Read", "rife.RIFE"))
+        tree = ast.parse(PIPELINE.read_text(encoding="utf-8"))
+        settings = {
+            node.targets[0].id: ast.literal_eval(node.value)
+            for node in tree.body
+            if isinstance(node, ast.Assign) and isinstance(node.targets[0], ast.Name)
+            and node.targets[0].id in ("RIFE_ENABLED", "RIFE_TARGET_FPS")
+        }
+        self.assertEqual(settings, {"RIFE_ENABLED": True, "RIFE_TARGET_FPS": 60})
+        self.assertFalse(any(
+            isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+            and node.func.attr in ("LoadPlugin", "LoadAllPlugins")
+            for node in ast.walk(tree)
+        ), "Native plugins must be loaded by the runtime override policy")
+
+    def test_copied_script_uses_supplied_runtime_root_for_models(self):
+        tree = ast.parse(PIPELINE.read_text(encoding="utf-8"))
+        setting = next(
+            node for node in tree.body
+            if isinstance(node, ast.Assign) and isinstance(node.targets[0], ast.Name)
+            and node.targets[0].id == "RIFE_MODEL_PATH"
+        )
+        with TemporaryDirectory() as directory:
+            runtime_root = Path(directory) / "runtime"
+            helper_root = Path(directory) / "fallback-runtime"
+            helper = helper_root / "resources/vapoursynth/python/assetmaker_vs/job_api.py"
+            for script in (
+                runtime_root / "resources/vapoursynth/rife_pipeline.vpy",
+                Path(directory) / "project/vs/rife_pipeline.vpy",
+                Path(directory) / "external/custom.vpy",
+            ):
+                for environment, expected_root in (
+                    ({"ASSETMAKER_VS_APP_DIR": str(runtime_root)}, runtime_root),
+                    ({}, helper_root),
+                ):
+                    with self.subTest(script=script, environment=environment):
+                        namespace = {
+                            "Path": Path, "os": SimpleNamespace(environ=environment),
+                            "__file__": str(script), "job_api": SimpleNamespace(__file__=str(helper)),
+                        }
+                        exec(compile(ast.Module(body=[setting], type_ignores=[]), str(script), "exec"), namespace)
+                        self.assertEqual(
+                            namespace["RIFE_MODEL_PATH"],
+                            expected_root / "tools/vs-rife/rife/models/rife-v4.6_ensembleFalse",
+                        )
+
+    def test_common_editor_colour_and_output_stages_match_default(self):
+        default = ast.parse((PIPELINE.parent / "default_pipeline.vpy").read_text(encoding="utf-8"))
+        rife = ast.parse(PIPELINE.read_text(encoding="utf-8"))
+        shared_functions = ("rotate", "crop_safely", "process_source", "fill_missing_source_colour")
+        for name in shared_functions:
+            with self.subTest(function=name):
+                default_fn = next(node for node in default.body if isinstance(node, ast.FunctionDef) and node.name == name)
+                rife_fn = next(node for node in rife.body if isinstance(node, ast.FunctionDef) and node.name == name)
+                self.assertEqual(ast.dump(default_fn), ast.dump(rife_fn))
+        def output_stages(tree):
+            start = next(index for index, node in enumerate(tree.body)
+                         if isinstance(node, ast.Assign) and isinstance(node.targets[0], ast.Name)
+                         and node.targets[0].id == "source")
+            return [ast.dump(node) for node in tree.body[start:]
+                    if not (isinstance(node, ast.Assign) and isinstance(node.value, ast.Call)
+                            and isinstance(node.value.func, ast.Name)
+                            and node.value.func.id == "interpolate_timeline")]
+        self.assertEqual(output_stages(default), output_stages(rife))
+        source = PIPELINE.read_text(encoding="utf-8")
+        self.assertLess(source.index("clip = rotate("), source.index("clip = interpolate_timeline("))
+        self.assertLess(source.index("clip = interpolate_timeline("), source.index("clip.set_output(1)"))
+        self.assertLess(source.index("clip.set_output(1)"), source.index('clip = clip[timeline["start_frame"]'))
 
 
 class RifeTimelineTests(unittest.TestCase):
@@ -97,6 +179,12 @@ class RifeTimelineTests(unittest.TestCase):
                     )
                     with self.assertRaisesRegex(RuntimeError, "目标帧率插帧契约"):
                         _rife_function(core, directory)(source, kind="video")
+
+    def test_unknown_or_nonpositive_source_rate_is_a_clear_error(self):
+        for numerator, denominator in ((0, 1), (25, 0), (-1, 1)):
+            source = SimpleNamespace(fps_num=numerator, fps_den=denominator, num_frames=11)
+            with self.subTest(fps=(numerator, denominator)), self.assertRaisesRegex(RuntimeError, "固定的正帧率"):
+                _rife_function(SimpleNamespace(), ROOT)(source, kind="video")
 
     def test_invalid_target_rate_is_rejected(self):
         for target in (0, -1, True, 60.0):

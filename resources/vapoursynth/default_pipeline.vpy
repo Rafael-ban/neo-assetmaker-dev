@@ -11,7 +11,6 @@ output 1 是旋转后、trim/crop 前的完整编辑画布；output 0 严格按 
 """
 
 from pathlib import Path
-from fractions import Fraction
 
 import vapoursynth as vs
 
@@ -28,14 +27,6 @@ UNTAGGED_HD_MIN_HEIGHT = 720  # 未标记 YUV 源按原始高度推断矩阵
 FINAL_RESIZER = core.resize.Lanczos
 FINAL_RESIZE_OPTIONS = {}  # 尺寸缩放保留源格式和位深
 OUTPUT_CONVERSION_OPTIONS = {"dither_type": "error_diffusion"}
-# 插帧会改变编辑时间轴的帧编号；请在开始编辑新素材前决定是否开启。
-# 旧项目仅保存 trim 帧编号，修改此开关后须重新检查入出点。
-RIFE_ENABLED = False
-RIFE_TARGET_FPS = 60  # 只为低于此帧率的视频插帧；更高帧率保持原样
-RIFE_MODEL_PATH = (
-    Path(__file__).resolve().parents[2]
-    / "tools" / "vs-plugins" / "rife" / "models" / "rife-v4.6_ensembleFalse"
-)
 # RenderJob 使用设备合同的名称；zimg 对 BT.601 transfer 使用 "601"。
 RESIZE_TRANSFER_NAMES = {"709": "709", "170m": "601"}
 
@@ -143,52 +134,6 @@ def fill_missing_source_colour(clip, *, kind, original_height):
     return core.std.SetFrameProps(clip, **missing) if missing else clip
 
 
-def interpolate_timeline(clip, *, kind):
-    """在 trim 前建立真实 RIFE 时间轴；尾帧取整最多缩短一个目标帧。"""
-    if not RIFE_ENABLED or kind != "video" or clip.num_frames < 2:
-        return clip
-    if type(RIFE_TARGET_FPS) is not int or RIFE_TARGET_FPS <= 0:
-        raise RuntimeError("RIFE_TARGET_FPS 必须是正整数")
-    source_fps = Fraction(clip.fps_num, clip.fps_den)
-    if source_fps <= 0:
-        raise RuntimeError("RIFE 要求源视频具有固定的正帧率")
-    if source_fps >= RIFE_TARGET_FPS:
-        return clip
-    rife = getattr(getattr(core, "rife", None), "RIFE", None)
-    if not callable(rife):
-        raise RuntimeError(
-            "已启用 RIFE，但缺少 rife.RIFE 插件；请安装 RIFE 运行资源并在 "
-            "vs_runtime.user.json 的 native_plugin_dirs 中配置 tools/vs-plugins/rife"
-        )
-    model_path = Path(RIFE_MODEL_PATH).resolve()
-    if not model_path.is_dir():
-        raise RuntimeError(f"已启用 RIFE，但模型目录不存在: {model_path}")
-    source_count = clip.num_frames
-    # RIFE-ncnn-Vulkan 只接受 planar 32-bit float RGB。已补齐的源颜色
-    # 属性决定矩阵/transfer；保持源 transfer，避免先转到设备 BT.601。
-    rgb = core.resize.Lanczos(
-        clip, format=vs.RGBS, range_s="full", dither_type="none"
-    )
-    try:
-        interpolated = rife(
-            rgb,
-            fps_num=RIFE_TARGET_FPS,
-            fps_den=1,
-            model_path=str(model_path),
-        )
-    except Exception as exc:
-        raise RuntimeError(
-            "RIFE 插帧失败；请确认 Vulkan GPU/驱动及模型可用: " + str(exc)
-        ) from exc
-    actual_fps = Fraction(interpolated.fps_num, interpolated.fps_den)
-    if (
-        actual_fps != RIFE_TARGET_FPS
-        or interpolated.num_frames != int(source_count * RIFE_TARGET_FPS / source_fps)
-    ):
-        raise RuntimeError("RIFE 输出帧率/帧数不符合目标帧率插帧契约")
-    return interpolated
-
-
 source = job["source"]
 timeline = job["timeline"]
 transform = job["transform"]
@@ -216,13 +161,12 @@ clip = fill_missing_source_colour(
     clip, kind=source["kind"], original_height=clip.height
 )
 clip = rotate(clip, transform["rotation"])
-clip = interpolate_timeline(clip, kind=source["kind"])
 
 if source["kind"] == "image":
     virtual_count = source["virtual_frame_count"]
     clip = core.std.Loop(clip, times=virtual_count)[:virtual_count]
 
-# output 1 保留完整编辑时间轴（开启时包含 RIFE），坐标空间已应用 rotation。
+# output 1 保留完整编辑时间轴，坐标空间已应用 rotation。
 clip.set_output(1)
 
 if timeline["end_frame"] is not None:
