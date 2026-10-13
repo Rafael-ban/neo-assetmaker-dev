@@ -61,8 +61,9 @@ class PreviewCacheTests(unittest.TestCase):
         second_dir = Path(second.job_path).parent
         self.assertEqual(first.epoch, second.epoch)
         self.assertNotEqual(first_dir, second_dir)
-        self.assertEqual(first_dir.parent, root)
-        self.assertEqual(second_dir.parent, root)
+        # Windows temp roots can use an 8.3 alias (RUNNER~1) for runneradmin.
+        self.assertEqual(first_dir.parent, root.resolve())
+        self.assertEqual(second_dir.parent, root.resolve())
         self.assertEqual(load_render_job(first.job_path).paths.cache_dir, str(first_dir))
 
         self.widget.clear(sync_shutdown=True)
