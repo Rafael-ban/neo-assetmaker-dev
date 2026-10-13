@@ -190,7 +190,7 @@ def get_all_files_filter() -> str:
 
 def get_app_dir() -> str:
     """
-    获取应用程序所在目录（支持 Nuitka/PyInstaller 打包）
+    获取应用程序所在目录（源码根目录或 cx_Freeze 可执行文件目录）
 
     Returns:
         应用程序所在目录的绝对路径
