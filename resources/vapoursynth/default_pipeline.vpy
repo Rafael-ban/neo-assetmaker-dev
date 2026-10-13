@@ -26,7 +26,8 @@ VS_CACHE_SIZE_MB = 16000
 VIDEO_SOURCE_CACHE = 1  # LWLibavSource 的 .lwi 索引缓存
 UNTAGGED_HD_MIN_HEIGHT = 720  # 未标记 YUV 源按原始高度推断矩阵
 FINAL_RESIZER = core.resize.Lanczos
-FINAL_RESIZE_OPTIONS = {"dither_type": "none"}
+FINAL_RESIZE_OPTIONS = {}  # 尺寸缩放保留源格式和位深
+OUTPUT_CONVERSION_OPTIONS = {"dither_type": "error_diffusion"}
 # 插帧会改变编辑时间轴的帧编号；请在开始编辑新素材前决定是否开启。
 # 旧项目仅保存 trim 帧编号，修改此开关后须重新检查入出点。
 RIFE_ENABLED = False
@@ -236,17 +237,23 @@ clip = crop_safely(
 
 clip = process_source(clip)
 
-# 缩放及真实色彩转换到设备帧；目标尺寸/格式/色彩来自固定 job 合同。
+# 尺寸缩放不指定 format，保留源格式/位深及颜色属性。
 clip = FINAL_RESIZER(
     clip,
     width=output["display_width"],
     height=output["display_height"],
+    **FINAL_RESIZE_OPTIONS,
+)
+
+# 只在设备输出边界转换格式和颜色；此步骤不再改变画面尺寸。
+clip = core.resize.Lanczos(
+    clip,
     format=vs.YUV420P8,
     matrix_s=output["matrix"],
     transfer_s=RESIZE_TRANSFER_NAMES[output["transfer"]],
     primaries_s=output["primaries"],
     range_s=output["range"],
-    **FINAL_RESIZE_OPTIONS,
+    **OUTPUT_CONVERSION_OPTIONS,
 )
 
 right_border = output["coded_width"] - output["display_width"]

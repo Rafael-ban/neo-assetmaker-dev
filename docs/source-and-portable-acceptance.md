@@ -103,12 +103,14 @@ Windows 缺失 runtime 目录时记录一次部署提示，保留 GUI 启动。�
 ## 滤镜清单
 
 [完整清单](filter-inventory.md) 给出当前默认实际调用、64 个扩展/依赖包的锁定版本、命名空间、加载策略和 GitHub 上游。
-默认 `process_source()` 原样返回，采用 Lanczos，显式关闭抖动（none）；默认未启用 DFTTest、neo_f3kdb、插帧或 AI 放大。
+默认 `process_source()` 原样返回，采用 Lanczos，尺寸缩放保留源格式和位深；默认未启用 DFTTest、neo_f3kdb、插帧或 AI 放大。
 
-## 追加：Lanczos、关闭抖动与可选 RIFE 60 fps
+## 追加：Lanczos、保留缩放位深与可选 RIFE 60 fps
 
-按用户最终选择：默认及预览缩放改为 Lanczos，明确使用 dither_type=none；8-bit设备合同和x264量化设置保留。RIFE先由脚本参数按需开启、默认关闭，只将低于60fps的多帧视频插到60；图片、单帧和>=60fps素材保留原帧率。没有新增GUI开关或迁移旧项目schema，旧trim帧号切换RIFE后必须重新核对。
+按用户澄清：默认及预览缩放改为 Lanczos；“去掉量化”指尺寸缩放不指定 format=vs.YUV420P8。尺寸缩放保留源格式/位深，之后在设备输出边界单独转换格式/颜色；恢复原有 error_diffusion 抖动。8-bit设备合同和x264设置保留。RIFE由脚本参数按需开启、默认关闭，只将低于60fps的多帧视频插到60；图片、单帧和>=60fps素材保留原帧率。没有新增GUI开关或迁移旧项目schema，旧trim帧号切换RIFE后必须重新核对。
 
+- Windows CI 首轮850个测试仅新增缓存测试失败：RUNNER~1与runneradmin是同一路径的不同表示。将预期目录resolve后，下一轮Run Python tests阶段已通过；该修复不改变生产路径解析。
+- 澄清后的缩放/设备转换、显示、RIFE与脚本合同13个定向测试通过，包括高位深YUV/RGB float在尺寸缩放阶段不指定输出格式，格式转换阶段不再次改变尺寸。
 - 滤镜/显示/时间轴相关13个定向模拟测试一次通过，包括25/23.976/29.97→60、跳过条件和错误诊断；没有执行真实GPU推理。
 - 插件分发相关9个用例最终通过；新增raw模型下载、坏下载保留旧包、选择安装与依赖闭包、未知包诊断、禁止把局部clean当成全部删除。新增测试最初的fixture字段和hash错误已修正，仅复测失败项。
 - 实际下载上游r9_mod_v33 DLL、v4.6_ensembleFalse模型及MIT许可并核对SHA-256；复用这些真实字节做安装/校验，7个最终文件（含邻近模型副本）、26,559,742字节通过，重复sync不下载。

@@ -14,7 +14,7 @@
 | `std.AssumeFPS`、`Loop` | 图片生成指定帧率/帧数的循环片段 | [VapourSynth](https://github.com/vapoursynth/vapoursynth) |
 | `std.SetFrameProps`、`AddBorders` | 颜色属性与必要的编码尺寸补边 | [VapourSynth](https://github.com/vapoursynth/vapoursynth) |
 
-`FINAL_RESIZER = core.resize.Lanczos`，`FINAL_RESIZE_OPTIONS = {"dither_type": "none"}`。 `process_source()` 直接返回输入；DFTTest 与 neo_f3kdb 的代码在说明字符串中，当前未执行。默认链不启用降噪、去色带、锐化、去隔行、插帧、HDR tone mapping 或 AI 放大。可选 RIFE 默认关闭，启用后仅将低于 60 fps 的视频插到 60 fps，详见 [配置步骤](vapoursynth-kb/17-filter-configuration.md#可选-rife-插帧到-60-fps)。
+`FINAL_RESIZER = core.resize.Lanczos`，`FINAL_RESIZE_OPTIONS = {}`。尺寸缩放不指定输出格式，保留源格式和位深；之后单独按设备合同转换为 YUV420P8，保留原有 error_diffusion 抖动。 `process_source()` 直接返回输入；DFTTest 与 neo_f3kdb 的代码在说明字符串中，当前未执行。默认链不启用降噪、去色带、锐化、去隔行、插帧、HDR tone mapping 或 AI 放大。可选 RIFE 默认关闭，启用后仅将低于 60 fps 的视频插到 60 fps，详见 [配置步骤](vapoursynth-kb/17-filter-configuration.md#可选-rife-插帧到-60-fps)。
 
 `config/vs_runtime.json` 的 `native_plugin_dirs` 和 `python_module_dirs` 均为空；当前 Windows 用户覆盖或项目自定义脚本可以改变实际配置，本清单不推定那些本机内容。
 

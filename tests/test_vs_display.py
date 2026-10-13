@@ -56,7 +56,7 @@ class DisplayValidationTests(unittest.TestCase):
         self.assertEqual(kwargs["format"], vs.RGB24)
         self.assertEqual(kwargs["transfer_s"], "srgb")
         self.assertEqual(kwargs["range_s"], "full")
-        self.assertEqual(kwargs["dither_type"], "none")
+        self.assertEqual(kwargs["dither_type"], "error_diffusion")
 
     def test_high_zoom_uses_lanczos_colour_conversion_and_point_pixel_inspection(self):
         display = _display_module()
@@ -75,7 +75,7 @@ class DisplayValidationTests(unittest.TestCase):
             display.to_display_clip(
                 source, viewport=(480, 270), zoom_factor=2.0, pan=(0.5, 0.5)
             )
-        self.assertEqual(resize.Lanczos.call_args.kwargs["dither_type"], "none")
+        self.assertEqual(resize.Lanczos.call_args.kwargs["dither_type"], "error_diffusion")
         self.assertNotIn("width", resize.Lanczos.call_args.kwargs)
         crop.assert_called_once_with(rgb, width=960, height=540, left=480, top=270)
         resize.Point.assert_called_once_with(window, width=480, height=270)

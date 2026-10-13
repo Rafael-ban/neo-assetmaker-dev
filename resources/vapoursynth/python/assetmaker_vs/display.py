@@ -6,7 +6,7 @@ import math
 from typing import Any
 
 
-DISPLAY_DITHER = "none"  # YUV/高位深转为 Qt 的 RGB24 时不添加抖动
+DISPLAY_DITHER = "error_diffusion"  # YUV/高位深转为 Qt 的 RGB24 时使用
 
 
 def _positive_dimension(value: Any, field: str) -> int:

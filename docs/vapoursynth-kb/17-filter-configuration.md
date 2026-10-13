@@ -6,11 +6,13 @@
 ## 内置处理链
 
 `resources/vapoursynth/default_pipeline.vpy` 顶部集中缓存、未标记源的解释、
-最终缩放核和抖动参数。默认使用 Lanczos，显式关闭抖动（`dither_type="none"`）；修改脚本中的
-`FINAL_RESIZER` / `FINAL_RESIZE_OPTIONS` 即可选择其他 VapourSynth resize 核。
+尺寸缩放核和设备格式转换参数。默认使用 Lanczos，尺寸缩放不传 `format=vs.YUV420P8`，
+保留源格式和位深。修改 `FINAL_RESIZER` / `FINAL_RESIZE_OPTIONS` 可选择其他 resize 核。
+缩放结束后单独执行设备所需的格式/颜色转换；`OUTPUT_CONVERSION_OPTIONS` 保留原有
+`dither_type="error_diffusion"`，显示端的 RGB24 转换也保留该抖动设置。
 
 顺序为：取源 → 补充未标记源的颜色信息 → 旋转 → 图片循环 / 可选 RIFE → output 1 →
-时间裁切 → 空间裁剪 → `process_source()` → 缩放与色彩转换 → 补边/设备旋转 →
+时间裁切 → 空间裁剪 → `process_source()` → 保留源格式的尺寸缩放 → 设备格式/色彩转换 → 补边/设备旋转 →
 output 0。`process_source()` 默认原样返回，供按实际素材加入去噪、去色带等处理。
 启用第三方调用时，同时在脚本头的 `assetmaker-requires` 中声明具体函数。
 
