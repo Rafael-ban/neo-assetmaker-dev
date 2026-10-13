@@ -21,4 +21,4 @@ jobs:
       uv_sync_mode: "locked"
       obfuscate: false
       build_installer: ${{ github.event_name == 'workflow_dispatch' && inputs.package_artifacts }}
-      upload_artifact: ${{ github.event_name == 'workflow_dispatch' && inputs.package_artifacts }}
+      upload_artifact: ${{ github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.package_artifacts) }}
