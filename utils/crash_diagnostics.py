@@ -145,6 +145,22 @@ class CrashDiagnostics:
             # 紧急回调的边界不能再传播异常（包括异常对象格式化失败）。
             self.status["write"] = "failed: write error"
 
+    def record_startup_paths(
+        self, app_dir: str, app_version: str, file_utils_path: str,
+    ) -> None:
+        """留下实际启动路径；当前构建未注入提交信息，不从 Git 猜测版本。"""
+        self.record_text(f"app_version={app_version} app_commit=unknown "
+                         "commit_source=unavailable")
+        self.record_text(f"sys.frozen={bool(getattr(sys, 'frozen', False))} "
+                         f"sys.executable={sys.executable!r}")
+        self.record_text(f"utils.file_utils.__file__={file_utils_path!r} "
+                         f"resolved_app_dir={app_dir!r}")
+        try:
+            cwd = repr(os.getcwd())
+        except OSError:
+            cwd = "unavailable"
+        self.record_text(f"cwd={cwd}")
+
     def flush(self) -> None:
         if self._fd is not None:
             try:

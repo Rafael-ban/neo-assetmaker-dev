@@ -38,12 +38,33 @@ Arknights Pass Material Toolbox 是一个面向明日方舟电子通行证 2.1 �
 
 ## 快速开始
 
+普通用户请下载完整安装包或便携 ZIP。下面是 Windows 源码运行步骤；
+`git clone` 和 `uv sync` 不会下载媒体二进制，不能跳过媒体部署后直接预览/导出。
+
 ```powershell
-git clone https://github.com/rhodesepass/neo-assetmaker.git
-cd neo-assetmaker
-uv sync --no-install-project
-uv run python main.py
+git clone https://github.com/Rafael-ban/neo-assetmaker-dev.git
+cd neo-assetmaker-dev
+uv sync --locked --no-install-project
+if ($LASTEXITCODE -ne 0) { throw "Python 依赖安装失败" }
+
+$mediaArchive = "media-tools-r79-v1.zip"
+$mediaSha256 = "50f86a516fbfc97812e2c6ea500ba1a06937d4cda5e2bc211c071309a6ce7dd4"
+if (-not (Test-Path $mediaArchive)) {
+    Invoke-WebRequest -Uri "https://github.com/Rafael-ban/neo-assetmaker-dev/releases/download/media-tools-r79-v1/media-tools-r79-v1.zip" -OutFile $mediaArchive
+}
+if (-not (Test-Path "tools/media")) {
+    uv run --no-sync python media_distribution.py extract-archive --archive $mediaArchive --sha256 $mediaSha256 --manifest resources/packaging/media-tools-r79-v1.json --app-dir .
+    if ($LASTEXITCODE -ne 0) { throw "R79 媒体部署失败；请查看上方诊断" }
+}
+uv run --no-sync python media_distribution.py verify-tree --app-dir . --manifest resources/packaging/media-tools-r79-v1.json
+if ($LASTEXITCODE -ne 0) { throw "已有媒体目录不完整或版本不符；关闭程序后移出旧 tools/media，再重新部署" }
+
+uv run --no-sync python main.py
 ```
+
+媒体包下载来源和上述 SHA-256 对应仓库的 `media-tools-r79-v1` Release，
+部署工具会校验归档及完整的 120 文件。已有有效目录会复用；已有旧版、混合或
+不完整目录不会被强行覆盖。执行最后一条启动命令前，必须看到 `verify-tree` 成功。
 
 当前源码要求 **VapourSynth R79 / API R4.2**。首次运行前须部署与
 `resources/packaging/media-tools-r79-v1.json` 匹配的完整媒体工具包；关键路径如下
@@ -89,6 +110,8 @@ tools\media\runtime\Lib\site-packages\vapoursynth\vspipe.exe --version
 `verify` 校验现有文件，`clean` 清除该工具管理的扩展。插件版本与下载来源见
 `resources/packaging/vs-plugins.json`。CUDA/OpenCL/Vulkan 插件随包分发但不默认加载；使用时需具备相应运行依赖，并在 `config/vs_runtime.json` 中配置 `plugins.native_plugin_dirs`。默认滤镜参数、自定义处理阶段及教程适配说明见
 [滤镜配置](docs/vapoursynth-kb/17-filter-configuration.md)。
+
+RIFE 为可选的 60 fps 插帧，默认关闭。只安装它可使用 `plugin_distribution.py sync --app-dir . --package rife`；启用条件、模型位置和脚本参数见 [RIFE 配置](docs/vapoursynth-kb/17-filter-configuration.md#可选-rife-插帧到-60-fps)。
 
 ## 基本使用
 

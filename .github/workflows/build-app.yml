@@ -368,6 +368,58 @@ jobs:
           Write-Host "Portable archive extraction smoke test OK"
           uv run --no-sync python plugin_distribution.py verify --app-dir $portableApp
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          "PORTABLE_SMOKE_APP=$portableApp" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Accept relocated frozen application rendering and export
+        if: inputs.upload_artifact == true
+        shell: pwsh
+        run: |
+          $smokeRoot = Join-Path $env:RUNNER_TEMP "应用 验收 $([guid]::NewGuid())"
+          $relocatedApp = Join-Path $smokeRoot "中文 应用"
+          $otherCwd = Join-Path $smokeRoot "其他 工作目录"
+          New-Item -ItemType Directory -Path $smokeRoot, $otherCwd -Force | Out-Null
+          Copy-Item -LiteralPath $env:PORTABLE_SMOKE_APP -Destination $relocatedApp -Recurse
+          $report = Join-Path $env:RUNNER_TEMP "frozen-application-smoke.json"
+          $exe = Join-Path $relocatedApp "ArknightsPassMaker.exe"
+          $start = [System.Diagnostics.ProcessStartInfo]::new()
+          $start.FileName = $exe
+          $start.WorkingDirectory = $otherCwd
+          $start.UseShellExecute = $false
+          $start.ArgumentList.Add("--smoke-test")
+          $start.ArgumentList.Add("--report")
+          $start.ArgumentList.Add($report)
+          $process = [System.Diagnostics.Process]::Start($start)
+          if (-not $process.WaitForExit(240000)) {
+            # Include the preview/preflight worker and active media processes.
+            taskkill /PID $process.Id /T /F
+            if (Test-Path -LiteralPath $report) { Get-Content -LiteralPath $report }
+            throw "Frozen application smoke exceeded 240 seconds"
+          }
+          if (-not (Test-Path -LiteralPath $report)) {
+            throw "Frozen application did not write its acceptance report (exit $($process.ExitCode))"
+          }
+          Get-Content -LiteralPath $report
+          $result = Get-Content -LiteralPath $report -Raw | ConvertFrom-Json
+          if ($process.ExitCode -ne 0 -or $result.success -ne $true) {
+            throw "Frozen application acceptance failed (exit $($process.ExitCode))"
+          }
+          if ($result.frozen -ne $true -or
+              [IO.Path]::GetFullPath($result.app_dir) -ne [IO.Path]::GetFullPath($relocatedApp) -or
+              [IO.Path]::GetFullPath($result.executable) -ne [IO.Path]::GetFullPath($exe) -or
+              $result.cwd -eq $result.app_dir -or
+              $result.export.frames -ne 12 -or $result.export.width -ne 360 -or
+              $result.export.height -ne 640 -or $result.export.private_work_removed -ne $true -or
+              $result.temporary_directory_removed -ne $true) {
+            throw "Frozen application report does not satisfy relocation/export acceptance"
+          }
+
+      - name: Upload frozen application acceptance report
+        if: always() && inputs.upload_artifact == true
+        uses: actions/upload-artifact@v4
+        with:
+          name: frozen-application-smoke-report
+          path: ${{ runner.temp }}/frozen-application-smoke.json
+          if-no-files-found: warn
 
       - name: Debug exe outputs
         shell: pwsh

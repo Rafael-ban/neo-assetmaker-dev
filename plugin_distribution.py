@@ -67,6 +67,11 @@ def load_manifest(
             raise PluginDistributionError(f"Invalid package id: {package_id!r}")
         if not isinstance(package.get("autoload", True), bool):
             raise PluginDistributionError(f"Invalid autoload setting: {package_id}")
+        package_format = package.get("format", "archive")
+        if package_format not in ("archive", "raw"):
+            raise PluginDistributionError(f"Invalid package format: {package_id}")
+        if package_format == "raw" and len(package.get("files", [])) != 1:
+            raise PluginDistributionError(f"Raw package must contain one file: {package_id}")
         if package_id in ids:
             raise PluginDistributionError(f"Duplicate package id: {package_id}")
         ids.add(package_id)
@@ -167,13 +172,16 @@ def _verify_package(directory: Path, package: dict, packages: dict[str, dict]) -
 def verify_plugins(
     app_dir: str | Path,
     manifest_path: str | Path | None = None,
+    *,
+    package_ids: list[str] | None = None,
 ) -> list[Path]:
     """Return every verified installed file, including adjacent weights and models."""
     manifest = load_manifest(app_dir, manifest_path)
     packages = {item["id"]: item for item in manifest["packages"]}
+    selected = _select_packages(packages, package_ids)
     root = _install_root(app_dir)
     result: list[Path] = []
-    for package in manifest["packages"]:
+    for package in selected.values():
         result.extend(_verify_package(root / package["id"], package, packages))
     return result
 
@@ -204,7 +212,11 @@ def _download(url: str, destination: Path) -> None:
 def _extract_selected(archive: Path, package: dict, output: Path, seven_zip: Path) -> None:
     suffix = PurePosixPath(package["url"].split("?", 1)[0]).suffix.lower()
     members = package["files"]
-    if suffix in (".zip", ".whl"):
+    if package.get("format") == "raw":
+        target = output / _safe_relative(members[0]["path"])
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(archive, target)
+    elif suffix in (".zip", ".whl"):
         with zipfile.ZipFile(archive) as zipped:
             for item in members:
                 target = output / _safe_relative(item["path"])
@@ -332,24 +344,50 @@ def _ordered_packages(packages: dict[str, dict]) -> list[dict]:
     return ordered
 
 
+def _select_packages(packages: dict[str, dict], package_ids: list[str] | None) -> dict[str, dict]:
+    """Select requested packages and their dependencies without altering siblings."""
+    if package_ids is None:
+        return packages
+    unknown = set(package_ids) - packages.keys()
+    if unknown:
+        raise PluginDistributionError("Unknown packages: " + ", ".join(sorted(unknown)))
+    selected: dict[str, dict] = {}
+
+    def include(package_id):
+        if package_id in selected:
+            return
+        package = packages[package_id]
+        selected[package_id] = package
+        for dependency in (*package.get("dependencies", []), *package.get("adjacent_from", [])):
+            include(dependency)
+
+    for package_id in package_ids:
+        include(package_id)
+    return selected
+
+
 def sync_plugins(
     app_dir: str | Path,
     manifest_path: str | Path | None = None,
+    *,
+    package_ids: list[str] | None = None,
 ) -> list[Path]:
     """Converge each package separately; continue independent packages after errors."""
     manifest = load_manifest(app_dir, manifest_path)
     packages = {item["id"]: item for item in manifest["packages"]}
+    selected = _select_packages(packages, package_ids)
     root = _install_root(app_dir)
     root.mkdir(parents=True, exist_ok=True)
-    _prune_unlocked(root, set(packages))
+    if package_ids is None:
+        _prune_unlocked(root, set(packages))
     seven_zip = Path(app_dir).resolve() / "tools/media/7z.exe"
     failures: dict[str, str] = {}
     archive_cache: dict[str, Path] = {}
     with tempfile.TemporaryDirectory(prefix=".downloads-", dir=root) as temp:
         downloads = Path(temp)
-        for index, package in enumerate(_ordered_packages(packages), start=1):
+        for index, package in enumerate(_ordered_packages(selected), start=1):
             package_id = package["id"]
-            print(f"[{index}/{len(packages)}] {package_id}: start", flush=True)
+            print(f"[{index}/{len(selected)}] {package_id}: start", flush=True)
             failed_dependency = next(
                 (item for item in package.get("dependencies", []) if item in failures),
                 None,
@@ -357,7 +395,7 @@ def sync_plugins(
             if failed_dependency:
                 failures[package_id] = f"dependency {failed_dependency} failed"
                 print(
-                    f"[{index}/{len(packages)}] {package_id}: "
+                    f"[{index}/{len(selected)}] {package_id}: "
                     f"failed ({failures[package_id]})",
                     flush=True,
                 )
@@ -367,19 +405,19 @@ def sync_plugins(
                     root, package, packages, downloads, archive_cache, seven_zip
                 )
                 print(
-                    f"[{index}/{len(packages)}] {package_id}: {outcome}",
+                    f"[{index}/{len(selected)}] {package_id}: {outcome}",
                     flush=True,
                 )
             except (OSError, ValueError, KeyError, zipfile.BadZipFile, PluginDistributionError) as error:
                 failures[package_id] = str(error)
                 print(
-                    f"[{index}/{len(packages)}] {package_id}: failed ({error})",
+                    f"[{index}/{len(selected)}] {package_id}: failed ({error})",
                     flush=True,
                 )
     if failures:
         details = "\n".join(f"  {key}: {value}" for key, value in failures.items())
         raise PluginDistributionError(f"Plugin sync failed for {len(failures)} packages:\n{details}")
-    return verify_plugins(app_dir, manifest_path)
+    return verify_plugins(app_dir, manifest_path, package_ids=package_ids)
 
 
 def clean_plugins(app_dir: str | Path) -> None:
@@ -396,12 +434,16 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("action", choices=("sync", "verify", "clean"))
     parser.add_argument("--app-dir", required=True, type=Path)
     parser.add_argument("--manifest", type=Path)
+    parser.add_argument("--package", action="append", dest="package_ids",
+                        help="Sync/verify only this package and its dependencies; may be repeated")
     args = parser.parse_args(argv)
+    if args.action == "clean" and args.package_ids:
+        parser.error("clean removes the entire managed root; --package is only for sync/verify")
     try:
         if args.action == "sync":
-            files = sync_plugins(args.app_dir, args.manifest)
+            files = sync_plugins(args.app_dir, args.manifest, package_ids=args.package_ids)
         elif args.action == "verify":
-            files = verify_plugins(args.app_dir, args.manifest)
+            files = verify_plugins(args.app_dir, args.manifest, package_ids=args.package_ids)
         else:
             clean_plugins(args.app_dir)
             print("Plugin install root removed")

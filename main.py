@@ -23,6 +23,31 @@ from utils.crash_diagnostics import initialize
 # 标准库 bootstrap，早于 Qt 导入；源码与 frozen 共用会话文件和 Python hooks。
 _diagnostics = initialize(APP_DIR)
 
+from config.constants import APP_VERSION
+from utils import file_utils
+
+_diagnostics.record_startup_paths(
+    file_utils.get_app_dir(), APP_VERSION, file_utils.__file__,
+)
+
+
+def _warn_missing_media_runtime(logger):
+    """源码克隆不带 Windows 媒体二进制；缺失时说明部署步骤但保留 GUI。"""
+    if sys.platform != "win32":
+        return
+    runtime_path = os.path.join(APP_DIR, "tools", "media", "runtime")
+    if not os.path.isdir(runtime_path):
+        logger.warning(
+            "缺少 R79 媒体运行时目录: %r。Git 克隆不包含媒体二进制；"
+            "请按 README 将完整 R79 媒体工具包部署到应用根目录 %r"
+            "（发行版请重新解压完整便携包或重新安装）。"
+            "源码部署后，切换到源码根目录执行: "
+            "uv run python media_distribution.py verify-tree --app-dir . "
+            "--manifest resources/packaging/media-tools-r79-v1.json。"
+            "GUI 可以继续启动，预览与导出需要媒体运行时。",
+            runtime_path, APP_DIR,
+        )
+
 def check_dependencies():
     """检查必要的依赖是否已安装"""
     missing = []
@@ -76,6 +101,7 @@ def _main_inner():
     cleanup_old_logs(days=30)
 
     logger = logging.getLogger(__name__)
+    _warn_missing_media_runtime(logger)
 
     # 安装全局异常钩子 — 防止 PyQt6 slot 中未处理异常导致 abort
     # PyQt6 行为：slot/callback 中未处理异常调用 sys.excepthook，
@@ -104,8 +130,6 @@ def _main_inner():
     _diagnostics.install_qt_message_handler()
     from PyQt6.QtWidgets import QApplication
     from PyQt6.QtGui import QFont, QIcon
-    from config.constants import APP_VERSION
-    _diagnostics.record_text(f"app_version={APP_VERSION}")
 
     # 多个 QOpenGLWidget 共享 GL 上下文时需要此设置
     # https://doc.qt.io/qt-6/qopenglwidget.html
@@ -147,6 +171,10 @@ def _main_inner():
 
 def main():
     """应用程序入口 — 包裹全局异常处理"""
+    if "--smoke-test" in sys.argv[1:]:
+        # Opt-in frozen acceptance bypasses GUI, first-run notices and settings.
+        from core.application_smoke import run_smoke
+        sys.exit(run_smoke(sys.argv[1:]))
     try:
         _main_inner()
     except Exception:

@@ -881,6 +881,91 @@
       "adjacent_from": []
     },
     {
+      "id": "rife",
+      "version": "r9_mod_v33",
+      "source": "https://github.com/styler00dollar/VapourSynth-RIFE-ncnn-Vulkan/tree/r9_mod_v33",
+      "url": "https://github.com/styler00dollar/VapourSynth-RIFE-ncnn-Vulkan/releases/download/r9_mod_v33/librife_windows_x86-64.dll",
+      "archive_sha256": "36a25b471be88e6f915320c818022dc8657dd9beac22a8c3158bd7f4260cc410",
+      "files": [
+        {
+          "path": "librife_windows_x86-64.dll",
+          "member": "librife_windows_x86-64.dll",
+          "sha256": "36a25b471be88e6f915320c818022dc8657dd9beac22a8c3158bd7f4260cc410"
+        }
+      ],
+      "dependencies": [
+        "rife_model_param",
+        "rife_model_bin",
+        "rife_license"
+      ],
+      "namespaces": [
+        "rife"
+      ],
+      "adjacent_from": [
+        "rife_model_param",
+        "rife_model_bin",
+        "rife_license"
+      ],
+      "autoload": false
+    },
+    {
+      "id": "rife_license",
+      "version": "r9_mod_v33",
+      "source": "https://github.com/styler00dollar/VapourSynth-RIFE-ncnn-Vulkan/tree/r9_mod_v33",
+      "url": "https://raw.githubusercontent.com/styler00dollar/VapourSynth-RIFE-ncnn-Vulkan/r9_mod_v33/LICENSE",
+      "format": "raw",
+      "archive_sha256": "d37437f9a9276c5b5f966a4a314c8b08128b06d3fa5b7b5716b8db489dc4136a",
+      "files": [
+        {
+          "path": "LICENSE.RIFE.txt",
+          "member": "LICENSE.RIFE.txt",
+          "sha256": "d37437f9a9276c5b5f966a4a314c8b08128b06d3fa5b7b5716b8db489dc4136a"
+        }
+      ],
+      "dependencies": [],
+      "namespaces": [],
+      "adjacent_from": [],
+      "autoload": false
+    },
+    {
+      "id": "rife_model_bin",
+      "version": "r9_mod_v33 / rife-v4.6_ensembleFalse",
+      "source": "https://github.com/styler00dollar/VapourSynth-RIFE-ncnn-Vulkan/tree/r9_mod_v33",
+      "url": "https://raw.githubusercontent.com/styler00dollar/VapourSynth-RIFE-ncnn-Vulkan/r9_mod_v33/models/rife-v4.6_ensembleFalse/flownet.bin",
+      "format": "raw",
+      "archive_sha256": "03393cf14fe6d0af015d24d93bae1e5925f2828cb3b6555300a132643c617aa5",
+      "files": [
+        {
+          "path": "models/rife-v4.6_ensembleFalse/flownet.bin",
+          "member": "models/rife-v4.6_ensembleFalse/flownet.bin",
+          "sha256": "03393cf14fe6d0af015d24d93bae1e5925f2828cb3b6555300a132643c617aa5"
+        }
+      ],
+      "dependencies": [],
+      "namespaces": [],
+      "adjacent_from": [],
+      "autoload": false
+    },
+    {
+      "id": "rife_model_param",
+      "version": "r9_mod_v33 / rife-v4.6_ensembleFalse",
+      "source": "https://github.com/styler00dollar/VapourSynth-RIFE-ncnn-Vulkan/tree/r9_mod_v33",
+      "url": "https://raw.githubusercontent.com/styler00dollar/VapourSynth-RIFE-ncnn-Vulkan/r9_mod_v33/models/rife-v4.6_ensembleFalse/flownet.param",
+      "format": "raw",
+      "archive_sha256": "ae9b08af43fba97e27aa2c40c04c35b1a75f637b2d2b01a941fa94361ab25cbd",
+      "files": [
+        {
+          "path": "models/rife-v4.6_ensembleFalse/flownet.param",
+          "member": "models/rife-v4.6_ensembleFalse/flownet.param",
+          "sha256": "ae9b08af43fba97e27aa2c40c04c35b1a75f637b2d2b01a941fa94361ab25cbd"
+        }
+      ],
+      "dependencies": [],
+      "namespaces": [],
+      "adjacent_from": [],
+      "autoload": false
+    },
+    {
       "id": "sangnom",
       "version": "r42",
       "source": "https://github.com/vapoursynth/vsrepo/blob/master/local/sangnom.json",

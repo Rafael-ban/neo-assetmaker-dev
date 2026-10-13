@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import json
 import os
 import subprocess
@@ -7,6 +8,8 @@ import sys
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from types import SimpleNamespace
+from unittest.mock import Mock
 
 from core.vs_runtime.script_header import parse_script_header
 
@@ -50,11 +53,61 @@ class DefaultPipelineHeaderTests(unittest.TestCase):
 
 
 class DefaultPipelineSemanticTests(unittest.TestCase):
+    def test_resize_keeps_source_format_until_device_output_conversion(self):
+        tree = ast.parse(DEFAULT_PIPELINE.read_text(encoding="utf-8"))
+        constants = [
+            node for node in tree.body
+            if isinstance(node, ast.Assign)
+            and isinstance(node.targets[0], ast.Name)
+            and node.targets[0].id in (
+                "FINAL_RESIZER", "FINAL_RESIZE_OPTIONS", "OUTPUT_CONVERSION_OPTIONS",
+                "RESIZE_TRANSFER_NAMES",
+            )
+        ]
+        stages = [
+            node for node in tree.body
+            if isinstance(node, ast.Assign) and isinstance(node.value, ast.Call)
+            and (
+                isinstance(node.value.func, ast.Name)
+                and node.value.func.id == "FINAL_RESIZER"
+                or ast.unparse(node.value.func) == "core.resize.Lanczos"
+            )
+        ]
+        for source_format in ("YUV420P10", "RGBS"):
+            with self.subTest(source_format=source_format):
+                source = SimpleNamespace(format=source_format)
+                scaled = SimpleNamespace(format=source_format)
+                final = SimpleNamespace(format="YUV420P8")
+                resize = Mock(side_effect=[scaled, final])
+                namespace = {
+                    "clip": source,
+                    "core": SimpleNamespace(resize=SimpleNamespace(Lanczos=resize)),
+                    "vs": SimpleNamespace(YUV420P8=100),
+                    "output": {
+                        "display_width": 360, "display_height": 640,
+                        "matrix": "170m", "transfer": "170m",
+                        "primaries": "170m", "range": "limited",
+                    },
+                }
+                exec(compile(ast.Module(body=constants + stages, type_ignores=[]),
+                             str(DEFAULT_PIPELINE), "exec"), namespace)
+                scale_call, conversion_call = resize.call_args_list
+                self.assertIs(scale_call.args[0], source)
+                self.assertEqual(scale_call.kwargs, {"width": 360, "height": 640})
+                self.assertIs(conversion_call.args[0], scaled)
+                self.assertEqual(conversion_call.kwargs["format"], 100)
+                self.assertNotIn("width", conversion_call.kwargs)
+                self.assertNotIn("height", conversion_call.kwargs)
+                self.assertEqual(conversion_call.kwargs["transfer_s"], "601")
+                self.assertEqual(conversion_call.kwargs["dither_type"], "error_diffusion")
+                self.assertIs(namespace["clip"], final)
+
     def test_default_script_orders_rotation_loop_trim_crop_and_padding(self):
         """默认 compatible 脚本保留旧 goldens 覆盖的渲染语义，不锁定字节。"""
         source = DEFAULT_PIPELINE.read_text(encoding="utf-8")
         ordered_steps = (
             "clip = rotate(clip, transform[\"rotation\"])",
+            "clip = interpolate_timeline(clip, kind=source[\"kind\"])",
             "clip = core.std.Loop(clip, times=virtual_count)[:virtual_count]",
             "clip.set_output(1)",
             'clip = clip[timeline["start_frame"] : timeline["end_frame"]]',
@@ -216,7 +269,7 @@ class DefaultPipelineRealSubprocessTests(unittest.TestCase):
         payload = json.loads(result.stdout)
         self.assertEqual(payload["source_matrix"], 2)
         self.assertEqual(len(payload["digests"]), 2)
-        # 两种裁剪来自同一均匀 709 源；Spline36 + error diffusion 可产生
+        # 两种裁剪来自同一均匀 709 源；Lanczos 的舍入可产生
         # 少量像素差，但矩阵选错会造成远大于此的颜色漂移。
         self.assertLessEqual(payload["max_plane_delta"], 3, payload["digests"])
 

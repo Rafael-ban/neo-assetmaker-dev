@@ -60,7 +60,7 @@ def to_display_clip(
     if zoom_factor <= 1.0:
         output_width = max(1, round(fit_width * zoom_factor))
         output_height = max(1, round(fit_height * zoom_factor))
-        return core.resize.Spline36(
+        return core.resize.Lanczos(
             clip,
             width=output_width,
             height=output_height,
@@ -68,7 +68,7 @@ def to_display_clip(
         )
 
     # Pixel inspection retains conversion before the nearest-neighbour zoom.
-    rgb = core.resize.Bicubic(clip, **colour)
+    rgb = core.resize.Lanczos(clip, **colour)
     window_width = max(1, min(rgb.width, math.ceil(rgb.width / zoom_factor)))
     window_height = max(1, min(rgb.height, math.ceil(rgb.height / zoom_factor)))
     left = min(
