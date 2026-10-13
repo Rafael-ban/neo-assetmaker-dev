@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import logging
 import os
-import shutil
 import tempfile
 import time
 from dataclasses import dataclass, replace
@@ -53,6 +52,7 @@ from core.vs_runtime.job import (
     TransformSpec,
     write_render_job,
 )
+from core.vs_runtime.preview_cache import PreviewCache
 from core.vs_runtime.script_header import ScriptHeader, parse_script_header
 from core.vs_runtime.session import (
     RenderSession,
@@ -242,7 +242,7 @@ class VideoPreviewWidget(QWidget):
         self._job_paths: set[Path] = set()
         self._retiring_job_paths: set[Path] = set()
         self._retire_after_unload: dict[int, set[Path]] = {}
-        self._owned_cache_dir: Path | None = None
+        self._preview_caches: dict[Path, PreviewCache] = {}
         self._job_debounce = QTimer(self)
         self._job_debounce.setSingleShot(True)
         self._job_debounce.timeout.connect(self._flush_debounced_render_job)
@@ -372,14 +372,14 @@ class VideoPreviewWidget(QWidget):
         self._load_request_id = None
         self._vs_active = False
         self._has_video = False
-        if sync_shutdown and client is not None:
-            client.close()
-            self._worker_client = None
-            self._worker_started = False
+        if sync_shutdown:
+            if client is not None:
+                client.close()
+                self._worker_client = None
+                self._worker_started = False
             self._cleanup_job_files()
-            if self._owned_cache_dir is not None:
-                shutil.rmtree(self._owned_cache_dir, ignore_errors=True)
-                self._owned_cache_dir = None
+        else:
+            self._cleanup_unused_cache_dirs()
 
     # ------------------------------------------------------------------
     # 独立 VapourSynth worker 预览
@@ -419,7 +419,6 @@ class VideoPreviewWidget(QWidget):
         self._latest_display_request_id = None
         self._worker_ready_for_frames = False
         self._restart_pending = False
-        old_session = self._render_session
         self._render_session = None
         client = self._worker_client
         self._worker_client = None
@@ -428,8 +427,7 @@ class VideoPreviewWidget(QWidget):
         if client is not None:
             self._disconnect_worker_client(client)
             client.close()
-        if old_session is not None:
-            self._retire_job_paths({Path(old_session.job_path)})
+        self._cleanup_job_files()
 
     def _disconnect_worker_client(self, client: VSWorkerClient) -> None:
         """旧 client 在 close 后仍可能有 queued Qt 信号，必须不再指向本 widget。"""
@@ -481,10 +479,6 @@ class VideoPreviewWidget(QWidget):
         if self._render_context is not None:
             return self._render_context
         root = Path(self.video_path).resolve().parent
-        if self._owned_cache_dir is None:
-            self._owned_cache_dir = Path(
-                tempfile.mkdtemp(prefix="assetmaker-vs-preview-")
-            ).resolve()
         app_dir = str(Path(get_app_dir()).resolve())
         if self._default_runtime_snapshot is None:
             self._default_runtime_snapshot = RuntimeSnapshot.resolve(app_dir)
@@ -492,7 +486,7 @@ class VideoPreviewWidget(QWidget):
             project_root=str(root),
             track="loop",
             selection=_default_selection_for_app(app_dir),
-            cache_dir=str(self._owned_cache_dir),
+            cache_dir=str(Path(tempfile.gettempdir()) / "assetmaker-vs-preview"),
             runtime_snapshot=self._default_runtime_snapshot,
         )
 
@@ -584,9 +578,23 @@ class VideoPreviewWidget(QWidget):
             output=OutputSpec.from_profile(
                 f"{self.target_width}x{self.target_height}"
             ),
-            paths=PathSpec(cache_dir=context.cache_dir),
+            paths=PathSpec(cache_dir=str(self._preview_cache_dir(context))),
         )
         return job
+
+    def _preview_cache_dir(self, context: PreviewRenderContext) -> Path:
+        """Keep project cache semantics while isolating each widget's job names."""
+        root = Path(context.cache_dir)
+        if root not in self._preview_caches:
+            self._preview_caches[root] = PreviewCache(root)
+        return self._preview_caches[root].path
+
+    def _cleanup_unused_cache_dirs(self) -> None:
+        for root, cache in tuple(self._preview_caches.items()):
+            if any(path.parent == cache.path for path in self._job_paths):
+                continue
+            cache.cleanup()
+            self._preview_caches.pop(root, None)
 
     def _load_render_job(self, *, bootstrap: bool) -> RenderSession:
         # A graph reload is not playback time. Resume the clock when metadata
@@ -979,6 +987,7 @@ class VideoPreviewWidget(QWidget):
                 continue
             self._job_paths.discard(path)
             self._retiring_job_paths.discard(path)
+        self._cleanup_unused_cache_dirs()
 
     def _on_worker_stopped(self) -> None:
         """worker 已停止时，所有退休 job 都已不可能再被其读取。"""
@@ -1091,6 +1100,7 @@ class VideoPreviewWidget(QWidget):
         self.current_frame = None
         self.video_label.clear()
         self.video_label.setText("无法加载视频元数据")
+        self._cleanup_unused_cache_dirs()
         self.load_failed.emit(message)
 
     def _cleanup_job_files(self) -> None:
@@ -1100,6 +1110,9 @@ class VideoPreviewWidget(QWidget):
             except OSError:
                 logger.debug("无法删除退休预览 job: %s", path)
             self._job_paths.discard(path)
+        self._retiring_job_paths.clear()
+        self._retire_after_unload.clear()
+        self._cleanup_unused_cache_dirs()
 
     def set_target_resolution(self, width: int, height: int):
         self.ensure_render_state_committed()
